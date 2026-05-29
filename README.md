@@ -104,7 +104,7 @@ OBJ files contain **only geometry** — all material assignments are declared in
 
 ## Building
 
-**Requirements:** Vulkan SDK 1.4, CMake 3.25+, Ninja, clang-cl, vcpkg.
+**Requirements:** Vulkan SDK 1.4, CMake 3.28+, Ninja, clang-cl, vcpkg.
 
 ```bash
 cmake -S . -B build -G Ninja \
@@ -121,14 +121,24 @@ cmake --build build
 ## Running
 
 ```bash
-# Headless render → PNG
-build/hyperion.exe --scene assets/cornell_classic.scene \
-                   --output screenshots/cornell_classic.png \
-                   --headless
+# Headless render → PNG + EXR  (window is hidden)
+build/hyperion.exe assets/cornell_classic.scene --output screenshots/cornell_classic.png
 
-# Interactive window
-build/hyperion.exe --scene assets/meadow_scene.scene
+# Interactive window (default scene)
+build/hyperion.exe assets/meadow_scene.scene
 ```
+
+### Command-line flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `<scene>` | `assets/cornell_classic.scene` | Path to `.scene` file (first positional argument) |
+| `--output <file>` | — | Headless mode: accumulate and save PNG + EXR, then exit |
+| `--spp <n>` | scene value / 4 | Override samples per pixel |
+| `--depth <n>` | scene value / 8 | Override maximum bounce depth |
+| `--width <n>` | 1920 | Override render width in pixels |
+| `--height <n>` | 1080 | Override render height in pixels |
+| `--no-validation` | — | Disable Vulkan validation layers |
 
 ---
 
