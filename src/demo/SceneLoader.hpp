@@ -36,6 +36,15 @@
 ///   ev100         <v>           Physical camera EV100 override (aperture=f/1,
 ///                               iso=100, shutter=2^ev100 s⁻¹).  Typical outdoor
 ///                               values: 13–15.  Lower values → brighter image.
+///   tonemapper    <name>        Tone mapper for SDR and Display P3 output
+///                               (ignored for HDR10 / HLG / scRGB which use their
+///                               own transfer functions).  Valid values:
+///                                 aces     — ACES RRT+ODT filmic (default)
+///                                 agx      — AgX by Troy Sobotka; wide dynamic
+///                                            range, natural highlight rolloff,
+///                                            handles direct sun in IBL scenes
+///                                 reinhard — luminance-preserving Reinhard
+///                                 hable    — Hable / Uncharted-2 filmic
 ///
 /// ── Block keywords  (each starts a new block) ────────────────────────────────
 ///
@@ -86,6 +95,7 @@ class SceneLoader {
         std::optional<uint32_t> maxDepth;
         std::optional<float> envUnitNits;                ///< cd/m² per unit EXR value (physical unit multiplier)
         std::optional<std::filesystem::path> envMapFile; ///< equirect EXR IBL path (relative to assetsDir)
+        std::optional<uint32_t> tonemapper;              ///< Tonemapper enum value; std::nullopt → eACES default
     };
 
     /// Populate @p scene from @p sceneFile.

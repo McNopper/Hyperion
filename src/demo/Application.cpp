@@ -379,6 +379,7 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
                                          .hasEnvMap = app.m_iblProbe.isValid() ? 1u : 0u,
                                          .envImportanceWidth = app.m_iblProbe.cdfWidth(),
                                          .envImportanceHeight = app.m_iblProbe.cdfHeight(),
+                                         .tonemapper = sceneConfig->tonemapper.value_or(0u),
                                      });
     if (!tracer) {
         Logger::error("PathTracer creation failed: VkResult {}", static_cast<int>(tracer.error()));

@@ -7,6 +7,16 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
+/// Tone mapper selection (matches PushConstants::tonemapper and tonemap.slang switch).
+/// Applied only for SDR and Display P3 output; HDR paths (HDR10/HLG/scRGB) use their
+/// own transfer functions and ignore this field.
+enum class Tonemapper : uint32_t {
+    eACES     = 0, ///< ACES RRT+ODT (Stephen Hill fit)   — filmic, high contrast
+    eAgX      = 1, ///< AgX (Troy Sobotka, 2022)          — wide DR, natural highlight rolloff
+    eReinhard = 2, ///< Luminance-preserving Reinhard      — simple, smooth, no colour shift
+    eHable    = 3, ///< Hable / Uncharted-2 filmic         — moderate contrast, reference
+};
+
 /// Scene light types (matches GpuLight::type field and shader constants).
 enum class LightType : uint32_t {
     Rect = 0,        ///< Area / rectangular emitter  — intensity in cd/m² (nits)
@@ -110,7 +120,7 @@ struct PushConstants {
     uint32_t emissiveTriangleCount; ///< number of emissive triangles for NEE area sampling (0 = disabled)
     uint32_t envImportanceWidth;    ///< CDF grid width for env importance sampling (0 = disabled)
     uint32_t envImportanceHeight;   ///< CDF grid height for env importance sampling
-    uint32_t _pad;               // NOLINT(modernize-avoid-c-arrays) — explicit GPU layout padding
+    uint32_t tonemapper;            ///< Tonemapper enum value; SDR/P3 only (0 = eACES)
 };
 
 /// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.

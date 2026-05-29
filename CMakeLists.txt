@@ -171,3 +171,17 @@ target_link_libraries(hyperion_diag PRIVATE volk hyperion_vulkan_sdk hyperion_pr
 # orange every frame for 5 s. Validates SDL + Vulkan + swapchain end-to-end.
 add_executable(hyperion_window_test tests/diag/window_swapchain_loop.cpp)
 target_link_libraries(hyperion_window_test PRIVATE volk hyperion_vulkan_sdk hyperion_project_options)
+
+# EXR diagnostic tool — checks pixel values for inf/NaN (only built when OpenEXR is available).
+if(OpenEXR_FOUND)
+    add_executable(check_exr tools/check_exr.cpp)
+    target_link_libraries(check_exr PRIVATE hyperion_project_options)
+    if(TARGET OpenEXR::OpenEXR)
+        target_link_libraries(check_exr PRIVATE OpenEXR::OpenEXR)
+    else()
+        target_link_libraries(check_exr PRIVATE ${OPENEXR_LIBRARIES})
+        if(OPENEXR_INCLUDE_DIRS)
+            target_include_directories(check_exr SYSTEM PRIVATE ${OPENEXR_INCLUDE_DIRS})
+        endif()
+    endif()
+endif()

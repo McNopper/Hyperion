@@ -31,7 +31,21 @@ function(compile_slang_shaders target output_dir)
         add_custom_command(
             OUTPUT "${_output_shader}"
             COMMAND "${CMAKE_COMMAND}" -E make_directory "${output_dir}"
-            COMMAND "${SLANGC_EXECUTABLE}" "${_input_shader}" -target spirv -profile spirv_1_6 -g0 -O2 -I "${_shader_root}" -o "${_output_shader}"
+            COMMAND "${SLANGC_EXECUTABLE}" "${_input_shader}"
+                -target spirv
+                -profile spirv_1_6
+                -g0 -O2
+                -I "${_shader_root}"
+                -o "${_output_shader}"
+                # 31000: [[vk::combinedImageSampler]] is HLSL/DXC syntax; Slang 2026.x does not
+                #        recognise it as a named attribute but still emits correct combined-image-
+                #        sampler SPIR-V.  The pairing is intentional — suppress the noise.
+                # 39001: explicit binding overlap is expected and correct for combined image
+                #        samplers where Texture2D and SamplerState share the same binding slot.
+                # 41012: Slang auto-promotes the effective profile to include standard SPIR-V
+                #        extensions (spvImageQuery, spvDerivativeControl, …) from its runtime.
+                #        The upgrade is harmless — suppress the informational diagnostic.
+                -warnings-disable 31000,39001,41012
             DEPENDS
                 "${_input_shader}"
                 ${_support_shaders}

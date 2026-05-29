@@ -11,9 +11,13 @@ struct PushConstants {
     uint  rngSeed;
     float envLuminanceScale;
     uint  lightCount;
-    uint  outputColorSpace;  ///< OutputColorSpace enum (used by tonemap pass)
+    uint  outputColorSpace;      ///< OutputColorSpace enum (used by tonemap pass)
     uint  samplesPerPixel;
     uint  hasEnvMap;
+    uint  emissiveTriangleCount;
+    uint  envImportanceWidth;
+    uint  envImportanceHeight;
+    uint  tonemapper;            ///< Tonemapper enum: 0=ACES, 1=AgX, 2=Reinhard, 3=Hable
 };
 [[vk::push_constant]] PushConstants pushConst;
 
@@ -39,6 +43,14 @@ float3 rec2020ToP3(float3 c) {
         dot(c, float3( 0.0000f, -0.0197f,  1.0197f))
     );
 }
+
+/// Rec.709 D65 → Display P3 D65
+/// Used when a non-ACES tone mapper produces Rec.709 output for P3 display.
+static const float3x3 kRec709ToP3 = float3x3(
+    float3(0.822462f, 0.177538f, 0.000000f),
+    float3(0.033194f, 0.966806f, 0.000000f),
+    float3(0.017083f, 0.072340f, 0.910577f)
+);
 
 // ---------------------------------------------------------------------------
 // ACES AP1 (ACEScg) tone mapping
@@ -117,6 +129,80 @@ float3 reinhardLuminance(float3 x) {
     if (lum <= 0.0f) return 0.0f.xxx;
     const float lumTm = lum / (1.0f + lum);
     return x * (lumTm / lum);
+}
+
+// ---------------------------------------------------------------------------
+// AgX tone mapping
+// ---------------------------------------------------------------------------
+//
+// AgX is an open tone-mapping transform by Troy Sobotka (2022), used in
+// Blender and the OCIO reference configuration.  It targets wide-dynamic-range
+// scenes (outdoor IBL, direct sun) and produces smooth, desaturated highlights
+// instead of ACES' hard chromatic shoulder.
+//
+// Pipeline (all values in Rec.709 / sRGB primaries):
+//   1. Rec.2020 → Rec.709 linear
+//   2. Gamut inset  (mild desaturation for display-gamut safety)
+//   3. Log₂ encode: (log₂(max(v, 2.2e−7)) + 10) / 16.5  →  [0, 1]
+//      Working EV range: [−10, +6.5]  ≈ [0.001 nit, ~90 nit at reference white]
+//   4. Per-channel S-curve polynomial
+//   5. Gamut outset (undo inset, linear Rec.709 output)
+//   6. Caller applies sRGB OETF
+//
+// S-curve:  15.5x⁶ − 40.14x⁵ + 31.96x⁴ − 6.868x³ + 0.4298x² + 0.1191x − 0.00232
+//
+// Matrices from Blender / OCIO AgX config (MIT license, Troy Sobotka):
+//   https://github.com/blender/blender/blob/main/release/datafiles/colormanagement/config.ocio
+
+/// AgX input (inset) matrix — mild gamut compression toward the display gamut.
+static const float3x3 kAgXInputMatrix = float3x3(
+    float3(0.842479f, 0.042328f, 0.042376f),
+    float3(0.078434f, 0.878469f, 0.078434f),
+    float3(0.079224f, 0.079166f, 0.879143f)
+);
+
+/// AgX output (outset) matrix — approximate inverse of the inset.
+static const float3x3 kAgXOutputMatrix = float3x3(
+    float3( 1.196879f, -0.052897f, -0.052972f),
+    float3(-0.098021f,  1.151903f, -0.098043f),
+    float3(-0.099030f, -0.098961f,  1.151074f)
+);
+
+/// Per-channel AgX S-curve polynomial.
+float agxCurve(float x) {
+    x = saturate(x);
+    const float x2 = x  * x;
+    const float x3 = x2 * x;
+    const float x4 = x2 * x2;
+    const float x5 = x3 * x2;
+    const float x6 = x3 * x3;
+    return 15.5f*x6 - 40.14f*x5 + 31.96f*x4 - 6.868f*x3 + 0.4298f*x2 + 0.1191f*x - 0.00232f;
+}
+float3 agxCurve3(float3 v) { return float3(agxCurve(v.x), agxCurve(v.y), agxCurve(v.z)); }
+
+/// Full AgX tone mapper: Rec.2020 linear → Rec.709 linear (pre-OETF).
+/// Caller must apply sRGB OETF and clamp to [0, 1].
+float3 agxFitted(float3 c2020) {
+    float3 agx = max(rec2020ToRec709(c2020), 0.0f.xxx);
+    agx = mul(kAgXInputMatrix, agx);
+    agx = (log2(max(agx, 2.2e-7f.xxx)) + 10.0f) / 16.5f;
+    agx = agxCurve3(agx);
+    return mul(kAgXOutputMatrix, agx);
+}
+
+// ---------------------------------------------------------------------------
+// Tonemapper dispatch
+// ---------------------------------------------------------------------------
+
+/// Apply the selected tone mapper (pushConst.tonemapper) to HDR Rec.2020 input.
+/// Returns Rec.709 linear — caller must apply OETF and final clamp.
+float3 dispatchTonemapper(float3 hdr, uint tm) {
+    switch (tm) {
+        case 1:  return agxFitted(hdr);                                           // AgX
+        case 2:  return saturate(reinhardLuminance(rec2020ToRec709(hdr)));        // Reinhard
+        case 3:  return saturate(hableFilmic(rec2020ToRec709(hdr)));              // Hable
+        default: return acesFitted(hdr, kAP1ToRec709);                           // ACES (0)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -230,8 +316,15 @@ float4 tonemapFrag(float4 svPos : SV_Position) : SV_Target0
             break;
         }
         case 3: {
-            // Display P3: ACES filmic in Rec.2020 → P3 D65, then P3 OETF.
-            float3 p3 = acesFitted(hdr, kAP1ToP3);
+            // Display P3: tone map then apply P3 primaries and P3 OETF.
+            // ACES (tm=0): use dedicated AP1→P3 matrix for optimal gamut coverage.
+            // Others:      tone map to Rec.709 then lift to P3 D65 primaries.
+            float3 p3;
+            if (pushConst.tonemapper == 0u) {
+                p3 = acesFitted(hdr, kAP1ToP3);
+            } else {
+                p3 = mul(kRec709ToP3, dispatchTonemapper(hdr, pushConst.tonemapper));
+            }
             out3 = p3Oetf3(saturate(p3));
             break;
         }
@@ -241,9 +334,8 @@ float4 tonemapFrag(float4 svPos : SV_Position) : SV_Target0
             break;
         }
         default: {
-            // SDR: ACES filmic in Rec.2020 → Rec.709, sRGB OETF.
-            float3 sdr = acesFitted(hdr, kAP1ToRec709);
-            out3 = srgbOetf3(saturate(sdr));
+            // SDR sRGB: tone map to Rec.709, then sRGB OETF.
+            out3 = srgbOetf3(saturate(dispatchTonemapper(hdr, pushConst.tonemapper)));
             break;
         }
     }

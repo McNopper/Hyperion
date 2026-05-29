@@ -7,6 +7,7 @@ mtllib floor.mtl
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000
+tonemapper    agx
 spp           16
 max_depth     10
 ev100         12

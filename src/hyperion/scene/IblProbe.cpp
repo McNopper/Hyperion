@@ -84,15 +84,25 @@ IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const s
         const float m10 = 0.0690970f, m11 = 0.9195400f, m12 = 0.0113630f;
         const float m20 = 0.0163916f, m21 = 0.0880132f, m22 = 0.8955950f;
 
+        // Half-float max (65504): clamp before matrix multiply to stay finite.
+        // EXR panoramas routinely store the sun disc as half-float inf (exponent=31,
+        // mantissa=0) when the captured radiance exceeds the half-float range.
+        // Clamping to kHalfMax keeps the sun visible and correctly weighted in the CDF
+        // rather than zeroing it out, which would remove it from importance sampling.
+        auto safeHalf = [](float v) -> float {
+            constexpr float kHalfMax = 65504.0f;
+            return std::isfinite(v) ? std::min(v, kHalfMax) : kHalfMax;
+        };
+
         rgba32f.resize(static_cast<size_t>(width * height) * 4u);
         for (int i = 0; i < width * height; ++i) {
-            const float r = static_cast<float>(halfs[i].r);
-            const float g = static_cast<float>(halfs[i].g);
-            const float b = static_cast<float>(halfs[i].b);
+            const float r = safeHalf(static_cast<float>(halfs[i].r));
+            const float g = safeHalf(static_cast<float>(halfs[i].g));
+            const float b = safeHalf(static_cast<float>(halfs[i].b));
             rgba32f[i * 4 + 0] = m00 * r + m01 * g + m02 * b;
             rgba32f[i * 4 + 1] = m10 * r + m11 * g + m12 * b;
             rgba32f[i * 4 + 2] = m20 * r + m21 * g + m22 * b;
-            rgba32f[i * 4 + 3] = static_cast<float>(halfs[i].a);
+            rgba32f[i * 4 + 3] = safeHalf(static_cast<float>(halfs[i].a));
         }
     } catch (const std::exception& e) {
         Logger::error("IblProbe: failed to read '{}': {}", path.string(), e.what());
@@ -216,7 +226,8 @@ IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const s
                     const float g = rgba32f[idx + 1];
                     const float b = rgba32f[idx + 2];
                     // Rec.2020 luminance coefficients (ITU-R BT.2020)
-                    sumLum += std::max(0.2627f * r + 0.6780f * g + 0.0593f * b, 0.0f);
+                    const float lum = 0.2627f * r + 0.6780f * g + 0.0593f * b;
+                    sumLum += (std::isfinite(lum) && lum > 0.0f) ? lum : 0.0f;
                     ++count;
                 }
             }

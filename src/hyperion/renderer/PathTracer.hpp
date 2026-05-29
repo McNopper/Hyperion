@@ -24,6 +24,7 @@ class PathTracer {
         uint32_t hasEnvMap = 0;        ///< 1 = IBL env map bound at set1/binding6
         uint32_t envImportanceWidth = 0;  ///< CDF grid width; 0 = importance sampling disabled
         uint32_t envImportanceHeight = 0; ///< CDF grid height
+        uint32_t tonemapper = 0;          ///< Tonemapper enum value; 0 = eACES (SDR/P3 only)
     };
 
     [[nodiscard]] static std::expected<PathTracer, VkResult> create(const DeviceContext& ctx,

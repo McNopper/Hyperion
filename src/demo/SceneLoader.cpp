@@ -392,6 +392,13 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
         } else if (kw == "env_map") {
             if (!rv.empty())
                 cfg.envMapFile = std::filesystem::path(std::string(rv));
+        } else if (kw == "tonemapper") {
+            const std::string name(rv);
+            if      (name == "aces")     cfg.tonemapper = 0u;
+            else if (name == "agx")      cfg.tonemapper = 1u;
+            else if (name == "reinhard") cfg.tonemapper = 2u;
+            else if (name == "hable")    cfg.tonemapper = 3u;
+            else Logger::warn("SceneLoader: unknown tonemapper '{}' — using default (aces)", name);
         }
         // Unknown keywords are silently ignored, consistent with OBJ/MTL.
     }
