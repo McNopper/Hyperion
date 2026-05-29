@@ -3,6 +3,7 @@
 # Materials from openpbr_organics.mtl.
 
 mtllib openpbr_organics.mtl
+mtllib floor.mtl
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000
@@ -18,7 +19,7 @@ camera
 # Ground plane
 box 10.0 0.1 10.0
   translate  0.0 -0.05  1.0
-  usemtl EggShell
+  usemtl NeutralFloor
 
 # ── Row 0  Skin I–IV  z = -2.0 ───────────────────────────────────────────────
 sphere 0.70

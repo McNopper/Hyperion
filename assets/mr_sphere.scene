@@ -12,6 +12,7 @@
 #   Step 5 — add transmission / coat / subsurface lobes
 
 mtllib mr_sphere.mtl
+mtllib floor.mtl
 
 camera
 translate    0.0  0.8  6.5
@@ -27,6 +28,11 @@ ev100          7.0
 sphere  1.0
 usemtl BrushedMetal
 translate  0.0  0.0  0.0
+
+# ── Ground plane ───────────────────────────────────────────────────────────────
+box 14.0 0.1 14.0
+usemtl NeutralFloor
+translate  0.0  -1.05  0.0
 
 # ── Light — emissive green sphere, upper-left, camera-facing ─────────────────
 # Positioned so it is always in the camera frustum.

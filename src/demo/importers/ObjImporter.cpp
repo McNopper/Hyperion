@@ -151,7 +151,13 @@ bool flushMesh(PendingMesh& pending,
         const glm::vec2 uv =
             (t >= 0 && t < static_cast<int>(texcoords.size())) ? texcoords[static_cast<size_t>(t)] : glm::vec2(0.0f);
 
-        GpuVertex v{.position = pos, .tangentX = 0.0f, .normal = nrm, .tangentY = 0.0f, .uv = uv, .tangentZ = 0.0f, .bitangentSign = 1.0f};
+        GpuVertex v{.position = pos,
+                    .tangentX = 0.0f,
+                    .normal = nrm,
+                    .tangentY = 0.0f,
+                    .uv = uv,
+                    .tangentZ = 0.0f,
+                    .bitangentSign = 1.0f};
 
         const auto [it, inserted] = unique.emplace(v, static_cast<uint32_t>(mesh.vertices.size()));
         if (inserted)

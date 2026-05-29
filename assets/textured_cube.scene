@@ -4,9 +4,9 @@ mtllib cornell.mtl
 mtllib textured_cube.mtl
 
 camera
-  translate 278 273 -800
-  look_at   278 150 279
-  vfov      40
+  translate 278.0  273.0  -800.0
+  look_at   278.0  273.0   279.5
+  vfov      39.1
 
 spp      64
 max_depth 8

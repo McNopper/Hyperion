@@ -11,8 +11,7 @@ AccelerationStructure::AccelerationStructure(AccelerationStructure&& other) noex
     : m_device(std::exchange(other.m_device, VK_NULL_HANDLE)),
       m_buffer(std::move(other.m_buffer)),
       m_handle(std::exchange(other.m_handle, VK_NULL_HANDLE)),
-      m_deviceAddress(std::exchange(other.m_deviceAddress, 0)) {
-}
+      m_deviceAddress(std::exchange(other.m_deviceAddress, 0)) {}
 
 AccelerationStructure& AccelerationStructure::operator=(AccelerationStructure&& other) noexcept {
     if (this != &other) {
@@ -54,7 +53,8 @@ std::expected<AccelerationStructure, VkResult> AccelerationStructure::create(con
     accelerationStructure.m_device = ctx.device;
     accelerationStructure.m_buffer = std::move(*storage);
 
-    if (const VkResult result = vkCreateAccelerationStructureKHR(ctx.device, &createInfo, nullptr, &accelerationStructure.m_handle);
+    if (const VkResult result =
+            vkCreateAccelerationStructureKHR(ctx.device, &createInfo, nullptr, &accelerationStructure.m_handle);
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }

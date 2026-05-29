@@ -1,9 +1,9 @@
 #pragma once
 
+#include <volk/volk.h>
+
 #include <expected>
 #include <filesystem>
-
-#include <volk/volk.h>
 
 #include "hyperion/DeviceContext.hpp"
 #include "hyperion/core/CommandPool.hpp"
@@ -25,19 +25,17 @@ class IblProbe {
 
     /// Load an equirectangular EXR panorama, convert to linear Rec.2020, and upload to GPU.
     /// Requires HYPERION_HAS_OPENEXR; returns VK_ERROR_FEATURE_NOT_PRESENT otherwise.
-    [[nodiscard]] static std::expected<IblProbe, VkResult> loadFromEXR(
-        const DeviceContext&          ctx,
-        const CommandPool&            pool,
-        const std::filesystem::path&  path);
+    [[nodiscard]] static std::expected<IblProbe, VkResult>
+    loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const std::filesystem::path& path);
 
-    [[nodiscard]] VkImageView  imageView() const noexcept { return m_image.view(); }
-    [[nodiscard]] VkSampler    sampler()   const noexcept { return m_sampler; }
-    [[nodiscard]] bool         isValid()   const noexcept { return m_sampler != VK_NULL_HANDLE; }
+    [[nodiscard]] VkImageView imageView() const noexcept { return m_image.view(); }
+    [[nodiscard]] VkSampler sampler() const noexcept { return m_sampler; }
+    [[nodiscard]] bool isValid() const noexcept { return m_sampler != VK_NULL_HANDLE; }
 
   private:
     void reset() noexcept;
 
-    Image                m_image{};
-    VkSampler            m_sampler{VK_NULL_HANDLE};
+    Image m_image{};
+    VkSampler m_sampler{VK_NULL_HANDLE};
     const DeviceContext* m_ctx{};
 };

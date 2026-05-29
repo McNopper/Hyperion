@@ -103,8 +103,24 @@ struct SphereIntersectionAttributes {
 
 static const float kPi = 3.14159265359;
 static const float kInvPi = 0.31830988618;
+static const float kHalfPi = 1.57079632679; ///< π/2
 static const float kRayEpsilon = 0.001;
 static const float kInf = 1.0e30;
+
+/// Rec.2020 luminance coefficients (ITU-R BT.2020).
+static const float3 kRec2020Luma = float3(0.2627, 0.6780, 0.0593);
+
+/// TLAS instance mask bits for TraceRay culling.
+/// Every TraceRay call uses one of these as its InstanceInclusionMask.
+static const uint kInstanceMaskAll      = 0xFF; ///< all instances visible
+static const uint kInstanceMaskEmissive = 0x02; ///< bit 1: emissive mesh lights only
+static const uint kShadowRayMask        = 0xFD; ///< 0xFF & ~0x02 — excludes emissive meshes
+
+/// Minimum path depth before Russian Roulette path termination is applied.
+static const uint kRRMinDepth = 3u;
+
+/// Firefly suppression: maximum per-sample luminance after exposure (display units).
+static const float kFireflyClamp = 100.0;
 
 [[vk::binding(0, 0)]] uniform RaytracingAccelerationStructure tlas;
 [[vk::binding(1, 0)]] RWTexture2D<float4> hdrTarget;

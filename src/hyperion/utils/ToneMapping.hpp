@@ -14,11 +14,12 @@
 //   Hable/Uncharted-2 filmic — John Hable, GDC 2010
 //   Reinhard et al. — SIGGRAPH 2002, "Photographic Tone Reproduction for Digital Images"
 
-#include "hyperion/utils/ColorSpace.hpp"
-
 #include <glm/glm.hpp>
+
 #include <algorithm>
 #include <cmath>
+
+#include "hyperion/utils/ColorSpace.hpp"
 
 namespace ToneMapping {
 
@@ -63,8 +64,8 @@ inline constexpr glm::mat3 kAP1ToP3 = glm::mat3(
 /// outputMat must be kAP1ToRec709 (SDR / scRGB) or kAP1ToP3 (Display P3).
 [[nodiscard]] inline glm::vec3 acesFitted(glm::vec3 c2020, const glm::mat3& outputMat) noexcept {
     glm::vec3 ap1 = kRec2020ToAP1 * c2020;
-    ap1           = glm::max(ap1, glm::vec3(0.f));
-    ap1           = acesRrtOdtFit(ap1);
+    ap1 = glm::max(ap1, glm::vec3(0.f));
+    ap1 = acesRrtOdtFit(ap1);
     return glm::max(outputMat * ap1, glm::vec3(0.f));
 }
 
@@ -82,8 +83,7 @@ inline constexpr glm::mat3 kAP1ToP3 = glm::mat3(
 
 [[nodiscard]] inline glm::vec3 hablePartial(glm::vec3 x) noexcept {
     constexpr float A = 0.15f, B = 0.50f, C = 0.10f, D = 0.20f, E = 0.02f, F = 0.30f;
-    return ((x * (A * x + glm::vec3(C * B)) + glm::vec3(D * E)) /
-            (x * (A * x + glm::vec3(B)) + glm::vec3(D * F))) -
+    return ((x * (A * x + glm::vec3(C * B)) + glm::vec3(D * E)) / (x * (A * x + glm::vec3(B)) + glm::vec3(D * F))) -
            glm::vec3(E / F);
 }
 
@@ -99,7 +99,8 @@ inline constexpr glm::mat3 kAP1ToP3 = glm::mat3(
 /// Luminance-preserving Reinhard tone mapper.  Tone-maps luminance, preserves chromaticity.
 [[nodiscard]] inline glm::vec3 reinhardLuminance(glm::vec3 x) noexcept {
     const float lum = ColorSpace::luminance(x);
-    if (lum <= 0.f) return glm::vec3(0.f);
+    if (lum <= 0.f)
+        return glm::vec3(0.f);
     const float lumTm = lum / (1.f + lum);
     return x * (lumTm / lum);
 }

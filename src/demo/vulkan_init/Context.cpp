@@ -41,8 +41,8 @@ namespace {
 [[nodiscard]] VkResult checkRayTracingFunctions() {
     return (vkCmdTraceRaysKHR != nullptr && vkCmdBuildAccelerationStructuresKHR != nullptr &&
             vkCreateAccelerationStructureKHR != nullptr && vkDestroyAccelerationStructureKHR != nullptr &&
-            vkGetAccelerationStructureDeviceAddressKHR != nullptr &&
-            vkGetRayTracingShaderGroupHandlesKHR != nullptr && vkCmdPushDescriptorSet != nullptr)
+            vkGetAccelerationStructureDeviceAddressKHR != nullptr && vkGetRayTracingShaderGroupHandlesKHR != nullptr &&
+            vkCmdPushDescriptorSet != nullptr)
                ? VK_SUCCESS
                : VK_ERROR_FEATURE_NOT_PRESENT;
 }
@@ -120,10 +120,10 @@ namespace {
         features12Supported.descriptorBindingPartiallyBound != VK_TRUE ||
         features12Supported.descriptorBindingStorageBufferUpdateAfterBind != VK_TRUE ||
         features12Supported.descriptorBindingSampledImageUpdateAfterBind != VK_TRUE ||
-        features12Supported.timelineSemaphore != VK_TRUE ||
-        features13Supported.dynamicRendering != VK_TRUE || features13Supported.synchronization2 != VK_TRUE ||
-        features13Supported.maintenance4 != VK_TRUE || features14Supported.pushDescriptor != VK_TRUE ||
-        asFeaturesSupported.accelerationStructure != VK_TRUE || rtFeaturesSupported.rayTracingPipeline != VK_TRUE) {
+        features12Supported.timelineSemaphore != VK_TRUE || features13Supported.dynamicRendering != VK_TRUE ||
+        features13Supported.synchronization2 != VK_TRUE || features13Supported.maintenance4 != VK_TRUE ||
+        features14Supported.pushDescriptor != VK_TRUE || asFeaturesSupported.accelerationStructure != VK_TRUE ||
+        rtFeaturesSupported.rayTracingPipeline != VK_TRUE) {
         return VK_ERROR_FEATURE_NOT_PRESENT;
     }
 

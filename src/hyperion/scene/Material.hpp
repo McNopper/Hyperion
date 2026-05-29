@@ -102,11 +102,20 @@ class Material {
     /// Slot 0 = base_color, 1 = normal, 2 = ORM, 3 = emission.
     void setTextureIndex(uint32_t slot, uint32_t idx) noexcept {
         switch (slot) {
-        case 0: m_gpu.textureIndices.x = idx; break;
-        case 1: m_gpu.textureIndices.y = idx; break;
-        case 2: m_gpu.textureIndices.z = idx; break;
-        case 3: m_gpu.textureIndices.w = idx; break;
-        default: break;
+        case 0:
+            m_gpu.textureIndices.x = idx;
+            break;
+        case 1:
+            m_gpu.textureIndices.y = idx;
+            break;
+        case 2:
+            m_gpu.textureIndices.z = idx;
+            break;
+        case 3:
+            m_gpu.textureIndices.w = idx;
+            break;
+        default:
+            break;
         }
     }
 

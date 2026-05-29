@@ -56,6 +56,8 @@ HitInfo makeSphereHit(SphereIntersectionAttributes attr)
 
 /// Fire a shadow ray toward emissive light `lightIdx` from surface point `origin`
 /// (already offset by geometry normal epsilon). Returns true if the path is unoccluded.
+/// Uses kShadowRayMask to exclude emissive mesh instances from the visibility test
+/// so the shadow ray can safely extend past the bounding sphere (tMax = dist + radius).
 bool traceNEEShadowRay(float3 origin, float3 direction, float tMax)
 {
     ShadowPayload shadowPayload;
@@ -67,7 +69,7 @@ bool traceNEEShadowRay(float3 origin, float3 direction, float tMax)
     shadowRay.TMax      = tMax;
     TraceRay(tlas,
              RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             0xFF, 0, 2, 1, shadowRay, shadowPayload);
+             kShadowRayMask, 0, 2, 1, shadowRay, shadowPayload);
     return !shadowPayload.inShadow;
 }
 
@@ -143,9 +145,10 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
 
                 float cosI = dot(wi, N);
                 if (cosI > 0.0) {
-                    // TMax stops just before the near side of the bounding sphere so the
-                    // shadow ray never intersects the emissive mesh itself.
-                    float tMax = max(kRayEpsilon, dist - eLight.radius - kRayEpsilon);
+                    // tMax extends past the far side of the bounding sphere.
+                    // The emissive mesh is invisible to shadow rays (kShadowRayMask
+                    // excludes kInstanceMaskEmissive), so only real occluders register.
+                    float tMax = dist + eLight.radius;
                     float3 shadowOrigin = hit.position + geoN * kRayEpsilon;
                     if (traceNEEShadowRay(shadowOrigin, wi, tMax)) {
                         float3 bsdfVal = evalBSDF(mat, wo, wi, N, T, B);
@@ -172,7 +175,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     payload.origin = hit.position + geoN * (dot(bsdfSample.direction, geoN) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
     payload.direction = normalize(bsdfSample.direction);
 
-    if (payload.depth >= 3u) {
+    if (payload.depth >= kRRMinDepth) {
         float q = saturate(max(payload.throughput.x, max(payload.throughput.y, payload.throughput.z)));
         if (randFloat(payload.seed) > q) {
             payload.terminated = true;

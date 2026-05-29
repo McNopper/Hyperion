@@ -267,6 +267,7 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
 
     // Emissive light buffer — scan triangle meshes for emission and build bounding spheres.
     std::vector<GpuEmissiveLight> emissiveLights;
+    m_emissiveInstanceIndices.clear();
     for (size_t i = 0; i < m_geometries.size(); ++i) {
         const GpuInstance& inst = m_instances[i];
         if (inst.geometryKind != 0U) {
@@ -310,6 +311,8 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
             .emission = emission,
             .instanceIndex = static_cast<uint32_t>(i),
         });
+        // Track this TLAS instance index so buildTlas() can assign kInstanceMaskEmissive.
+        m_emissiveInstanceIndices.push_back(static_cast<uint32_t>(i));
     }
     m_emissiveLightCount = static_cast<uint32_t>(emissiveLights.size());
     if (emissiveLights.empty()) {
@@ -335,6 +338,14 @@ VkResult Scene::buildTlas(const DeviceContext& ctx, const CommandPool& pool) {
         instances[i] = m_geometries[i]->makeInstance(static_cast<uint32_t>(i));
     }
 
+    // Assign a distinct mask to emissive mesh instances so shadow rays can skip them.
+    // Shadow rays use kShadowRayMask (= ~kInstanceMaskEmissive) so emissive meshes are
+    // invisible to shadow rays — the tMax can safely extend past the bounding sphere.
+    // Note: this approach excludes ALL emissive instances from ALL shadow rays; in
+    // multi-emissive-light scenes one light will not cast shadows on another.
+    for (const uint32_t idx : m_emissiveInstanceIndices) {
+        instances[idx].mask = kInstanceMaskEmissive;
+    }
     auto instanceUpload = uploadBytes(
         ctx,
         pool,

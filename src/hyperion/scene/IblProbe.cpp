@@ -6,23 +6,21 @@
 #include "hyperion/core/Logger.hpp"
 
 #ifdef HYPERION_HAS_OPENEXR
-#include <OpenEXR/ImfRgbaFile.h>
 #include <Imath/ImathBox.h>
+#include <OpenEXR/ImfRgbaFile.h>
 #endif
 
 IblProbe::IblProbe(IblProbe&& other) noexcept
-    : m_image(std::move(other.m_image)),
-      m_sampler(std::exchange(other.m_sampler, VK_NULL_HANDLE)),
-      m_ctx(other.m_ctx) {
+    : m_image(std::move(other.m_image)), m_sampler(std::exchange(other.m_sampler, VK_NULL_HANDLE)), m_ctx(other.m_ctx) {
     other.m_ctx = nullptr;
 }
 
 IblProbe& IblProbe::operator=(IblProbe&& other) noexcept {
     if (this != &other) {
         reset();
-        m_image   = std::move(other.m_image);
+        m_image = std::move(other.m_image);
         m_sampler = std::exchange(other.m_sampler, VK_NULL_HANDLE);
-        m_ctx     = other.m_ctx;
+        m_ctx = other.m_ctx;
         other.m_ctx = nullptr;
     }
     return *this;
@@ -41,13 +39,12 @@ void IblProbe::reset() noexcept {
     m_ctx = nullptr;
 }
 
-std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(
-    const DeviceContext&          ctx,
-    const CommandPool&            pool,
-    const std::filesystem::path&  path)
-{
+std::expected<IblProbe, VkResult>
+IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const std::filesystem::path& path) {
 #ifndef HYPERION_HAS_OPENEXR
-    (void)ctx; (void)pool; (void)path;
+    (void)ctx;
+    (void)pool;
+    (void)path;
     Logger::error("IblProbe: OpenEXR support is not compiled in; cannot load '{}'", path.string());
     return std::unexpected(VK_ERROR_FEATURE_NOT_PRESENT);
 #else
@@ -59,7 +56,7 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(
         using namespace OPENEXR_IMF_NAMESPACE;
         RgbaInputFile file(path.string().c_str());
         const IMATH_NAMESPACE::Box2i dw = file.dataWindow();
-        width  = dw.max.x - dw.min.x + 1;
+        width = dw.max.x - dw.min.x + 1;
         height = dw.max.y - dw.min.y + 1;
 
         std::vector<Rgba> halfs(static_cast<size_t>(width * height));
@@ -91,16 +88,19 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(
     const VkExtent2D extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
     const VkDeviceSize byteSize = static_cast<VkDeviceSize>(width * height) * 4u * sizeof(float);
 
-    auto staging = Buffer::create(ctx, byteSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "ibl.staging");
+    auto staging = Buffer::create(
+        ctx, byteSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "ibl.staging");
     if (!staging) {
         return std::unexpected(staging.error());
     }
     staging->uploadData(rgba32f.data(), byteSize);
 
-    auto image = Image::create(ctx, extent, VK_FORMAT_R32G32B32A32_SFLOAT,
+    auto image = Image::create(ctx,
+                               extent,
+                               VK_FORMAT_R32G32B32A32_SFLOAT,
                                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                               VK_IMAGE_ASPECT_COLOR_BIT, "ibl.env");
+                               VK_IMAGE_ASPECT_COLOR_BIT,
+                               "ibl.env");
     if (!image) {
         return std::unexpected(image.error());
     }
@@ -113,24 +113,26 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(
     image->transition(*cmd,
                       VK_IMAGE_LAYOUT_UNDEFINED,
                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                      VK_PIPELINE_STAGE_2_NONE, 0,
-                      VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+                      VK_PIPELINE_STAGE_2_NONE,
+                      0,
+                      VK_PIPELINE_STAGE_2_COPY_BIT,
+                      VK_ACCESS_2_TRANSFER_WRITE_BIT);
 
     const VkBufferImageCopy region{
-        .bufferOffset      = 0,
-        .bufferRowLength   = 0,
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
         .bufferImageHeight = 0,
-        .imageSubresource  = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-        .imageOffset       = {0, 0, 0},
-        .imageExtent       = {extent.width, extent.height, 1u},
+        .imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+        .imageOffset = {0, 0, 0},
+        .imageExtent = {extent.width, extent.height, 1u},
     };
-    vkCmdCopyBufferToImage(*cmd, staging->handle(), image->handle(),
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    vkCmdCopyBufferToImage(*cmd, staging->handle(), image->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     image->transition(*cmd,
                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                      VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                      VK_PIPELINE_STAGE_2_COPY_BIT,
+                      VK_ACCESS_2_TRANSFER_WRITE_BIT,
                       VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
                       VK_ACCESS_2_SHADER_READ_BIT);
 
@@ -140,34 +142,33 @@ std::expected<IblProbe, VkResult> IblProbe::loadFromEXR(
 
     // ── Create sampler (REPEAT on U, CLAMP_TO_EDGE on V to avoid pole artefacts) ──
     const VkSamplerCreateInfo samplerInfo{
-        .sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .pNext                   = nullptr,
-        .flags                   = 0,
-        .magFilter               = VK_FILTER_LINEAR,
-        .minFilter               = VK_FILTER_LINEAR,
-        .mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .addressModeU            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-        .addressModeV            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .addressModeW            = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .mipLodBias              = 0.0f,
-        .anisotropyEnable        = VK_FALSE,
-        .maxAnisotropy           = 1.0f,
-        .compareEnable           = VK_FALSE,
-        .compareOp               = VK_COMPARE_OP_ALWAYS,
-        .minLod                  = 0.0f,
-        .maxLod                  = 0.0f,
-        .borderColor             = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .magFilter = VK_FILTER_LINEAR,
+        .minFilter = VK_FILTER_LINEAR,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_FALSE,
+        .maxAnisotropy = 1.0f,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .minLod = 0.0f,
+        .maxLod = 0.0f,
+        .borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
         .unnormalizedCoordinates = VK_FALSE,
     };
     VkSampler sampler = VK_NULL_HANDLE;
-    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &sampler);
-        result != VK_SUCCESS) {
+    if (const VkResult result = vkCreateSampler(ctx.device, &samplerInfo, nullptr, &sampler); result != VK_SUCCESS) {
         return std::unexpected(result);
     }
 
     IblProbe probe;
-    probe.m_ctx     = &ctx;
-    probe.m_image   = std::move(*image);
+    probe.m_ctx = &ctx;
+    probe.m_image = std::move(*image);
     probe.m_sampler = sampler;
     Logger::info("IblProbe: loaded '{}' ({}×{})", path.filename().string(), width, height);
     return probe;

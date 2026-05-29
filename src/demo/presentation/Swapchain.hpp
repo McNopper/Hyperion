@@ -10,9 +10,11 @@
 
 class Swapchain {
   public:
-    [[nodiscard]] static std::expected<Swapchain, VkResult>
-    create(const DeviceContext& ctx, VkSurfaceKHR surface, VkExtent2D extent, bool preferHDR = true,
-           VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE);
+    [[nodiscard]] static std::expected<Swapchain, VkResult> create(const DeviceContext& ctx,
+                                                                   VkSurfaceKHR surface,
+                                                                   VkExtent2D extent,
+                                                                   bool preferHDR = true,
+                                                                   VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE);
 
     Swapchain() = default;
     Swapchain(const Swapchain&) = delete;

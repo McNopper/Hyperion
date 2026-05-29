@@ -33,7 +33,7 @@ class Application {
         uint32_t spp = 4;
         uint32_t maxDepth = 8;
         bool validation = false;
-        bool sppExplicit = false;   ///< true if --spp was given on the command line
+        bool sppExplicit = false; ///< true if --spp was given on the command line
         std::filesystem::path shaderDir = "";
         std::filesystem::path assetsDir = "assets";
         /// Scene definition file (.scene).  Path is resolved from the
@@ -57,10 +57,10 @@ class Application {
 
   private:
     struct FrameResources {
-        VkCommandBuffer traceCmd{};    ///< path trace recording
-        VkCommandBuffer displayCmd{};  ///< tonemap recording (interactive only)
+        VkCommandBuffer traceCmd{};   ///< path trace recording
+        VkCommandBuffer displayCmd{}; ///< tonemap recording (interactive only)
         VkSemaphore imageAvailable{};
-        uint64_t completionValue{};    ///< highest timeline value signalled for this slot
+        uint64_t completionValue{}; ///< highest timeline value signalled for this slot
     };
 
     void destroy() noexcept;
@@ -87,9 +87,9 @@ class Application {
     Scene m_scene{};
     Camera m_camera{};
     Image m_hdrImage{};
-    Image m_gNormal{};  ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
-    Image m_gDepth{};   ///< G-buffer ray hit distance  (R32_SFLOAT)
-    IblProbe m_iblProbe{};  ///< IBL equirectangular panorama (may be empty)
+    Image m_gNormal{};     ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
+    Image m_gDepth{};      ///< G-buffer ray hit distance  (R32_SFLOAT)
+    IblProbe m_iblProbe{}; ///< IBL equirectangular panorama (may be empty)
     std::array<FrameResources, 2> m_frames{};
     /// One binary semaphore per swapchain image: signalled by the display submit,
     /// consumed by vkQueuePresentKHR.  Indexed by swapchain imageIndex (not frame slot)

@@ -4,6 +4,7 @@
 # Materials from openpbr_metals.mtl (F0/F82 conductor model).
 
 mtllib openpbr_metals.mtl
+mtllib floor.mtl
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000
@@ -19,7 +20,7 @@ camera
 # Ground plane
 box 12.0 0.1 12.0
   translate  0.0 -0.05  0.0
-  usemtl StainlessSteel
+  usemtl NeutralFloor
 
 # ── Row 0  z = -3.75 ──────────────────────────────────────────────────────────
 sphere 0.70

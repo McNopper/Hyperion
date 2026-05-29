@@ -47,12 +47,12 @@ MeshData makeBox(glm::vec3 halfExtent, glm::mat4 transform) {
         for (size_t i = 0; i < face.positions.size(); ++i) {
             const glm::vec4 transformedPosition = transform * glm::vec4(face.positions[i], 1.0f);
             mesh.vertices.push_back(GpuVertex{
-                .position     = glm::vec3(transformedPosition),
-                .tangentX     = 0.0f,
-                .normal       = transformedNormal,
-                .tangentY     = 0.0f,
-                .uv           = uvs[i],
-                .tangentZ     = 0.0f,
+                .position = glm::vec3(transformedPosition),
+                .tangentX = 0.0f,
+                .normal = transformedNormal,
+                .tangentY = 0.0f,
+                .uv = uvs[i],
+                .tangentZ = 0.0f,
                 .bitangentSign = 1.0f,
             });
         }

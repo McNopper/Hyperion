@@ -71,6 +71,7 @@ class Scene {
     Buffer m_lightBuffer{};
     Buffer m_emissiveLightBuffer{};
     uint32_t m_emissiveLightCount = 0;
+    std::vector<uint32_t> m_emissiveInstanceIndices; ///< TLAS instance indices of emissive mesh lights
     AccelerationStructure m_tlas{};
     VkDeviceAddress m_tlasAddress{};
 };

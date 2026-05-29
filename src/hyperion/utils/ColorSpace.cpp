@@ -116,14 +116,12 @@ glm::vec3 pqEotf(glm::vec3 E) noexcept {
 // ── HLG (BT.2100) OETF ───────────────────────────────────────────────────────
 // Reference: ITU-R BT.2100-2 (2018), Table 5.
 static constexpr float kHLG_a = 0.17883277f;
-static constexpr float kHLG_b = 0.28466892f;   // 1 - 4·a
-static constexpr float kHLG_c = 0.55991073f;   // 0.5 - a·ln(4·a)
+static constexpr float kHLG_b = 0.28466892f; // 1 - 4·a
+static constexpr float kHLG_c = 0.55991073f; // 0.5 - a·ln(4·a)
 
 float hlgOetf(float E) noexcept {
     E = std::max(E, 0.f);
-    return (E <= 1.f / 12.f)
-        ? std::sqrt(3.f * E)
-        : (kHLG_a * std::log(12.f * E - kHLG_b) + kHLG_c);
+    return (E <= 1.f / 12.f) ? std::sqrt(3.f * E) : (kHLG_a * std::log(12.f * E - kHLG_b) + kHLG_c);
 }
 glm::vec3 hlgOetf(glm::vec3 E) noexcept {
     return {hlgOetf(E.r), hlgOetf(E.g), hlgOetf(E.b)};

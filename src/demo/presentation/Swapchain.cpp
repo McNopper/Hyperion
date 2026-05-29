@@ -34,9 +34,11 @@ namespace {
 }
 } // namespace
 
-std::expected<Swapchain, VkResult>
-Swapchain::create(const DeviceContext& ctx, VkSurfaceKHR surface, VkExtent2D extent, bool preferHDR,
-                  VkSwapchainKHR oldSwapchain) {
+std::expected<Swapchain, VkResult> Swapchain::create(const DeviceContext& ctx,
+                                                     VkSurfaceKHR surface,
+                                                     VkExtent2D extent,
+                                                     bool preferHDR,
+                                                     VkSwapchainKHR oldSwapchain) {
     if (!ctx.isValid() || surface == VK_NULL_HANDLE || extent.width == 0U || extent.height == 0U) {
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
@@ -111,8 +113,7 @@ Swapchain::create(const DeviceContext& ctx, VkSurfaceKHR surface, VkExtent2D ext
 
     // COLOR_ATTACHMENT_BIT is always supported on swapchain images (Vulkan spec §34.2.2).
     // TRANSFER_DST_BIT is always supported when the surface supports presentation.
-    const VkImageUsageFlags imageUsage =
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    const VkImageUsageFlags imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
     const VkSwapchainCreateInfoKHR createInfo{
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,

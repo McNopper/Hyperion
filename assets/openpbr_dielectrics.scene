@@ -3,6 +3,7 @@
 # Materials from openpbr_dielectrics.mtl.
 
 mtllib openpbr_dielectrics.mtl
+mtllib floor.mtl
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000
@@ -15,10 +16,10 @@ camera
   look_at    0.0  0.70   1.0
   vfov       52
 
-# Ground plane (frosted glass look)
+# Ground plane
 box 12.0 0.1 10.0
   translate  0.0 -0.05  1.0
-  usemtl PlasticPP
+  usemtl NeutralFloor
 
 # ── Row 0  z = -2.0 ───────────────────────────────────────────────────────────
 sphere 0.70

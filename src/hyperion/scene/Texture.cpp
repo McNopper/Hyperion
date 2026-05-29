@@ -5,10 +5,9 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <stb_image.h>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
-
-#include <stb_image.h>
 
 #include "hyperion/core/Buffer.hpp"
 #include "hyperion/core/Logger.hpp"
@@ -171,28 +170,25 @@ std::expected<Texture, VkResult> Texture::create(const DeviceContext& ctx,
     return texture;
 }
 
-std::expected<Texture, VkResult>
-Texture::loadFromFile(const DeviceContext& ctx,
-                      const CommandPool& cmdPool,
-                      const std::filesystem::path& path,
-                      TextureColorSpace colorSpace,
-                      std::string_view name) {
+std::expected<Texture, VkResult> Texture::loadFromFile(const DeviceContext& ctx,
+                                                       const CommandPool& cmdPool,
+                                                       const std::filesystem::path& path,
+                                                       TextureColorSpace colorSpace,
+                                                       std::string_view name) {
     const std::string pathStr = path.string();
     int w = 0, h = 0, srcChannels = 0;
 
     // Always load as 4-channel RGBA, 8 bits per channel.
     stbi_uc* raw = stbi_load(pathStr.c_str(), &w, &h, &srcChannels, 4);
     if (!raw) {
-        Logger::error("Texture::loadFromFile: stbi_load failed for '{}': {}", pathStr,
-                      stbi_failure_reason());
+        Logger::error("Texture::loadFromFile: stbi_load failed for '{}': {}", pathStr, stbi_failure_reason());
         return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
     }
 
     const auto pixelCount = static_cast<size_t>(w) * static_cast<size_t>(h);
     std::vector<uint8_t> converted(pixelCount * 4);
 
-    const bool needsConversion = (colorSpace != TextureColorSpace::Raw &&
-                                  colorSpace != TextureColorSpace::LinRec2020);
+    const bool needsConversion = (colorSpace != TextureColorSpace::Raw && colorSpace != TextureColorSpace::LinRec2020);
 
     if (!needsConversion) {
         // Raw data (normal/ORM/roughness) or already Rec.2020 — copy verbatim.
@@ -232,11 +228,13 @@ Texture::loadFromFile(const DeviceContext& ctx,
     stbi_image_free(raw);
 
     const auto bytes = std::as_bytes(std::span<const uint8_t>(converted));
-    return create(ctx, cmdPool, bytes,
-                  static_cast<uint32_t>(w), static_cast<uint32_t>(h),
+    return create(ctx,
+                  cmdPool,
+                  bytes,
+                  static_cast<uint32_t>(w),
+                  static_cast<uint32_t>(h),
                   name.empty() ? path.filename().string() : std::string(name));
 }
-
 
 void Texture::reset() noexcept {
     if (m_ctx != nullptr && m_sampler != VK_NULL_HANDLE) {

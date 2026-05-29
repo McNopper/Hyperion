@@ -164,7 +164,7 @@ uint wangHash(uint seed)
 float randFloat(inout uint seed)
 {
     seed = wangHash(seed);
-    return (seed & 0x00ffffffu) / 16777216.0;
+    return (seed & 0x00ffffffu) / 16777216.0; // 2^24 — maps 24-bit mantissa to [0, 1)
 }
 
 float2 randFloat2(inout uint seed)

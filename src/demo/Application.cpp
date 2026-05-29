@@ -9,6 +9,7 @@
 #include <cmath>
 #include <format>
 #include <span>
+#include <stb_image_write.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -19,8 +20,6 @@
 #include "hyperion/scene/Material.hpp"
 #include "hyperion/utils/ColorSpace.hpp"
 #include "hyperion/utils/ToneMapping.hpp"
-
-#include <stb_image_write.h>
 
 #ifdef HYPERION_HAS_OPENEXR
 #include <OpenEXR/ImfChannelList.h>
@@ -142,8 +141,7 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
     app.m_window = SDL_CreateWindow(app.m_config.title.c_str(),
                                     static_cast<int>(app.m_config.width),
                                     static_cast<int>(app.m_config.height),
-                                    SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE |
-                                        SDL_WINDOW_HIGH_PIXEL_DENSITY |
+                                    SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY |
                                         (app.m_config.outputFile.empty() ? 0u : SDL_WINDOW_HIDDEN));
     if (app.m_window == nullptr) {
         Logger::error("SDL_CreateWindow failed: {}", SDL_GetError());
@@ -187,12 +185,12 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
 
     const std::filesystem::path shaderDir = resolveShaderDir(app.m_config.shaderDir);
     const Pipeline::ShaderPaths shaderPaths{
-        .raygen             = shaderDir / "raygen.spv",
+        .raygen = shaderDir / "raygen.spv",
         .closesthitTriangle = shaderDir / "closesthit.spv",
-        .closesthitSphere   = shaderDir / "closesthit.spv",
-        .intersection       = shaderDir / "intersection.spv",
-        .miss               = shaderDir / "miss.spv",
-        .shadowMiss         = shaderDir / "shadow_miss.spv",
+        .closesthitSphere = shaderDir / "closesthit.spv",
+        .intersection = shaderDir / "intersection.spv",
+        .miss = shaderDir / "miss.spv",
+        .shadowMiss = shaderDir / "shadow_miss.spv",
     };
     auto pipeline =
         Pipeline::create(app.m_context.deviceContext(), app.m_descriptors, shaderPaths, app.m_config.maxDepth);
@@ -290,7 +288,7 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
 
     // Load scene file — populates geometry and overrides camera / render config.
     SceneLoader loader;
-    const auto  sceneConfig = loader.load(
+    const auto sceneConfig = loader.load(
         app.m_config.sceneFile, app.m_config.assetsDir, app.m_scene, app.m_context.deviceContext(), app.m_commandPool);
     if (!sceneConfig) {
         Logger::error("Scene load failed");
@@ -313,17 +311,17 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
         physical.shutterSpeedHz = std::pow(2.0f, ev100);
     }
     app.m_camera = Camera(Camera::Params{
-        .position    = sceneConfig->cameraPos.value_or(glm::vec3(278.0f, 273.0f, -800.0f)),
-        .target      = sceneConfig->cameraAt.value_or(glm::vec3(278.0f, 273.0f, 279.5f)),
-        .up          = sceneConfig->cameraUp.value_or(glm::vec3(0.0f, 1.0f, 0.0f)),
-        .vfovDeg     = sceneConfig->cameraVfov.value_or(39.1f),
-        .aspectRatio = static_cast<float>(app.m_swapchain.extent().width) /
-                       static_cast<float>(app.m_swapchain.extent().height),
-        .nearPlane  = 0.1f,
-        .farPlane   = 10000.0f,
+        .position = sceneConfig->cameraPos.value_or(glm::vec3(278.0f, 273.0f, -800.0f)),
+        .target = sceneConfig->cameraAt.value_or(glm::vec3(278.0f, 273.0f, 279.5f)),
+        .up = sceneConfig->cameraUp.value_or(glm::vec3(0.0f, 1.0f, 0.0f)),
+        .vfovDeg = sceneConfig->cameraVfov.value_or(39.1f),
+        .aspectRatio =
+            static_cast<float>(app.m_swapchain.extent().width) / static_cast<float>(app.m_swapchain.extent().height),
+        .nearPlane = 0.1f,
+        .farPlane = 10000.0f,
         .lensRadius = 0.0f,
-        .focusDist  = 1079.5f,
-        .physical   = physical,
+        .focusDist = 1079.5f,
+        .physical = physical,
     });
     if (const VkResult result = app.m_scene.build(app.m_context.deviceContext(), app.m_commandPool);
         result != VK_SUCCESS) {
@@ -505,10 +503,8 @@ int Application::run() {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
                 m_running = false;
-            } else if (event.type == SDL_EVENT_WINDOW_RESIZED ||
-                       event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
-                handleResize(static_cast<uint32_t>(event.window.data1),
-                             static_cast<uint32_t>(event.window.data2));
+            } else if (event.type == SDL_EVENT_WINDOW_RESIZED || event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
+                handleResize(static_cast<uint32_t>(event.window.data1), static_cast<uint32_t>(event.window.data2));
             } else if (event.type == SDL_EVENT_KEY_DOWN) {
                 if (event.key.key == SDLK_ESCAPE) {
                     m_running = false;
@@ -545,9 +541,9 @@ int Application::run() {
         // Record tonemap: hdrImage → swapchain image.
         vkResetCommandBuffer(frame.displayCmd, 0);
         const VkCommandBufferBeginInfo beginInfo{
-            .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .pNext            = nullptr,
-            .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .pNext = nullptr,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
             .pInheritanceInfo = nullptr,
         };
         if (vkBeginCommandBuffer(frame.displayCmd, &beginInfo) != VK_SUCCESS) {
@@ -599,56 +595,56 @@ int Application::run() {
 
         const std::array<VkSemaphoreSubmitInfo, 2> waitInfos{{
             {
-                .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-                .pNext       = nullptr,
-                .semaphore   = m_timelineSemaphore,
-                .value       = traceValue,
-                .stageMask   = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .pNext = nullptr,
+                .semaphore = m_timelineSemaphore,
+                .value = traceValue,
+                .stageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                 .deviceIndex = 0,
             },
             {
-                .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-                .pNext       = nullptr,
-                .semaphore   = frame.imageAvailable,
-                .value       = 0,
-                .stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .pNext = nullptr,
+                .semaphore = frame.imageAvailable,
+                .value = 0,
+                .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .deviceIndex = 0,
             },
         }};
         const std::array<VkSemaphoreSubmitInfo, 2> signalInfos{{
             {
-                .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-                .pNext       = nullptr,
-                .semaphore   = m_renderComplete[imageIndex],
-                .value       = 0,
-                .stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .pNext = nullptr,
+                .semaphore = m_renderComplete[imageIndex],
+                .value = 0,
+                .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                 .deviceIndex = 0,
             },
             {
-                .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-                .pNext       = nullptr,
-                .semaphore   = m_timelineSemaphore,
-                .value       = displayValue,
-                .stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+                .pNext = nullptr,
+                .semaphore = m_timelineSemaphore,
+                .value = displayValue,
+                .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                 .deviceIndex = 0,
             },
         }};
         const VkCommandBufferSubmitInfo displayCmdInfo{
-            .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-            .pNext         = nullptr,
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+            .pNext = nullptr,
             .commandBuffer = frame.displayCmd,
-            .deviceMask    = 0,
+            .deviceMask = 0,
         };
         const VkSubmitInfo2 displaySubmit{
-            .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-            .pNext                    = nullptr,
-            .flags                    = 0,
-            .waitSemaphoreInfoCount   = static_cast<uint32_t>(waitInfos.size()),
-            .pWaitSemaphoreInfos      = waitInfos.data(),
-            .commandBufferInfoCount   = 1,
-            .pCommandBufferInfos      = &displayCmdInfo,
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+            .pNext = nullptr,
+            .flags = 0,
+            .waitSemaphoreInfoCount = static_cast<uint32_t>(waitInfos.size()),
+            .pWaitSemaphoreInfos = waitInfos.data(),
+            .commandBufferInfoCount = 1,
+            .pCommandBufferInfos = &displayCmdInfo,
             .signalSemaphoreInfoCount = static_cast<uint32_t>(signalInfos.size()),
-            .pSignalSemaphoreInfos    = signalInfos.data(),
+            .pSignalSemaphoreInfos = signalInfos.data(),
         };
         result = vkQueueSubmit2(m_context.deviceContext().graphicsQueue, 1, &displaySubmit, VK_NULL_HANDLE);
         if (result != VK_SUCCESS) {
@@ -679,21 +675,21 @@ uint64_t Application::renderFrame(Image& hdrTarget) {
     // Wait for the previous use of this frame slot to complete.
     if (frame.completionValue > 0U) {
         const VkSemaphoreWaitInfo waitInfo{
-            .sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-            .pNext          = nullptr,
-            .flags          = 0,
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+            .pNext = nullptr,
+            .flags = 0,
             .semaphoreCount = 1,
-            .pSemaphores    = &m_timelineSemaphore,
-            .pValues        = &frame.completionValue,
+            .pSemaphores = &m_timelineSemaphore,
+            .pValues = &frame.completionValue,
         };
         vkWaitSemaphores(m_context.deviceContext().device, &waitInfo, UINT64_MAX);
     }
 
     vkResetCommandBuffer(frame.traceCmd, 0);
     const VkCommandBufferBeginInfo beginInfo{
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext            = nullptr,
-        .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr,
     };
     if (vkBeginCommandBuffer(frame.traceCmd, &beginInfo) != VK_SUCCESS) {
@@ -701,7 +697,8 @@ uint64_t Application::renderFrame(Image& hdrTarget) {
         return frame.completionValue; // return last known safe value
     }
 
-    if (m_pathTracer.render(frame.traceCmd, m_scene, m_camera, hdrTarget, m_gNormal, m_gDepth, m_frameIndex) != VK_SUCCESS) {
+    if (m_pathTracer.render(frame.traceCmd, m_scene, m_camera, hdrTarget, m_gNormal, m_gDepth, m_frameIndex) !=
+        VK_SUCCESS) {
         Logger::error("PathTracer render failed");
     }
 
@@ -712,29 +709,29 @@ uint64_t Application::renderFrame(Image& hdrTarget) {
 
     const uint64_t signalValue = m_nextTimelineValue++;
     const VkCommandBufferSubmitInfo cmdInfo{
-        .sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .pNext         = nullptr,
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .pNext = nullptr,
         .commandBuffer = frame.traceCmd,
-        .deviceMask    = 0,
+        .deviceMask = 0,
     };
     const VkSemaphoreSubmitInfo timelineSignal{
-        .sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .pNext       = nullptr,
-        .semaphore   = m_timelineSemaphore,
-        .value       = signalValue,
-        .stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .semaphore = m_timelineSemaphore,
+        .value = signalValue,
+        .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
         .deviceIndex = 0,
     };
     const VkSubmitInfo2 submitInfo{
-        .sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .pNext                    = nullptr,
-        .flags                    = 0,
-        .waitSemaphoreInfoCount   = 0,
-        .pWaitSemaphoreInfos      = nullptr,
-        .commandBufferInfoCount   = 1,
-        .pCommandBufferInfos      = &cmdInfo,
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .pNext = nullptr,
+        .flags = 0,
+        .waitSemaphoreInfoCount = 0,
+        .pWaitSemaphoreInfos = nullptr,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &cmdInfo,
         .signalSemaphoreInfoCount = 1,
-        .pSignalSemaphoreInfos    = &timelineSignal,
+        .pSignalSemaphoreInfos = &timelineSignal,
     };
     if (vkQueueSubmit2(m_context.deviceContext().graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         Logger::error("Trace queue submit failed");
@@ -948,9 +945,9 @@ void Application::savePNG(const std::filesystem::path& path) {
     }
 
     vkDeviceWaitIdle(m_context.deviceContext().device);
-    const uint32_t      width = m_hdrImage.extent().width;
-    const uint32_t      height = m_hdrImage.extent().height;
-    const VkDeviceSize  byteSize =
+    const uint32_t width = m_hdrImage.extent().width;
+    const uint32_t height = m_hdrImage.extent().height;
+    const VkDeviceSize byteSize =
         static_cast<VkDeviceSize>(width) * static_cast<VkDeviceSize>(height) * sizeof(float) * 4U;
 
     auto readback = Buffer::create(m_context.deviceContext(),
@@ -959,15 +956,13 @@ void Application::savePNG(const std::filesystem::path& path) {
                                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
                                    "demo.hdr.readback.png");
     if (!readback) {
-        Logger::error("savePNG: failed to create readback buffer: VkResult {}",
-                      static_cast<int>(readback.error()));
+        Logger::error("savePNG: failed to create readback buffer: VkResult {}", static_cast<int>(readback.error()));
         return;
     }
 
     auto cmd = m_commandPool.beginOneShot();
     if (!cmd) {
-        Logger::error("savePNG: failed to allocate command buffer: VkResult {}",
-                      static_cast<int>(cmd.error()));
+        Logger::error("savePNG: failed to allocate command buffer: VkResult {}", static_cast<int>(cmd.error()));
         return;
     }
     m_hdrImage.transition(*cmd,
@@ -1007,17 +1002,17 @@ void Application::savePNG(const std::filesystem::path& path) {
 
     // Tone-map (ACES SDR: Rec.2020 linear → Rec.709 linear → sRGB 8-bit) and
     // pack into a contiguous R8G8B8 byte buffer.
-    const auto*          src = static_cast<const float*>(readback->mappedData());
+    const auto* src = static_cast<const float*>(readback->mappedData());
     std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 3U);
 
     for (uint32_t y = 0; y < height; ++y) {
         for (uint32_t x = 0; x < width; ++x) {
-            const size_t      srcIdx = (static_cast<size_t>(y) * width + x) * 4U;
-            const glm::vec3   hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
-            const glm::vec3   sdrLinear = ToneMapping::acesFittedSDR(hdr);
-            const glm::vec3   sdrGamma  = ColorSpace::linearRec709ToSrgb(sdrLinear);
-            const glm::vec3   clamped   = glm::clamp(sdrGamma, 0.f, 1.f);
-            const size_t      dstIdx    = (static_cast<size_t>(y) * width + x) * 3U;
+            const size_t srcIdx = (static_cast<size_t>(y) * width + x) * 4U;
+            const glm::vec3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
+            const glm::vec3 sdrLinear = ToneMapping::acesFittedSDR(hdr);
+            const glm::vec3 sdrGamma = ColorSpace::linearRec709ToSrgb(sdrLinear);
+            const glm::vec3 clamped = glm::clamp(sdrGamma, 0.f, 1.f);
+            const size_t dstIdx = (static_cast<size_t>(y) * width + x) * 3U;
             pixels[dstIdx + 0] = static_cast<uint8_t>(std::lround(clamped.r * 255.f));
             pixels[dstIdx + 1] = static_cast<uint8_t>(std::lround(clamped.g * 255.f));
             pixels[dstIdx + 2] = static_cast<uint8_t>(std::lround(clamped.b * 255.f));
@@ -1025,8 +1020,8 @@ void Application::savePNG(const std::filesystem::path& path) {
     }
 
     const int stride = static_cast<int>(width) * 3;
-    if (!stbi_write_png(path.string().c_str(), static_cast<int>(width), static_cast<int>(height), 3,
-                        pixels.data(), stride)) {
+    if (!stbi_write_png(
+            path.string().c_str(), static_cast<int>(width), static_cast<int>(height), 3, pixels.data(), stride)) {
         Logger::error("savePNG: stbi_write_png failed for {}", path.string());
         return;
     }

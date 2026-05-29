@@ -77,7 +77,7 @@ class MaterialLibrary {
   public:
     /// Reference to one texture map: file path + source color space.
     struct MaterialTextureRef {
-        std::string       path;
+        std::string path;
         TextureColorSpace colorSpace = TextureColorSpace::SrgbTexture;
         [[nodiscard]] bool empty() const noexcept { return path.empty(); }
     };
@@ -111,6 +111,6 @@ class MaterialLibrary {
     [[nodiscard]] size_t size() const noexcept { return m_materials.size(); }
 
   private:
-    std::unordered_map<std::string, Material>            m_materials;
+    std::unordered_map<std::string, Material> m_materials;
     std::unordered_map<std::string, MaterialTextureRefs> m_textureRefs;
 };

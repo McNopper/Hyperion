@@ -42,8 +42,8 @@ int main(int argc, char* argv[]) {
 
     for (int i = 1; i < argc; ++i) {
         std::string_view arg = argv[i];
-        uint32_t         value = 0;
-        std::string      strValue;
+        uint32_t value = 0;
+        std::string strValue;
         if (!arg.starts_with('-')) {
             // First non-flag argument is the scene file path.
             config.sceneFile = arg;

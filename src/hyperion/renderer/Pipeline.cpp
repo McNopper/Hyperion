@@ -62,8 +62,7 @@ Pipeline::~Pipeline() noexcept {
 }
 
 Pipeline::Pipeline(Pipeline&& other) noexcept
-    : m_ctx(other.m_ctx),
-      m_rtPipeline(std::exchange(other.m_rtPipeline, VK_NULL_HANDLE)) {
+    : m_ctx(other.m_ctx), m_rtPipeline(std::exchange(other.m_rtPipeline, VK_NULL_HANDLE)) {
     other.m_ctx = nullptr;
 }
 

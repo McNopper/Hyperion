@@ -3,6 +3,7 @@
 # Seven spheres showcase the full OpenPBR material range.
 
 mtllib meadow_materials.mtl
+mtllib floor.mtl
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000
@@ -18,7 +19,7 @@ camera
 # Ground plane — large enough to fill the IBL horizon
 box 30.0 0.1 30.0
   translate 0.0 -0.1 8.0
-  usemtl mat_ground
+  usemtl NeutralFloor
 
 # Diffuse white
 sphere 0.75

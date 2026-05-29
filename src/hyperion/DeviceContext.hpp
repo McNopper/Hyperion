@@ -15,7 +15,6 @@ struct DeviceContext {
     VkQueue graphicsQueue = VK_NULL_HANDLE;
     uint32_t graphicsFamily = 0;
 
-
     [[nodiscard]] bool isValid() const noexcept { return device != VK_NULL_HANDLE; }
 
     void setDebugName(VkObjectType type, uint64_t handle, const char* name) const noexcept {

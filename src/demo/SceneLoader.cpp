@@ -69,9 +69,9 @@ struct Block {
 
     // Shared TRS  (glTF T × R × S convention)
     std::string materialName;
-    glm::vec3   translation{0.0f};
-    glm::quat   rotation{1.0f, 0.0f, 0.0f, 0.0f}; // GLM stores (w, x, y, z)
-    glm::vec3   scale{1.0f};
+    glm::vec3 translation{0.0f};
+    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f}; // GLM stores (w, x, y, z)
+    glm::vec3 scale{1.0f};
 
     // Per-group material assignments for Object blocks.
     // Populated by "material GroupName MatName" scene keywords.
@@ -83,13 +83,13 @@ struct Block {
 
 struct CameraBlock {
     glm::vec3 position{0.0f};
-    bool      hasTranslate = false;
+    bool hasTranslate = false;
 
     // Orientation: rotate and look_at are mutually exclusive; last one wins.
     std::optional<glm::quat> rotation; // from rotate / rotate_y
     std::optional<glm::vec3> lookAt;   // from look_at
 
-    glm::vec3            up{0.0f, 1.0f, 0.0f};
+    glm::vec3 up{0.0f, 1.0f, 0.0f};
     std::optional<float> vfov;
 };
 
@@ -101,13 +101,13 @@ struct CameraBlock {
 
 // ── Block flusher ─────────────────────────────────────────────────────────────
 
-[[nodiscard]] bool flushBlock(Block&                                      blk,
-                               Scene&                                      scene,
-                               const DeviceContext&                        ctx,
-                               const CommandPool&                          pool,
-                               MaterialLibrary&                            lib,
-                               const std::filesystem::path&                assetsDir,
-                               std::unordered_map<std::string, uint32_t>& texCache) {
+[[nodiscard]] bool flushBlock(Block& blk,
+                              Scene& scene,
+                              const DeviceContext& ctx,
+                              const CommandPool& pool,
+                              MaterialLibrary& lib,
+                              const std::filesystem::path& assetsDir,
+                              std::unordered_map<std::string, uint32_t>& texCache) {
 
     // Pre-load textures for all materials referenced in this block.
     // Must run before ObjImporter/addMaterial so that patched texture indices
@@ -127,11 +127,9 @@ struct CameraBlock {
             return;
         }
 
-        auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath,
-                                            refs->base_color.colorSpace, matName);
+        auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath, refs->base_color.colorSpace, matName);
         if (!result) {
-            Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'",
-                         relPath, matName);
+            Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
             return;
         }
 
@@ -160,10 +158,10 @@ struct CameraBlock {
                                ctx,
                                pool,
                                ImportOptions{
-                                   .worldTransform   = trsMatrix(blk),
-                                   .library          = &lib,
+                                   .worldTransform = trsMatrix(blk),
+                                   .library = &lib,
                                    .overrideMaterial = blk.materialName,
-                                   .groupMaterials   = blk.groupMaterials,
+                                   .groupMaterials = blk.groupMaterials,
                                });
     }
 
@@ -173,10 +171,9 @@ struct CameraBlock {
             return true;
         }
         // scale.x used as a uniform radius multiplier (all axes equal for a sphere).
-        const float   radius = blk.sphereRadius * blk.scale.x;
-        const uint32_t mat   = scene.addMaterial(lib.getOrDefault(blk.materialName));
-        return scene.addSphere(ctx, pool, blk.translation, radius, mat) !=
-               std::numeric_limits<uint32_t>::max();
+        const float radius = blk.sphereRadius * blk.scale.x;
+        const uint32_t mat = scene.addMaterial(lib.getOrDefault(blk.materialName));
+        return scene.addSphere(ctx, pool, blk.translation, radius, mat) != std::numeric_limits<uint32_t>::max();
     }
 
     case Block::Kind::Box: {
@@ -184,10 +181,9 @@ struct CameraBlock {
             Logger::warn("SceneLoader: box half-extents are zero — skipping");
             return true;
         }
-        const uint32_t mat  = scene.addMaterial(lib.getOrDefault(blk.materialName));
-        MeshData       mesh = ProceduralGeometry::makeBox(blk.boxHalf, trsMatrix(blk));
-        return scene.addMesh(ctx, pool, std::move(mesh), mat, "box") !=
-               std::numeric_limits<uint32_t>::max();
+        const uint32_t mat = scene.addMaterial(lib.getOrDefault(blk.materialName));
+        MeshData mesh = ProceduralGeometry::makeBox(blk.boxHalf, trsMatrix(blk));
+        return scene.addMesh(ctx, pool, std::move(mesh), mat, "box") != std::numeric_limits<uint32_t>::max();
     }
     }
     return true; // unreachable
@@ -198,30 +194,28 @@ struct CameraBlock {
 // ── SceneLoader::load ─────────────────────────────────────────────────────────
 
 std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem::path& sceneFile,
-                                                           const std::filesystem::path& assetsDir,
-                                                           Scene&                        scene,
-                                                           const DeviceContext&          ctx,
-                                                           const CommandPool&            pool) {
+                                                          const std::filesystem::path& assetsDir,
+                                                          Scene& scene,
+                                                          const DeviceContext& ctx,
+                                                          const CommandPool& pool) {
     std::ifstream file(sceneFile);
     if (!file) {
         Logger::error("SceneLoader: cannot open '{}'", sceneFile.string());
         return std::nullopt;
     }
 
-    SceneConfig    cfg{};
+    SceneConfig cfg{};
     MaterialLibrary lib;
     std::unordered_map<std::string, uint32_t> texCache; // relPath → texture index
 
     // Active block state.
     enum class ActiveBlock { None, Geometry, Camera };
     ActiveBlock activeBlock = ActiveBlock::None;
-    Block       blk{};
+    Block blk{};
     CameraBlock camBlk{};
 
     // Flush pending geometry block.
-    auto flushGeometry = [&]() -> bool {
-        return flushBlock(blk, scene, ctx, pool, lib, assetsDir, texCache);
-    };
+    auto flushGeometry = [&]() -> bool { return flushBlock(blk, scene, ctx, pool, lib, assetsDir, texCache); };
 
     // Flush pending camera block into cfg.
     auto flushCamera = [&]() {
@@ -231,11 +225,10 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
         if (camBlk.rotation) {
             // Derive look-at target and up from quaternion.
             // Camera default forward is -Z; target = position + forward.
-            const glm::vec3 pos     = camBlk.hasTranslate ? camBlk.position
-                                                           : glm::vec3(278.0f, 273.0f, -800.0f);
+            const glm::vec3 pos = camBlk.hasTranslate ? camBlk.position : glm::vec3(278.0f, 273.0f, -800.0f);
             const glm::vec3 forward = *camBlk.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
-            cfg.cameraAt            = pos + forward;
-            cfg.cameraUp            = *camBlk.rotation * glm::vec3(0.0f, 1.0f, 0.0f);
+            cfg.cameraAt = pos + forward;
+            cfg.cameraUp = *camBlk.rotation * glm::vec3(0.0f, 1.0f, 0.0f);
         } else if (camBlk.lookAt) {
             cfg.cameraAt = *camBlk.lookAt;
             cfg.cameraUp = camBlk.up;
@@ -261,7 +254,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             continue;
 
         std::istringstream ss{std::string(sv)};
-        std::string        kw;
+        std::string kw;
         ss >> kw;
         std::string rest;
         std::getline(ss, rest);
@@ -271,21 +264,21 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
         if (kw == "camera") {
             if (!flushActive())
                 return std::nullopt;
-            camBlk      = {};
+            camBlk = {};
             activeBlock = ActiveBlock::Camera;
 
         } else if (kw == "o") {
             if (!flushActive())
                 return std::nullopt;
-            blk         = {};
-            blk.kind    = Block::Kind::Object;
+            blk = {};
+            blk.kind = Block::Kind::Object;
             blk.objPath = std::string(rv);
             activeBlock = ActiveBlock::Geometry;
 
         } else if (kw == "sphere") {
             if (!flushActive())
                 return std::nullopt;
-            blk      = {};
+            blk = {};
             blk.kind = Block::Kind::Sphere;
             parseFloat(rv, blk.sphereRadius);
             activeBlock = ActiveBlock::Geometry;
@@ -293,7 +286,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
         } else if (kw == "box") {
             if (!flushActive())
                 return std::nullopt;
-            blk      = {};
+            blk = {};
             blk.kind = Block::Kind::Box;
             std::istringstream vs{std::string(rv)};
             vs >> blk.boxHalf.x >> blk.boxHalf.y >> blk.boxHalf.z;
@@ -318,7 +311,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             const glm::quat q(qw, qx, qy, qz);
             if (activeBlock == ActiveBlock::Camera) {
                 camBlk.rotation = q;
-                camBlk.lookAt   = std::nullopt; // rotate wins over look_at
+                camBlk.lookAt = std::nullopt; // rotate wins over look_at
             } else {
                 blk.rotation = q;
             }
@@ -329,7 +322,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             const glm::quat q = glm::angleAxis(glm::radians(deg), glm::vec3(0.0f, 1.0f, 0.0f));
             if (activeBlock == ActiveBlock::Camera) {
                 camBlk.rotation = q;
-                camBlk.lookAt   = std::nullopt;
+                camBlk.lookAt = std::nullopt;
             } else {
                 blk.rotation = q;
             }
@@ -348,7 +341,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
 
         } else if (kw == "scale") {
             std::istringstream vs{std::string(rv)};
-            float              sx = 1.0f, sy = 1.0f, sz = 1.0f;
+            float sx = 1.0f, sy = 1.0f, sz = 1.0f;
             vs >> sx;
             if (!(vs >> sy >> sz)) {
                 sy = sx;
@@ -361,7 +354,7 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
         else if (kw == "look_at") {
             glm::vec3 v;
             if (parseVec3(rv, v)) {
-                camBlk.lookAt   = v;
+                camBlk.lookAt = v;
                 camBlk.rotation = std::nullopt; // look_at wins over rotate
             }
 

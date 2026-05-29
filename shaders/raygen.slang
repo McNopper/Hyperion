@@ -47,19 +47,16 @@ void pathTracingRaygen()
             ray.Direction = payload.direction;
             ray.TMin = kRayEpsilon;
             ray.TMax = kInf;
-            TraceRay(tlas, RAY_FLAG_NONE, 0xFF, 0, 2, 0, ray, payload);
+            TraceRay(tlas, RAY_FLAG_NONE, kInstanceMaskAll, 0, 2, 0, ray, payload);
             payload.depth++;
         }
 
         // Firefly suppression: clamp per-sample luminance in display space (post-exposure).
         // Clamping after exposure multiplication makes the threshold camera-independent.
-        // A value of 100 is well above any normal surface response while still catching
-        // degenerate specular chains (e.g. paths tracing sun reflections off mirrors).
-        const float kMaxDisplayLuminance = 100.0;
         float3 sampleRadiance = payload.radiance * camera.exposure;
-        const float sampleLum = dot(sampleRadiance, float3(0.2627, 0.6780, 0.0593));
-        if (sampleLum > kMaxDisplayLuminance)
-            sampleRadiance *= kMaxDisplayLuminance / sampleLum;
+        const float sampleLum = dot(sampleRadiance, kRec2020Luma);
+        if (sampleLum > kFireflyClamp)
+            sampleRadiance *= kFireflyClamp / sampleLum;
 
         totalRadiance += sampleRadiance;
         seed = payload.seed;

@@ -37,7 +37,7 @@ struct MatParams {
     // transmission
     float transmission_weight = 0.0f;
     glm::vec3 transmission_color{1.0f, 1.0f, 1.0f};
-    float transmission_depth = 0.0f;   ///< Beer-law depth (world units); 0 = no absorption
+    float transmission_depth = 0.0f; ///< Beer-law depth (world units); 0 = no absorption
     glm::vec3 transmission_scatter{0.0f, 0.0f, 0.0f};
     // coat
     float coat_weight = 0.0f;
@@ -65,11 +65,11 @@ struct MatParams {
     // opacity
     float opacity = 1.0f;
     // texture maps — path + source color space (converted to linear Rec.2020 at load)
-    TextureRef map_base_color    {"", TextureColorSpace::SrgbTexture};
-    TextureRef map_normal        {"", TextureColorSpace::Raw};
-    TextureRef map_orm           {"", TextureColorSpace::Raw};
-    TextureRef map_roughness     {"", TextureColorSpace::Raw};
-    TextureRef map_metalness     {"", TextureColorSpace::Raw};
+    TextureRef map_base_color{"", TextureColorSpace::SrgbTexture};
+    TextureRef map_normal{"", TextureColorSpace::Raw};
+    TextureRef map_orm{"", TextureColorSpace::Raw};
+    TextureRef map_roughness{"", TextureColorSpace::Raw};
+    TextureRef map_metalness{"", TextureColorSpace::Raw};
     TextureRef map_emission_color{"", TextureColorSpace::SrgbTexture};
 };
 
@@ -92,17 +92,28 @@ struct MatParams {
 /// Classic OBJ/MTL keywords (Kd, Ks, Ni, Tr, Ke, map_Kd, map_Ns, …) are
 /// intentionally NOT listed here — they must be silently ignored.
 [[nodiscard]] std::string_view normalise(std::string_view kw) noexcept {
-    if (kw == "diffuseColor")       return "base_color";
-    if (kw == "metallic")           return "base_metalness";
-    if (kw == "roughness")          return "specular_roughness";
-    if (kw == "base_roughness")     return "base_diffuse_roughness";
-    if (kw == "ior")                return "specular_ior";
-    if (kw == "emissiveColor")      return "emission_color";
-    if (kw == "emissiveLuminance")  return "emission_luminance";
-    if (kw == "clearcoat")          return "coat_weight";
-    if (kw == "clearcoatRoughness") return "coat_roughness";
-    if (kw == "transmissionAmount") return "transmission_weight";
-    if (kw == "specularColor")      return "specular_color";
+    if (kw == "diffuseColor")
+        return "base_color";
+    if (kw == "metallic")
+        return "base_metalness";
+    if (kw == "roughness")
+        return "specular_roughness";
+    if (kw == "base_roughness")
+        return "base_diffuse_roughness";
+    if (kw == "ior")
+        return "specular_ior";
+    if (kw == "emissiveColor")
+        return "emission_color";
+    if (kw == "emissiveLuminance")
+        return "emission_luminance";
+    if (kw == "clearcoat")
+        return "coat_weight";
+    if (kw == "clearcoatRoughness")
+        return "coat_roughness";
+    if (kw == "transmissionAmount")
+        return "transmission_weight";
+    if (kw == "specularColor")
+        return "specular_color";
     return kw;
 }
 
@@ -122,41 +133,86 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
     const std::string_view kw = normalise(rawKw);
 
     // ── Texture map paths (string values) ────────────────────────────────
-    if (kw == "map_base_color")    { p.map_base_color.path     = std::string(rest); return; }
-    if (kw == "map_normal")        { p.map_normal.path         = std::string(rest); return; }
-    if (kw == "map_orm")           { p.map_orm.path            = std::string(rest); return; }
-    if (kw == "map_roughness")     { p.map_roughness.path      = std::string(rest); return; }
-    if (kw == "map_metalness")     { p.map_metalness.path      = std::string(rest); return; }
-    if (kw == "map_emission_color"){ p.map_emission_color.path = std::string(rest); return; }
+    if (kw == "map_base_color") {
+        p.map_base_color.path = std::string(rest);
+        return;
+    }
+    if (kw == "map_normal") {
+        p.map_normal.path = std::string(rest);
+        return;
+    }
+    if (kw == "map_orm") {
+        p.map_orm.path = std::string(rest);
+        return;
+    }
+    if (kw == "map_roughness") {
+        p.map_roughness.path = std::string(rest);
+        return;
+    }
+    if (kw == "map_metalness") {
+        p.map_metalness.path = std::string(rest);
+        return;
+    }
+    if (kw == "map_emission_color") {
+        p.map_emission_color.path = std::string(rest);
+        return;
+    }
 
     // ── Texture map color spaces (OCIO / OpenEXR IIF names) ──────────────
-    if (kw == "map_base_color_colorspace")    { p.map_base_color.colorSpace     = parseTextureColorSpace(rest); return; }
-    if (kw == "map_normal_colorspace")        { p.map_normal.colorSpace         = parseTextureColorSpace(rest); return; }
-    if (kw == "map_orm_colorspace")           { p.map_orm.colorSpace            = parseTextureColorSpace(rest); return; }
-    if (kw == "map_roughness_colorspace")     { p.map_roughness.colorSpace      = parseTextureColorSpace(rest); return; }
-    if (kw == "map_metalness_colorspace")     { p.map_metalness.colorSpace      = parseTextureColorSpace(rest); return; }
-    if (kw == "map_emission_color_colorspace"){ p.map_emission_color.colorSpace = parseTextureColorSpace(rest); return; }
+    if (kw == "map_base_color_colorspace") {
+        p.map_base_color.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
+    if (kw == "map_normal_colorspace") {
+        p.map_normal.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
+    if (kw == "map_orm_colorspace") {
+        p.map_orm.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
+    if (kw == "map_roughness_colorspace") {
+        p.map_roughness.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
+    if (kw == "map_metalness_colorspace") {
+        p.map_metalness.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
+    if (kw == "map_emission_color_colorspace") {
+        p.map_emission_color.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
 
     // ── Colour keywords ───────────────────────────────────────────────────
     glm::vec3 c{};
-    if (kw == "base_color"       || kw == "specular_color"   || kw == "transmission_color" ||
-        kw == "coat_color"       || kw == "fuzz_color"       || kw == "emission_color"     ||
-        kw == "subsurface_color" || kw == "subsurface_radius"|| kw == "transmission_scatter") {
+    if (kw == "base_color" || kw == "specular_color" || kw == "transmission_color" || kw == "coat_color" ||
+        kw == "fuzz_color" || kw == "emission_color" || kw == "subsurface_color" || kw == "subsurface_radius" ||
+        kw == "transmission_scatter") {
         if (!parseVec3(rest, c))
             return;
         // Non-colour data: skip colour-space conversion.
         const bool isColour = (kw != "subsurface_radius" && kw != "transmission_scatter");
         if (isColour && convertToRec2020)
             c = ColorSpace::rec709ToRec2020(c);
-        if      (kw == "base_color")            p.base_color           = c;
-        else if (kw == "specular_color")         p.specular_color       = c;
-        else if (kw == "transmission_color")     p.transmission_color   = c;
-        else if (kw == "transmission_scatter")   p.transmission_scatter = c;
-        else if (kw == "coat_color")             p.coat_color           = c;
-        else if (kw == "fuzz_color")             p.fuzz_color           = c;
-        else if (kw == "emission_color")         p.emission_color       = c;
-        else if (kw == "subsurface_color")       p.subsurface_color     = c;
-        else if (kw == "subsurface_radius")      p.subsurface_radius    = c;
+        if (kw == "base_color")
+            p.base_color = c;
+        else if (kw == "specular_color")
+            p.specular_color = c;
+        else if (kw == "transmission_color")
+            p.transmission_color = c;
+        else if (kw == "transmission_scatter")
+            p.transmission_scatter = c;
+        else if (kw == "coat_color")
+            p.coat_color = c;
+        else if (kw == "fuzz_color")
+            p.fuzz_color = c;
+        else if (kw == "emission_color")
+            p.emission_color = c;
+        else if (kw == "subsurface_color")
+            p.subsurface_color = c;
+        else if (kw == "subsurface_radius")
+            p.subsurface_radius = c;
         return;
     }
 
@@ -164,29 +220,52 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
     float f = 0.0f;
     if (!parseFloat(rest, f))
         return;
-    if      (kw == "base_weight")                    p.base_weight                    = f;
-    else if (kw == "base_metalness")                 p.base_metalness                 = f;
-    else if (kw == "base_diffuse_roughness")         p.base_diffuse_roughness         = f;
-    else if (kw == "specular_weight")                p.specular_weight                = f;
-    else if (kw == "specular_roughness")             p.specular_roughness             = f;
-    else if (kw == "specular_roughness_anisotropy")  p.specular_roughness_anisotropy  = f;
-    else if (kw == "specular_ior")                   p.specular_ior                   = f;
-    else if (kw == "transmission_weight")            p.transmission_weight            = f;
-    else if (kw == "transmission_depth")             p.transmission_depth             = f;
-    else if (kw == "thin_film_weight")               p.thin_film_weight               = f;
-    else if (kw == "thin_film_thickness")            p.thin_film_thickness            = f;
-    else if (kw == "thin_film_ior")                  p.thin_film_ior                  = f;
-    else if (kw == "coat_weight")                    p.coat_weight                    = f;
-    else if (kw == "coat_roughness")                 p.coat_roughness                 = f;
-    else if (kw == "coat_roughness_anisotropy")      p.coat_roughness_anisotropy      = f;
-    else if (kw == "coat_ior")                       p.coat_ior                       = f;
-    else if (kw == "coat_darkening")                 p.coat_darkening                 = f;
-    else if (kw == "fuzz_weight")                    p.fuzz_weight                    = f;
-    else if (kw == "fuzz_roughness")                 p.fuzz_roughness                 = f;
-    else if (kw == "emission_luminance")             p.emission_luminance             = f;
-    else if (kw == "subsurface_weight")              p.subsurface_weight              = f;
-    else if (kw == "subsurface_scale")               p.subsurface_scale               = f;
-    else if (kw == "opacity")                        p.opacity                        = f;
+    if (kw == "base_weight")
+        p.base_weight = f;
+    else if (kw == "base_metalness")
+        p.base_metalness = f;
+    else if (kw == "base_diffuse_roughness")
+        p.base_diffuse_roughness = f;
+    else if (kw == "specular_weight")
+        p.specular_weight = f;
+    else if (kw == "specular_roughness")
+        p.specular_roughness = f;
+    else if (kw == "specular_roughness_anisotropy")
+        p.specular_roughness_anisotropy = f;
+    else if (kw == "specular_ior")
+        p.specular_ior = f;
+    else if (kw == "transmission_weight")
+        p.transmission_weight = f;
+    else if (kw == "transmission_depth")
+        p.transmission_depth = f;
+    else if (kw == "thin_film_weight")
+        p.thin_film_weight = f;
+    else if (kw == "thin_film_thickness")
+        p.thin_film_thickness = f;
+    else if (kw == "thin_film_ior")
+        p.thin_film_ior = f;
+    else if (kw == "coat_weight")
+        p.coat_weight = f;
+    else if (kw == "coat_roughness")
+        p.coat_roughness = f;
+    else if (kw == "coat_roughness_anisotropy")
+        p.coat_roughness_anisotropy = f;
+    else if (kw == "coat_ior")
+        p.coat_ior = f;
+    else if (kw == "coat_darkening")
+        p.coat_darkening = f;
+    else if (kw == "fuzz_weight")
+        p.fuzz_weight = f;
+    else if (kw == "fuzz_roughness")
+        p.fuzz_roughness = f;
+    else if (kw == "emission_luminance")
+        p.emission_luminance = f;
+    else if (kw == "subsurface_weight")
+        p.subsurface_weight = f;
+    else if (kw == "subsurface_scale")
+        p.subsurface_scale = f;
+    else if (kw == "opacity")
+        p.opacity = f;
 }
 
 // ── Build GpuMaterial from parsed OpenPBR params ─────────────────────────
@@ -197,18 +276,18 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
     GpuMaterial g{};
 
     // Base layer
-    g.baseColorWeight        = glm::vec4(p.base_color, p.base_weight);
+    g.baseColorWeight = glm::vec4(p.base_color, p.base_weight);
     g.baseMetalnessDiffRough = glm::vec4(p.base_metalness, p.base_diffuse_roughness, 0.0f, 0.0f);
 
     // Specular
-    g.specularColorWeight   = glm::vec4(p.specular_color, p.specular_weight);
-    g.specularRoughAnisoIor = glm::vec4(p.specular_roughness, p.specular_roughness_anisotropy,
-                                        std::max(p.specular_ior, 1.0f), 0.0f);
+    g.specularColorWeight = glm::vec4(p.specular_color, p.specular_weight);
+    g.specularRoughAnisoIor =
+        glm::vec4(p.specular_roughness, p.specular_roughness_anisotropy, std::max(p.specular_ior, 1.0f), 0.0f);
 
     // Transmission
     g.transmissionColorWeight = glm::vec4(p.transmission_color, p.transmission_weight);
-    g.transmissionParams      = glm::vec4(p.transmission_depth, p.specular_roughness, 0.0f, 0.0f);
-    g.transmissionScatter     = glm::vec4(p.transmission_scatter, 0.0f);
+    g.transmissionParams = glm::vec4(p.transmission_depth, p.specular_roughness, 0.0f, 0.0f);
+    g.transmissionScatter = glm::vec4(p.transmission_scatter, 0.0f);
 
     // Subsurface
     g.subsurfaceColorWeight = glm::vec4(p.subsurface_color, p.subsurface_weight);
@@ -218,17 +297,18 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
     g.textureIndices = glm::uvec4(kNoTexture);
 
     // Thin film
-    g.thinFilmParams = glm::vec4(p.thin_film_thickness, std::max(p.thin_film_ior, 1.0f),
-                                 p.thin_film_weight, 0.0f);
+    g.thinFilmParams = glm::vec4(p.thin_film_thickness, std::max(p.thin_film_ior, 1.0f), p.thin_film_weight, 0.0f);
 
     // Coat
-    g.coatColorWeight      = glm::vec4(p.coat_color, p.coat_weight);
-    g.coatRoughAnisoIorDark = glm::vec4(p.coat_roughness, p.coat_roughness_anisotropy,
-                                        std::max(p.coat_ior, 1.0f), std::clamp(p.coat_darkening, 0.0f, 1.0f));
+    g.coatColorWeight = glm::vec4(p.coat_color, p.coat_weight);
+    g.coatRoughAnisoIorDark = glm::vec4(p.coat_roughness,
+                                        p.coat_roughness_anisotropy,
+                                        std::max(p.coat_ior, 1.0f),
+                                        std::clamp(p.coat_darkening, 0.0f, 1.0f));
 
     // Fuzz / sheen
     g.fuzzColorWeight = glm::vec4(p.fuzz_color, p.fuzz_weight);
-    g.fuzzRoughPad    = glm::vec4(std::clamp(p.fuzz_roughness, 0.0f, 1.0f), 0.0f, 0.0f, 0.0f);
+    g.fuzzRoughPad = glm::vec4(std::clamp(p.fuzz_roughness, 0.0f, 1.0f), 0.0f, 0.0f, 0.0f);
 
     // Emission
     g.emissionColorLum = glm::vec4(p.emission_color, std::max(p.emission_luminance, 0.0f));
@@ -261,8 +341,7 @@ bool MaterialLibrary::load(const std::filesystem::path& path) {
             m_materials.insert_or_assign(currentName, buildMaterial(currentParams));
             // Store texture references so SceneLoader can pre-load them.
             MaterialTextureRefs refs;
-            refs.base_color = {currentParams.map_base_color.path,
-                               currentParams.map_base_color.colorSpace};
+            refs.base_color = {currentParams.map_base_color.path, currentParams.map_base_color.colorSpace};
             m_textureRefs.insert_or_assign(currentName, std::move(refs));
         }
     };
@@ -312,8 +391,7 @@ Material MaterialLibrary::getOrDefault(const std::string& name) const {
     return get(name).value_or(Material::diffuse(glm::vec3(0.8f)));
 }
 
-std::optional<MaterialLibrary::MaterialTextureRefs>
-MaterialLibrary::textureRefs(const std::string& name) const {
+std::optional<MaterialLibrary::MaterialTextureRefs> MaterialLibrary::textureRefs(const std::string& name) const {
     const auto it = m_textureRefs.find(name);
     return it != m_textureRefs.end() ? std::optional{it->second} : std::nullopt;
 }

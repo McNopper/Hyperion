@@ -110,6 +110,12 @@ struct PushConstants {
     uint32_t _pad[3];            // NOLINT(modernize-avoid-c-arrays) — explicit GPU layout padding
 };
 
+/// TLAS instance mask bits used in TraceRay InstanceInclusionMask comparisons.
+/// An instance is tested by a ray when (instance.mask & ray.cullMask) != 0.
+static constexpr uint32_t kInstanceMaskAll = 0xFFU;      ///< all instances visible
+static constexpr uint32_t kInstanceMaskEmissive = 0x02U; ///< bit 1: emissive mesh lights
+static constexpr uint32_t kShadowRayMask = kInstanceMaskAll & ~kInstanceMaskEmissive;
+
 static_assert(std::is_trivially_copyable_v<GpuVertex>);
 
 /// Sentinel texture index: slot holds no texture.

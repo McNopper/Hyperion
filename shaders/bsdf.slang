@@ -8,6 +8,9 @@ struct BSDFSample {
     bool   isDelta;
 };
 
+/// Minimum specular weight — F0 at normal incidence for common dielectrics (~4 %).
+static const float kMinSpecularF0 = 0.04;
+
 float3 saturate3(float3 v)
 {
     return clamp(v, 0.0.xxx, 1.0.xxx);
@@ -15,7 +18,7 @@ float3 saturate3(float3 v)
 
 float luminance(float3 c)
 {
-    return dot(c, float3(0.2627, 0.6780, 0.0593));
+    return dot(c, kRec2020Luma);
 }
 
 float3 toLocal(float3 v, float3 T, float3 B, float3 N)
@@ -89,7 +92,7 @@ float3 evalDiffuseOrenNayar(float3 albedo, float roughness, float3 wo, float3 wi
         return 0.0.xxx;
     }
 
-    float sigma = roughness * roughness * 1.57079632679;
+    float sigma = roughness * roughness * kHalfPi;
     float sigma2 = sigma * sigma;
     float A = 1.0 - (sigma2 / (2.0 * (sigma2 + 0.33)));
     float B = 0.45 * sigma2 / (sigma2 + 0.09);
@@ -203,7 +206,7 @@ void computeLobeWeights(
     subsurfaceWeight = saturate(mat.subsurfaceColorWeight.w) * (1.0 - transmission);
     float opaqueBase = baseWeight * (1.0 - transmission);
     diffuseWeight = opaqueBase * (1.0 - metalness) * (1.0 - subsurfaceWeight);
-    specularWeight = opaqueBase * (1.0 - metalness) * max(saturate(mat.specularColorWeight.w), 0.04);
+    specularWeight = opaqueBase * (1.0 - metalness) * max(saturate(mat.specularColorWeight.w), kMinSpecularF0);
     metalWeight = baseWeight * metalness;
     transmissionWeight = baseWeight * transmission;
 

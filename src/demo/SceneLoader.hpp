@@ -1,9 +1,9 @@
 #pragma once
 
+#include <glm/glm.hpp>
+
 #include <filesystem>
 #include <optional>
-
-#include <glm/glm.hpp>
 
 #include "hyperion/DeviceContext.hpp"
 #include "hyperion/core/CommandPool.hpp"
@@ -80,11 +80,11 @@ class SceneLoader {
         std::optional<glm::vec3> cameraPos;
         std::optional<glm::vec3> cameraAt;
         std::optional<glm::vec3> cameraUp;
-        std::optional<float>     cameraVfov;
-        std::optional<float>     cameraEv100; ///< physical camera EV100 override
-        std::optional<uint32_t>  spp;
-        std::optional<uint32_t>  maxDepth;
-        std::optional<float>     envUnitNits; ///< cd/m² per unit EXR value (physical unit multiplier)
+        std::optional<float> cameraVfov;
+        std::optional<float> cameraEv100; ///< physical camera EV100 override
+        std::optional<uint32_t> spp;
+        std::optional<uint32_t> maxDepth;
+        std::optional<float> envUnitNits;                ///< cd/m² per unit EXR value (physical unit multiplier)
         std::optional<std::filesystem::path> envMapFile; ///< equirect EXR IBL path (relative to assetsDir)
     };
 
@@ -93,8 +93,8 @@ class SceneLoader {
     /// Returns a SceneConfig with camera / render overrides on success,
     /// or std::nullopt if the file cannot be opened.
     [[nodiscard]] std::optional<SceneConfig> load(const std::filesystem::path& sceneFile,
-                                                   const std::filesystem::path& assetsDir,
-                                                   Scene&                        scene,
-                                                   const DeviceContext&          ctx,
-                                                   const CommandPool&            pool);
+                                                  const std::filesystem::path& assetsDir,
+                                                  Scene& scene,
+                                                  const DeviceContext& ctx,
+                                                  const CommandPool& pool);
 };

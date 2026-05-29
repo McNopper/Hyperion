@@ -29,8 +29,8 @@ ShaderBindingTable::create(const DeviceContext& ctx,
     const uint32_t stride = static_cast<uint32_t>(alignUp(handleSize, handleAlignment));
 
     std::vector<std::byte> handles(static_cast<size_t>(groupCount) * handleSize);
-    if (const VkResult result =
-            vkGetRayTracingShaderGroupHandlesKHR(ctx.device, pipeline.rtPipeline(), 0, groupCount, handles.size(), handles.data());
+    if (const VkResult result = vkGetRayTracingShaderGroupHandlesKHR(
+            ctx.device, pipeline.rtPipeline(), 0, groupCount, handles.size(), handles.data());
         result != VK_SUCCESS) {
         return std::unexpected(result);
     }
