@@ -32,13 +32,14 @@ void pathTracingRaygen()
         }
 
         RayPayload payload;
-        payload.radiance = 0.0.xxx;
-        payload.throughput = 1.0.xxx;
-        payload.origin = rayOrigin;
-        payload.direction = rayDir;
-        payload.depth = 0u;
-        payload.seed = seed;
-        payload.terminated = false;
+        payload.radiance       = 0.0.xxx;
+        payload.throughput     = 1.0.xxx;
+        payload.origin         = rayOrigin;
+        payload.direction      = rayDir;
+        payload.depth          = 0u;
+        payload.seed           = seed;
+        payload.terminated     = false;
+        payload.specularBounce = false;
 
         for (uint depth = 0; depth < pushConst.maxDepth && !payload.terminated; ++depth) {
             RayDesc ray;

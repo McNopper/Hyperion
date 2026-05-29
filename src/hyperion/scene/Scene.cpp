@@ -15,6 +15,7 @@
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
+#include "hyperion/GpuTypes.hpp"
 #include "hyperion/scene/Geometry.hpp"
 
 namespace {
@@ -184,12 +185,12 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
             instance.indexOffset = 0;
             // Store sphere centre in the vertex position slot for shader lookup.
             vertices.push_back(GpuVertex{
-                .position      = sphere->center(),
-                .tangentX      = 0.0f,
-                .normal        = glm::vec3(0.0f),
-                .tangentY      = 0.0f,
-                .uv            = glm::vec2(0.0f),
-                .tangentZ      = 0.0f,
+                .position = sphere->center(),
+                .tangentX = 0.0f,
+                .normal = glm::vec3(0.0f),
+                .tangentY = 0.0f,
+                .uv = glm::vec2(0.0f),
+                .tangentZ = 0.0f,
                 .bitangentSign = 1.0f,
             });
         }
@@ -264,9 +265,69 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     }
     m_lightBuffer = std::move(*lightBuffer);
 
+    // Emissive light buffer — scan triangle meshes for emission and build bounding spheres.
+    std::vector<GpuEmissiveLight> emissiveLights;
+    for (size_t i = 0; i < m_geometries.size(); ++i) {
+        const GpuInstance& inst = m_instances[i];
+        if (inst.geometryKind != 0U) {
+            continue; // spheres not supported for NEE yet
+        }
+        const GpuMaterial& gpuMat = gpuMaterials[inst.materialIndex];
+        if (gpuMat.emissionColorLum.w <= 0.0F) { // NOLINT(cppcoreguidelines-pro-type-union-access)
+            continue;
+        }
+        const auto* mesh = dynamic_cast<const TriangleMesh*>(m_geometries[i].get());
+        if (mesh == nullptr) {
+            continue;
+        }
+        const auto& verts = mesh->data().vertices;
+        if (verts.empty()) {
+            continue;
+        }
+
+        const glm::mat4 xformMat = m_geometries[i]->xform.matrix();
+
+        // World-space centroid (bounding sphere centre).
+        glm::vec3 centroid(0.0F);
+        for (const auto& v : verts) {
+            centroid += v.position;
+        }
+        centroid /= static_cast<float>(verts.size());
+        const glm::vec3 worldCentroid = glm::vec3(xformMat * glm::vec4(centroid, 1.0F));
+
+        // Bounding sphere radius = max distance from centroid to any vertex in world space.
+        float radius = 0.0F;
+        for (const auto& v : verts) {
+            const glm::vec3 worldPos = glm::vec3(xformMat * glm::vec4(v.position, 1.0F));
+            radius = std::max(radius, glm::length(worldPos - worldCentroid));
+        }
+
+        const glm::vec3 emission = glm::vec3(gpuMat.emissionColorLum) *
+                                   gpuMat.emissionColorLum.w; // NOLINT(cppcoreguidelines-pro-type-union-access)
+        emissiveLights.push_back(GpuEmissiveLight{
+            .center = worldCentroid,
+            .radius = std::max(radius, 1.0e-3F),
+            .emission = emission,
+            .instanceIndex = static_cast<uint32_t>(i),
+        });
+    }
+    m_emissiveLightCount = static_cast<uint32_t>(emissiveLights.size());
+    if (emissiveLights.empty()) {
+        emissiveLights.push_back(GpuEmissiveLight{}); // sentinel — keeps the binding valid
+    }
+    auto emissiveLightBuffer =
+        uploadBytes(ctx,
+                    pool,
+                    std::as_bytes(std::span<const GpuEmissiveLight>(emissiveLights.data(), emissiveLights.size())),
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                    "scene.emissiveLights");
+    if (!emissiveLightBuffer) {
+        return emissiveLightBuffer.error();
+    }
+    m_emissiveLightBuffer = std::move(*emissiveLightBuffer);
+
     return VK_SUCCESS;
 }
-
 
 VkResult Scene::buildTlas(const DeviceContext& ctx, const CommandPool& pool) {
     std::vector<VkAccelerationStructureInstanceKHR> instances(m_geometries.size());

@@ -54,6 +54,23 @@ HitInfo makeSphereHit(SphereIntersectionAttributes attr)
     return hit;
 }
 
+/// Fire a shadow ray toward emissive light `lightIdx` from surface point `origin`
+/// (already offset by geometry normal epsilon). Returns true if the path is unoccluded.
+bool traceNEEShadowRay(float3 origin, float3 direction, float tMax)
+{
+    ShadowPayload shadowPayload;
+    shadowPayload.inShadow = true;
+    RayDesc shadowRay;
+    shadowRay.Origin    = origin;
+    shadowRay.Direction = direction;
+    shadowRay.TMin      = 0.0;
+    shadowRay.TMax      = tMax;
+    TraceRay(tlas,
+             RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+             0xFF, 0, 2, 1, shadowRay, shadowPayload);
+    return !shadowPayload.inShadow;
+}
+
 void shadeSurface(inout RayPayload payload, HitInfo hit)
 {
     // Write G-buffer for primary rays before any early returns.
@@ -83,14 +100,66 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
 
     float3 emission = max(mat.emissionColorLum.xyz, 0.0.xxx) * max(mat.emissionColorLum.w, 0.0);
     if (max(emission.x, max(emission.y, emission.z)) > 0.0 && dot(wo, hit.geoNormal) > 0.0) {
-        // Emissive mesh acts as an area light: add emission on every path bounce.
-        // (No next-event estimation, so the emissive surface is sampled stochastically.)
-        payload.radiance += payload.throughput * emission;
+        // Add emissive contribution only for:
+        //   • primary camera ray (depth == 0) — camera directly sees the light
+        //   • after a specular/delta bounce — NEE cannot sample through perfect mirrors
+        // All other direct hits are handled by NEE below and must not be double-counted.
+        if (pushConst.emissiveLightCount == 0u || payload.depth == 0u || payload.specularBounce) {
+            payload.radiance += payload.throughput * emission;
+        }
         payload.terminated = true;
         return;
     }
 
     uint seed = payload.seed;
+
+    // --- Next Event Estimation: bounding-sphere solid-angle sampling ---
+    if (pushConst.emissiveLightCount > 0u) {
+        uint lightIdx = min(uint(randFloat(seed) * float(pushConst.emissiveLightCount)),
+                           pushConst.emissiveLightCount - 1u);
+        GpuEmissiveLight eLight = emissiveLights[lightIdx];
+
+        if (eLight.instanceIndex != hit.instanceIndex) {
+            float3 toCenter = eLight.center - hit.position;
+            float dist2     = dot(toCenter, toCenter);
+            float dist      = sqrt(dist2);
+
+            if (dist > eLight.radius + kRayEpsilon) {
+                float sinThetaMax2 = (eLight.radius * eLight.radius) / dist2;
+                float cosThetaMax  = sqrt(max(0.0, 1.0 - sinThetaMax2));
+                float solidAngle   = 2.0 * kPi * (1.0 - cosThetaMax);
+
+                // Sample a direction uniformly within the subtended cone.
+                float xi0     = randFloat(seed);
+                float xi1     = randFloat(seed);
+                float cosT    = 1.0 - xi0 * (1.0 - cosThetaMax);
+                float sinT    = sqrt(max(0.0, 1.0 - cosT * cosT));
+                float phi     = 2.0 * kPi * xi1;
+
+                float3x3 frame = buildFrameFromZ(toCenter / dist);
+                float3 wi = normalize(frame[0] * (sinT * cos(phi)) +
+                                      frame[1] * (sinT * sin(phi)) +
+                                      frame[2] * cosT);
+
+                float cosI = dot(wi, N);
+                if (cosI > 0.0) {
+                    // TMax stops just before the near side of the bounding sphere so the
+                    // shadow ray never intersects the emissive mesh itself.
+                    float tMax = max(kRayEpsilon, dist - eLight.radius - kRayEpsilon);
+                    float3 shadowOrigin = hit.position + geoN * kRayEpsilon;
+                    if (traceNEEShadowRay(shadowOrigin, wi, tMax)) {
+                        float3 bsdfVal = evalBSDF(mat, wo, wi, N, T, B);
+                        // Contribution = BSDF × Le × cos(θ) × solidAngle × N_lights
+                        // (solidAngle = 1/pdf; N_lights cancels uniform light selection)
+                        float3 nee = payload.throughput * bsdfVal * eLight.emission *
+                                     cosI * solidAngle * float(pushConst.emissiveLightCount);
+                        payload.radiance += nee;
+                    }
+                }
+            }
+        }
+    }
+
     BSDFSample bsdfSample = sampleBSDF(mat, wo, N, T, B, seed);
     payload.seed = seed;
     if (bsdfSample.pdf <= 0.0 || max(bsdfSample.weight.x, max(bsdfSample.weight.y, bsdfSample.weight.z)) <= 0.0) {
@@ -98,6 +167,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         return;
     }
 
+    payload.specularBounce = bsdfSample.isDelta;
     payload.throughput *= bsdfSample.weight;
     payload.origin = hit.position + geoN * (dot(bsdfSample.direction, geoN) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
     payload.direction = normalize(bsdfSample.direction);

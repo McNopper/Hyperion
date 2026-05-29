@@ -137,6 +137,20 @@ float3x3 buildTBN(float3 N)
     return float3x3(normalize(T), normalize(B), normalize(N));
 }
 
+/// Build an orthonormal frame whose Z axis points in direction `z`.
+/// Row 0 = tangent (X), Row 1 = bitangent (Y), Row 2 = z (Z).
+/// Used for sampling cones / disks aligned to an arbitrary axis.
+float3x3 buildFrameFromZ(float3 z)
+{
+    // Frisvad / Duff numerical method: stable for all z directions.
+    float sign = z.z >= 0.0 ? 1.0 : -1.0;
+    float a = -1.0 / (sign + z.z);
+    float b = z.x * z.y * a;
+    float3 t = float3(1.0 + sign * z.x * z.x * a, sign * b, -sign * z.x);
+    float3 bv = float3(b, sign + z.y * z.y * a, -z.y);
+    return float3x3(normalize(t), normalize(bv), z);
+}
+
 uint wangHash(uint seed)
 {
     seed = (seed ^ 61u) ^ (seed >> 16u);

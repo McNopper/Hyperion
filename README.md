@@ -34,6 +34,7 @@ It implements the [OpenPBR Surface v1.1](https://academysoftwarefoundation.githu
 ### Rendering
 - Vulkan 1.4 KHR ray tracing pipeline (raygen / closest-hit / miss / intersection shaders)
 - Unidirectional path tracing with configurable bounce depth and samples per pixel
+- **Next Event Estimation (NEE)** — bounding-sphere solid-angle sampling toward emissive meshes; shadow rays eliminate black-dot noise and halve required SPP
 - Analytic spheres via `VK_KHR_ray_tracing_pipeline` intersection shaders
 - Image-based lighting (IBL) — equirectangular HDR panorama via `env_map`
 - Emissive mesh area lights (physical units: cd/m²)
@@ -153,3 +154,44 @@ cd build && ctest --output-on-failure
 | [Slang](https://shader-slang.com/) | Shader language |
 | [Google Test](https://github.com/google/googletest) | Testing |
 
+---
+
+## References
+
+The following specifications, textbooks, and learning resources informed the design of Hyperion:
+
+### Rendering & Path Tracing
+| Resource | Relevance |
+|----------|-----------|
+| [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path tracing, BSDF sampling, MIS, NEE, solid-angle sphere light sampling (§12.6) |
+| [Ray Tracing Gems I & II](https://www.realtimerendering.com/raytracinggems/) (Haines et al., Marrs et al.) | Shadow ray precision, NEE techniques, ray tracing best practices |
+| [Ray Tracing in One Weekend series](https://raytracing.github.io/) (Shirley et al.) | Introductory path-tracer architecture |
+
+### Vulkan & Ray Tracing API
+| Resource | Relevance |
+|----------|-----------|
+| [Vulkan Specification 1.4](https://registry.khronos.org/vulkan/specs/latest/html/) | `VK_KHR_ray_tracing_pipeline`, `VK_KHR_acceleration_structure`, descriptor indexing |
+| [Khronos — Ray Tracing in Vulkan](https://www.khronos.org/blog/ray-tracing-in-vulkan) | Pipeline setup, SBT layout, shader stages |
+| [NVIDIA — Ray Tracing Learning Library](https://developer.nvidia.com/rtx/ray-tracing) | Algorithm-level ray tracing techniques (implementation uses Khronos extensions only — no vendor-specific extensions) |
+| [Slang Shading Language](https://shader-slang.com/) | `[raypayload]` semantic, `TraceRay`, Vulkan binding annotations |
+
+### Material Model
+| Resource | Relevance |
+|----------|-----------|
+| [OpenPBR Surface Specification v1.1](https://academysoftwarefoundation.github.io/OpenPBR/) | Material layer stack, parameter naming (base/specular/coat/fuzz/emission/transmission) |
+| [MaterialX Standard Surface](https://materialx.org/) | Cross-reference for PBR parameter vocabulary |
+| [Blender Principled BSDF](https://docs.blender.org/manual/en/latest/render/shader_nodes/shader/principled.html) | Cross-reference for PBR parameter vocabulary |
+
+### Color Science
+| Resource | Relevance |
+|----------|-----------|
+| [OpenColorIO](https://opencolorio.org/) | Color space transforms, ACES RRT/ODT, tonemapping nomenclature |
+| [ITU-R BT.2100](https://www.itu.int/rec/R-REC-BT.2100/) | PQ/ST2084 and HLG OETF for HDR display output |
+| [IEC 61966-2-1 (sRGB)](https://www.color.org/srgb.xalter) | sRGB EOTF for SDR display output |
+
+### Scene & Asset Formats
+| Resource | Relevance |
+|----------|-----------|
+| [OpenUSD](https://openusd.org/release/api/index.html) | Naming conventions: Prim, Xform, Mesh, Material, Light, Camera, Instance |
+| [glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html) | PBR material and scene graph conventions |
+| [Wavefront OBJ](http://paulbourke.net/dataformats/obj/) | Geometry-only OBJ import (no MTL — materials are assigned in the `.scene` file) |

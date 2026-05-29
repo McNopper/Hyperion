@@ -18,12 +18,12 @@ enum class LightType : uint32_t {
 
 struct GpuVertex {
     glm::vec3 position;
-    float     tangentX;      ///< Tangent vector X component (world space)
+    float tangentX; ///< Tangent vector X component (world space)
     glm::vec3 normal;
-    float     tangentY;      ///< Tangent vector Y component (world space)
+    float tangentY; ///< Tangent vector Y component (world space)
     glm::vec2 uv;
-    float     tangentZ;      ///< Tangent vector Z component (world space)
-    float     bitangentSign; ///< ±1 handedness of the bitangent (B = sign × (N × T))
+    float tangentZ;      ///< Tangent vector Z component (world space)
+    float bitangentSign; ///< ±1 handedness of the bitangent (B = sign × (N × T))
 };
 
 struct GpuMaterial {
@@ -36,13 +36,14 @@ struct GpuMaterial {
     glm::vec4 transmissionScatter;
     glm::vec4 subsurfaceColorWeight;
     glm::vec4 subsurfaceRadiusScale;
-    glm::uvec4 textureIndices;  ///< bindless texture indices: [base_color, normal, orm, emission]; ~0u = none
+    glm::uvec4 textureIndices; ///< bindless texture indices: [base_color, normal, orm, emission]; ~0u = none
     glm::vec4 thinFilmParams;
     glm::vec4 coatColorWeight;
     glm::vec4 coatRoughAnisoIorDark;
     glm::vec4 fuzzColorWeight;
     glm::vec4 fuzzRoughPad;
-    glm::vec4 emissionColorLum; ///< xyz = emission_color (linear Rec.2020), w = emission_luminance in cd/m² (OpenPBR spec)
+    glm::vec4
+        emissionColorLum; ///< xyz = emission_color (linear Rec.2020), w = emission_luminance in cd/m² (OpenPBR spec)
     glm::vec4 opacityFlagsPad;
 };
 
@@ -54,6 +55,14 @@ struct GpuInstance {
     uint32_t geometryKind;
     float sphereRadius;
     uint32_t _pad[2];
+};
+
+/// GPU-side emissive-mesh descriptor for NEE bounding-sphere sampling (std430, 32 bytes).
+struct GpuEmissiveLight {
+    glm::vec3 center;       ///< world-space bounding sphere centre (= mesh centroid)
+    float radius;           ///< bounding sphere radius
+    glm::vec3 emission;     ///< radiance: emissionColor × emissionLuminance (linear Rec.2020)
+    uint32_t instanceIndex; ///< instance index used to skip self-shadow during NEE
 };
 
 /// GPU-side light descriptor (std430, 64 bytes).
@@ -93,10 +102,12 @@ struct PushConstants {
     uint32_t maxDepth;
     uint32_t rngSeed;
     float envLuminanceScale;
-    uint32_t lightCount;        ///< number of active GpuLights in the light buffer
-    uint32_t outputColorSpace;  ///< OutputColorSpace enum value (used by tonemap pass)
-    uint32_t samplesPerPixel;   ///< samples per pixel this dispatch
-    uint32_t hasEnvMap;         ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
+    uint32_t lightCount;         ///< number of active GpuLights in the light buffer
+    uint32_t outputColorSpace;   ///< OutputColorSpace enum value (used by tonemap pass)
+    uint32_t samplesPerPixel;    ///< samples per pixel this dispatch
+    uint32_t hasEnvMap;          ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
+    uint32_t emissiveLightCount; ///< number of emissive mesh lights for NEE (0 = disabled)
+    uint32_t _pad[3];            // NOLINT(modernize-avoid-c-arrays) — explicit GPU layout padding
 };
 
 static_assert(std::is_trivially_copyable_v<GpuVertex>);
@@ -106,6 +117,7 @@ static constexpr uint32_t kNoTexture = ~0u;
 static_assert(std::is_trivially_copyable_v<GpuMaterial>);
 static_assert(std::is_trivially_copyable_v<GpuInstance>);
 static_assert(std::is_trivially_copyable_v<GpuLight>);
+static_assert(std::is_trivially_copyable_v<GpuEmissiveLight>);
 static_assert(std::is_trivially_copyable_v<CameraData>);
 static_assert(std::is_trivially_copyable_v<PushConstants>);
 
@@ -113,5 +125,6 @@ static_assert(sizeof(GpuVertex) == 48);
 static_assert(sizeof(GpuMaterial) == 272);
 static_assert(sizeof(GpuInstance) == 32);
 static_assert(sizeof(GpuLight) == 64);
+static_assert(sizeof(GpuEmissiveLight) == 32);
 static_assert(sizeof(CameraData) == 176);
-static_assert(sizeof(PushConstants) == 32);
+static_assert(sizeof(PushConstants) == 48);
