@@ -61,6 +61,8 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         VkDescriptorSetLayoutBinding{5, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr},
         VkDescriptorSetLayoutBinding{6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_ALL, nullptr},
         VkDescriptorSetLayoutBinding{7, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr},
+        VkDescriptorSetLayoutBinding{8, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr},
+        VkDescriptorSetLayoutBinding{9, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr},
     };
     constexpr std::array bindingFlags{
         VkDescriptorBindingFlags{},
@@ -72,6 +74,8 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
         VkDescriptorBindingFlags{},
         VkDescriptorBindingFlags(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT),
         VkDescriptorBindingFlags{},
+        VkDescriptorBindingFlags(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT), // env marginal CDF
+        VkDescriptorBindingFlags(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT), // env conditional CDF
     };
     const VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
@@ -100,7 +104,7 @@ std::expected<Descriptors, VkResult> Descriptors::create(const DeviceContext& ct
     }
 
     constexpr std::array poolSizes{
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 8},
         VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1025},
     };
     const VkDescriptorPoolCreateInfo poolInfo{
@@ -171,7 +175,7 @@ VkResult Descriptors::updateSceneSet(const DeviceContext& ctx, const Scene& scen
         VkDescriptorBufferInfo{scene.vertexBuffer().handle(), 0, VK_WHOLE_SIZE},
         VkDescriptorBufferInfo{scene.indexBuffer().handle(), 0, VK_WHOLE_SIZE},
         VkDescriptorBufferInfo{scene.lightBuffer().handle(), 0, VK_WHOLE_SIZE},
-        VkDescriptorBufferInfo{scene.emissiveLightBuffer().handle(), 0, VK_WHOLE_SIZE},
+        VkDescriptorBufferInfo{scene.emissiveTriangleBuffer().handle(), 0, VK_WHOLE_SIZE},
     };
     const std::array writes{
         VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -281,6 +285,23 @@ VkResult Descriptors::updateEnvMap(const DeviceContext& ctx, VkImageView view, V
         .pTexelBufferView = nullptr,
     };
     vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
+    return VK_SUCCESS;
+}
+
+VkResult Descriptors::updateEnvImportance(const DeviceContext& ctx, VkBuffer marginalCdf, VkBuffer conditionalCdf) {
+    const VkDescriptorBufferInfo marginalInfo{.buffer = marginalCdf, .offset = 0, .range = VK_WHOLE_SIZE};
+    const VkDescriptorBufferInfo conditionalInfo{.buffer = conditionalCdf, .offset = 0, .range = VK_WHOLE_SIZE};
+    const std::array writes{
+        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                             nullptr, m_set1, 8, 0, 1,
+                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                             nullptr, &marginalInfo, nullptr},
+        VkWriteDescriptorSet{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                             nullptr, m_set1, 9, 0, 1,
+                             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                             nullptr, &conditionalInfo, nullptr},
+    };
+    vkUpdateDescriptorSets(ctx.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
     return VK_SUCCESS;
 }
 

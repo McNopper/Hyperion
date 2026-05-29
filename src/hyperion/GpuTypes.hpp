@@ -57,12 +57,13 @@ struct GpuInstance {
     uint32_t _pad[2];
 };
 
-/// GPU-side emissive-mesh descriptor for NEE bounding-sphere sampling (std430, 32 bytes).
-struct GpuEmissiveLight {
-    glm::vec3 center;       ///< world-space bounding sphere centre (= mesh centroid)
-    float radius;           ///< bounding sphere radius
-    glm::vec3 emission;     ///< radiance: emissionColor × emissionLuminance (linear Rec.2020)
-    uint32_t instanceIndex; ///< instance index used to skip self-shadow during NEE
+/// Per-triangle emissive descriptor for NEE direct area sampling (std430, 64 bytes = 4×float4).
+/// Edge vectors and emission components share float4 w-channels to avoid padding.
+struct GpuEmissiveTriangle {
+    glm::vec4 v0_area;      ///< xyz = v0 world pos, w = triangle area
+    glm::vec4 edge1_emitR;  ///< xyz = edge1 (v1-v0) world, w = emission.r
+    glm::vec4 edge2_emitG;  ///< xyz = edge2 (v2-v0) world, w = emission.g
+    glm::vec4 normal_emitB; ///< xyz = face normal (unit) world, w = emission.b
 };
 
 /// GPU-side light descriptor (std430, 64 bytes).
@@ -106,15 +107,16 @@ struct PushConstants {
     uint32_t outputColorSpace;   ///< OutputColorSpace enum value (used by tonemap pass)
     uint32_t samplesPerPixel;    ///< samples per pixel this dispatch
     uint32_t hasEnvMap;          ///< 1 = IBL env map is bound in set1/binding6, 0 = procedural sky
-    uint32_t emissiveLightCount; ///< number of emissive mesh lights for NEE (0 = disabled)
-    uint32_t _pad[3];            // NOLINT(modernize-avoid-c-arrays) — explicit GPU layout padding
+    uint32_t emissiveTriangleCount; ///< number of emissive triangles for NEE area sampling (0 = disabled)
+    uint32_t envImportanceWidth;    ///< CDF grid width for env importance sampling (0 = disabled)
+    uint32_t envImportanceHeight;   ///< CDF grid height for env importance sampling
+    uint32_t _pad;               // NOLINT(modernize-avoid-c-arrays) — explicit GPU layout padding
 };
 
-/// TLAS instance mask bits used in TraceRay InstanceInclusionMask comparisons.
-/// An instance is tested by a ray when (instance.mask & ray.cullMask) != 0.
-static constexpr uint32_t kInstanceMaskAll = 0xFFU;      ///< all instances visible
-static constexpr uint32_t kInstanceMaskEmissive = 0x02U; ///< bit 1: emissive mesh lights
-static constexpr uint32_t kShadowRayMask = kInstanceMaskAll & ~kInstanceMaskEmissive;
+/// TLAS instance mask bit used in TraceRay InstanceInclusionMask comparisons.
+/// All instances use the default mask (all-bits-set); no per-type masking is needed
+/// since shadow rays stop just before the emissive surface via a calibrated tMax.
+static constexpr uint32_t kInstanceMaskAll = 0xFFU; ///< all instances visible
 
 static_assert(std::is_trivially_copyable_v<GpuVertex>);
 
@@ -123,7 +125,7 @@ static constexpr uint32_t kNoTexture = ~0u;
 static_assert(std::is_trivially_copyable_v<GpuMaterial>);
 static_assert(std::is_trivially_copyable_v<GpuInstance>);
 static_assert(std::is_trivially_copyable_v<GpuLight>);
-static_assert(std::is_trivially_copyable_v<GpuEmissiveLight>);
+static_assert(std::is_trivially_copyable_v<GpuEmissiveTriangle>);
 static_assert(std::is_trivially_copyable_v<CameraData>);
 static_assert(std::is_trivially_copyable_v<PushConstants>);
 
@@ -131,6 +133,6 @@ static_assert(sizeof(GpuVertex) == 48);
 static_assert(sizeof(GpuMaterial) == 272);
 static_assert(sizeof(GpuInstance) == 32);
 static_assert(sizeof(GpuLight) == 64);
-static_assert(sizeof(GpuEmissiveLight) == 32);
+static_assert(sizeof(GpuEmissiveTriangle) == 64);
 static_assert(sizeof(CameraData) == 176);
 static_assert(sizeof(PushConstants) == 48);

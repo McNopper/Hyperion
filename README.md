@@ -34,11 +34,12 @@ It implements the [OpenPBR Surface v1.1](https://academysoftwarefoundation.githu
 ### Rendering
 - Vulkan 1.4 KHR ray tracing pipeline (raygen / closest-hit / miss / intersection shaders)
 - Unidirectional path tracing with configurable bounce depth and samples per pixel
-- **Next Event Estimation (NEE)** — bounding-sphere solid-angle sampling toward emissive meshes; shadow rays eliminate black-dot noise and halve required SPP
+- **Next Event Estimation (NEE)** with **Multiple Importance Sampling (MIS)** — balance heuristic combining BSDF pdf and light pdf; eliminates black-dot noise and halves required SPP
+- **Emissive mesh area lights** — per-triangle direct sampling using Shirley's sqrt-folding barycentric coordinates; area-to-solid-angle PDF conversion
+- **Environment map importance sampling** — 2D separable CDF (256×128) built from panorama luminance × sin(θ); MIS-weighted against BSDF paths in the miss shader; eliminates fireflies from bright suns and skies
 - Analytic spheres via `VK_KHR_ray_tracing_pipeline` intersection shaders
 - Image-based lighting (IBL) — equirectangular HDR panorama via `env_map`
-- Emissive mesh area lights (physical units: cd/m²)
-- Firefly suppression (luminance clamping)
+- Firefly suppression (channel-average clamping with NaN guard)
 - À trous wavelet denoiser pass
 - Headless render mode with PNG + EXR output
 
@@ -163,7 +164,9 @@ The following specifications, textbooks, and learning resources informed the des
 ### Rendering & Path Tracing
 | Resource | Relevance |
 |----------|-----------|
-| [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path tracing, BSDF sampling, MIS, NEE, solid-angle sphere light sampling (§12.6) |
+| [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path tracing, BSDF sampling, MIS balance heuristic (§13.4.3), emissive area light NEE (§12.4), env map importance sampling via 2D separable CDF (§12.5) |
+| [Veach — "Robust Monte Carlo Methods for Light Transport Simulation" (1997)](http://graphics.stanford.edu/papers/veach_thesis/) | Multiple Importance Sampling (MIS) — balance and power heuristics (§9.2); theoretical foundation for combining BSDF and NEE pdf estimates |
+| [Shirley, Wang & Zimmerman — "Monte Carlo Techniques for Direct Lighting Calculations" (1996)](https://www.cs.utah.edu/~shirley/papers/tog96.pdf) | Uniform area sampling of triangles via sqrt-folding barycentric coordinates; area-to-solid-angle PDF conversion |
 | [Ray Tracing Gems I & II](https://www.realtimerendering.com/raytracinggems/) (Haines et al., Marrs et al.) | Shadow ray precision, NEE techniques, ray tracing best practices |
 | [Ray Tracing in One Weekend series](https://raytracing.github.io/) (Shirley et al.) | Introductory path-tracer architecture |
 

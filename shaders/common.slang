@@ -20,12 +20,13 @@ struct GpuMaterial {
 };
 struct GpuInstance { uint meshIndex, materialIndex, vertexOffset, indexOffset, geometryKind; float sphereRadius; uint _pad[2]; };
 
-/// Emissive mesh descriptor for NEE bounding-sphere sampling.
-struct GpuEmissiveLight {
-    float3 center;        ///< world-space bounding sphere centre (mesh centroid)
-    float  radius;        ///< bounding sphere radius
-    float3 emission;      ///< radiance = emissionColor × emissionLuminance (linear Rec.2020)
-    uint   instanceIndex; ///< instance index for self-shadow skip
+/// Per-triangle emissive descriptor for NEE direct area sampling (std430, 64 bytes = 4×float4).
+/// Edge vectors and emission components share float4 w-channels to avoid padding.
+struct GpuEmissiveTriangle {
+    float4 v0_area;       ///< xyz = v0 world pos, w = triangle area
+    float4 edge1_emitR;   ///< xyz = edge1 (v1-v0) world, w = emission.r
+    float4 edge2_emitG;   ///< xyz = edge2 (v2-v0) world, w = emission.g
+    float4 normal_emitB;  ///< xyz = face normal (unit) world, w = emission.b
 };
 
 /// Light type constants — match LightType C++ enum.
@@ -66,8 +67,10 @@ struct PushConstants {
     uint  outputColorSpace;    ///< OutputColorSpace enum (used by tonemap pass)
     uint  samplesPerPixel;     ///< samples accumulated per pixel this dispatch
     uint  hasEnvMap;           ///< 1 = IBL env map bound in set1/binding6, 0 = black background
-    uint  emissiveLightCount;  ///< number of emissive mesh lights for NEE (0 = disabled)
-    uint  _pad[3];
+    uint  emissiveTriangleCount; ///< number of emissive triangles for NEE area sampling (0 = disabled)
+    uint  envImportanceWidth;    ///< CDF grid width for env importance sampling (0 = disabled)
+    uint  envImportanceHeight;   ///< CDF grid height
+    uint  _pad;
 };
 
 [raypayload]
@@ -80,6 +83,7 @@ struct RayPayload {
     uint   seed          : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     bool   terminated    : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     bool   specularBounce: read(caller, closesthit)       : write(caller, closesthit);
+    float  lastBsdfPdf   : read(caller, closesthit, miss) : write(caller, closesthit);
 };
 
 [raypayload]
@@ -110,11 +114,9 @@ static const float kInf = 1.0e30;
 /// Rec.2020 luminance coefficients (ITU-R BT.2020).
 static const float3 kRec2020Luma = float3(0.2627, 0.6780, 0.0593);
 
-/// TLAS instance mask bits for TraceRay culling.
-/// Every TraceRay call uses one of these as its InstanceInclusionMask.
-static const uint kInstanceMaskAll      = 0xFF; ///< all instances visible
-static const uint kInstanceMaskEmissive = 0x02; ///< bit 1: emissive mesh lights only
-static const uint kShadowRayMask        = 0xFD; ///< 0xFF & ~0x02 — excludes emissive meshes
+/// TLAS instance mask bit for TraceRay culling.
+/// Every TraceRay call uses kInstanceMaskAll as its InstanceInclusionMask (all instances visible).
+static const uint kInstanceMaskAll = 0xFF; ///< all instances visible
 
 /// Minimum path depth before Russian Roulette path termination is applied.
 static const uint kRRMinDepth = 3u;
@@ -141,7 +143,13 @@ static const float kFireflyClamp = 100.0;
 [[vk::combinedImageSampler]] [[vk::binding(6, 1)]] Texture2D<float4> envMap;
 [[vk::combinedImageSampler]] [[vk::binding(6, 1)]] SamplerState      envSampler;
 
-/// Emissive mesh bounding spheres for NEE (binding 7, set 1).
-[[vk::binding(7, 1)]] StructuredBuffer<GpuEmissiveLight> emissiveLights;
+/// Emissive triangle buffer for NEE direct area sampling (binding 7, set 1).
+[[vk::binding(7, 1)]] StructuredBuffer<GpuEmissiveTriangle> emissiveTriangles;
+
+/// 2D separable CDF buffers for env map importance sampling (bindings 8–9, set 1).
+/// Ref: PBR Book 4th ed §12.5 — separable CDF for infinite area lights
+/// Both bindings are PARTIALLY_BOUND; only valid when pushConst.envImportanceWidth > 0.
+[[vk::binding(8, 1)]] StructuredBuffer<float> envMarginalCdf;     ///< (H+1) normalized row CDFs
+[[vk::binding(9, 1)]] StructuredBuffer<float> envConditionalCdf;  ///< H×(W+1) per-row column CDFs
 
 [[vk::push_constant]] PushConstants pushConst;

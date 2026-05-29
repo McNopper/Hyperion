@@ -24,6 +24,7 @@ class Descriptors {
 
     VkResult updateSceneSet(const DeviceContext& ctx, const Scene& scene);
     VkResult updateEnvMap(const DeviceContext& ctx, VkImageView view, VkSampler sampler);
+    VkResult updateEnvImportance(const DeviceContext& ctx, VkBuffer marginalCdf, VkBuffer conditionalCdf);
 
     [[nodiscard]] VkDescriptorSetLayout set0Layout() const noexcept { return m_set0Layout; }
     [[nodiscard]] VkDescriptorSetLayout set1Layout() const noexcept { return m_set1Layout; }

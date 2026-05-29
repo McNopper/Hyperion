@@ -265,9 +265,9 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     }
     m_lightBuffer = std::move(*lightBuffer);
 
-    // Emissive light buffer — scan triangle meshes for emission and build bounding spheres.
-    std::vector<GpuEmissiveLight> emissiveLights;
-    m_emissiveInstanceIndices.clear();
+    // Emissive triangle buffer — collect one GpuEmissiveTriangle per emissive mesh triangle
+    // for NEE direct area sampling.  Bounding spheres are not used.
+    std::vector<GpuEmissiveTriangle> emissiveTriangles;
     for (size_t i = 0; i < m_geometries.size(); ++i) {
         const GpuInstance& inst = m_instances[i];
         if (inst.geometryKind != 0U) {
@@ -281,53 +281,58 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
         if (mesh == nullptr) {
             continue;
         }
-        const auto& verts = mesh->data().vertices;
-        if (verts.empty()) {
+        const auto& verts   = mesh->data().vertices;
+        const auto& idxBuf  = mesh->data().indices;
+        if (verts.empty() || idxBuf.empty()) {
             continue;
         }
 
         const glm::mat4 xformMat = m_geometries[i]->xform.matrix();
-
-        // World-space centroid (bounding sphere centre).
-        glm::vec3 centroid(0.0F);
-        for (const auto& v : verts) {
-            centroid += v.position;
-        }
-        centroid /= static_cast<float>(verts.size());
-        const glm::vec3 worldCentroid = glm::vec3(xformMat * glm::vec4(centroid, 1.0F));
-
-        // Bounding sphere radius = max distance from centroid to any vertex in world space.
-        float radius = 0.0F;
-        for (const auto& v : verts) {
-            const glm::vec3 worldPos = glm::vec3(xformMat * glm::vec4(v.position, 1.0F));
-            radius = std::max(radius, glm::length(worldPos - worldCentroid));
-        }
-
         const glm::vec3 emission = glm::vec3(gpuMat.emissionColorLum) *
                                    gpuMat.emissionColorLum.w; // NOLINT(cppcoreguidelines-pro-type-union-access)
-        emissiveLights.push_back(GpuEmissiveLight{
-            .center = worldCentroid,
-            .radius = std::max(radius, 1.0e-3F),
-            .emission = emission,
-            .instanceIndex = static_cast<uint32_t>(i),
-        });
-        // Track this TLAS instance index so buildTlas() can assign kInstanceMaskEmissive.
-        m_emissiveInstanceIndices.push_back(static_cast<uint32_t>(i));
+
+        const uint32_t triCount = static_cast<uint32_t>(idxBuf.size() / 3);
+        for (uint32_t t = 0; t < triCount; ++t) {
+            const glm::vec3 lv0 = verts[idxBuf[t * 3 + 0]].position;
+            const glm::vec3 lv1 = verts[idxBuf[t * 3 + 1]].position;
+            const glm::vec3 lv2 = verts[idxBuf[t * 3 + 2]].position;
+
+            const glm::vec3 wv0   = glm::vec3(xformMat * glm::vec4(lv0, 1.0F));
+            const glm::vec3 wv1   = glm::vec3(xformMat * glm::vec4(lv1, 1.0F));
+            const glm::vec3 wv2   = glm::vec3(xformMat * glm::vec4(lv2, 1.0F));
+            const glm::vec3 edge1 = wv1 - wv0;
+            const glm::vec3 edge2 = wv2 - wv0;
+            const glm::vec3 cross = glm::cross(edge1, edge2);
+            const float     area  = 0.5F * glm::length(cross);
+
+            if (area <= 1.0e-6F) {
+                continue; // skip degenerate triangles
+            }
+            const glm::vec3 normal = cross / (2.0F * area); // normalize: cross/|cross|
+
+            emissiveTriangles.push_back(GpuEmissiveTriangle{
+                .v0_area      = glm::vec4(wv0,    area),
+                .edge1_emitR  = glm::vec4(edge1,  emission.r),
+                .edge2_emitG  = glm::vec4(edge2,  emission.g),
+                .normal_emitB = glm::vec4(normal, emission.b),
+            });
+        }
     }
-    m_emissiveLightCount = static_cast<uint32_t>(emissiveLights.size());
-    if (emissiveLights.empty()) {
-        emissiveLights.push_back(GpuEmissiveLight{}); // sentinel — keeps the binding valid
+    m_emissiveTriangleCount = static_cast<uint32_t>(emissiveTriangles.size());
+    if (emissiveTriangles.empty()) {
+        emissiveTriangles.push_back(GpuEmissiveTriangle{}); // sentinel — keeps the binding valid
     }
-    auto emissiveLightBuffer =
+    auto emissiveTriangleBuffer =
         uploadBytes(ctx,
                     pool,
-                    std::as_bytes(std::span<const GpuEmissiveLight>(emissiveLights.data(), emissiveLights.size())),
+                    std::as_bytes(std::span<const GpuEmissiveTriangle>(emissiveTriangles.data(),
+                                                                        emissiveTriangles.size())),
                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                    "scene.emissiveLights");
-    if (!emissiveLightBuffer) {
-        return emissiveLightBuffer.error();
+                    "scene.emissiveTriangles");
+    if (!emissiveTriangleBuffer) {
+        return emissiveTriangleBuffer.error();
     }
-    m_emissiveLightBuffer = std::move(*emissiveLightBuffer);
+    m_emissiveTriangleBuffer = std::move(*emissiveTriangleBuffer);
 
     return VK_SUCCESS;
 }
@@ -338,14 +343,6 @@ VkResult Scene::buildTlas(const DeviceContext& ctx, const CommandPool& pool) {
         instances[i] = m_geometries[i]->makeInstance(static_cast<uint32_t>(i));
     }
 
-    // Assign a distinct mask to emissive mesh instances so shadow rays can skip them.
-    // Shadow rays use kShadowRayMask (= ~kInstanceMaskEmissive) so emissive meshes are
-    // invisible to shadow rays — the tMax can safely extend past the bounding sphere.
-    // Note: this approach excludes ALL emissive instances from ALL shadow rays; in
-    // multi-emissive-light scenes one light will not cast shadows on another.
-    for (const uint32_t idx : m_emissiveInstanceIndices) {
-        instances[idx].mask = kInstanceMaskEmissive;
-    }
     auto instanceUpload = uploadBytes(
         ctx,
         pool,

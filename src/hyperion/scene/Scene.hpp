@@ -49,11 +49,11 @@ class Scene {
     [[nodiscard]] const Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
     [[nodiscard]] const Buffer& indexBuffer() const noexcept { return m_indexBuffer; }
     [[nodiscard]] const Buffer& lightBuffer() const noexcept { return m_lightBuffer; }
-    [[nodiscard]] const Buffer& emissiveLightBuffer() const noexcept { return m_emissiveLightBuffer; }
+    [[nodiscard]] const Buffer& emissiveTriangleBuffer() const noexcept { return m_emissiveTriangleBuffer; }
     [[nodiscard]] const std::vector<Texture>& textures() const noexcept { return m_textures; }
     [[nodiscard]] uint32_t instanceCount() const noexcept { return static_cast<uint32_t>(m_geometries.size()); }
     [[nodiscard]] uint32_t lightCount() const noexcept { return static_cast<uint32_t>(m_lights.size()); }
-    [[nodiscard]] uint32_t emissiveLightCount() const noexcept { return m_emissiveLightCount; }
+    [[nodiscard]] uint32_t emissiveTriangleCount() const noexcept { return m_emissiveTriangleCount; }
 
   private:
     VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool);
@@ -69,9 +69,8 @@ class Scene {
     Buffer m_vertexBuffer{};
     Buffer m_indexBuffer{};
     Buffer m_lightBuffer{};
-    Buffer m_emissiveLightBuffer{};
-    uint32_t m_emissiveLightCount = 0;
-    std::vector<uint32_t> m_emissiveInstanceIndices; ///< TLAS instance indices of emissive mesh lights
+    Buffer m_emissiveTriangleBuffer{};
+    uint32_t m_emissiveTriangleCount = 0;
     AccelerationStructure m_tlas{};
     VkDeviceAddress m_tlasAddress{};
 };

@@ -40,6 +40,7 @@ void pathTracingRaygen()
         payload.seed           = seed;
         payload.terminated     = false;
         payload.specularBounce = false;
+        payload.lastBsdfPdf    = 0.0;
 
         for (uint depth = 0; depth < pushConst.maxDepth && !payload.terminated; ++depth) {
             RayDesc ray;
@@ -51,12 +52,12 @@ void pathTracingRaygen()
             payload.depth++;
         }
 
-        // Firefly suppression: clamp per-sample luminance in display space (post-exposure).
-        // Clamping after exposure multiplication makes the threshold camera-independent.
-        float3 sampleRadiance = payload.radiance * camera.exposure;
-        const float sampleLum = dot(sampleRadiance, kRec2020Luma);
-        if (sampleLum > kFireflyClamp)
-            sampleRadiance *= kFireflyClamp / sampleLum;
+        // Firefly suppression: clamp per-sample radiance in display space (post-exposure).
+        // Use channel average instead of luminance to avoid hue shift on saturated signals.
+        float3 sampleRadiance = max(payload.radiance * camera.exposure, 0.0.xxx); // guard NaN/negative
+        const float sampleAvg = (sampleRadiance.x + sampleRadiance.y + sampleRadiance.z) * (1.0 / 3.0);
+        if (sampleAvg > kFireflyClamp)
+            sampleRadiance *= kFireflyClamp / sampleAvg;
 
         totalRadiance += sampleRadiance;
         seed = payload.seed;

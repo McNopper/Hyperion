@@ -1,5 +1,6 @@
 #include "hyperion/scene/IblProbe.hpp"
 
+#include <cmath>
 #include <utility>
 
 #include "hyperion/core/Buffer.hpp"
@@ -11,7 +12,13 @@
 #endif
 
 IblProbe::IblProbe(IblProbe&& other) noexcept
-    : m_image(std::move(other.m_image)), m_sampler(std::exchange(other.m_sampler, VK_NULL_HANDLE)), m_ctx(other.m_ctx) {
+    : m_image(std::move(other.m_image)),
+      m_sampler(std::exchange(other.m_sampler, VK_NULL_HANDLE)),
+      m_ctx(other.m_ctx),
+      m_marginalCdf(std::move(other.m_marginalCdf)),
+      m_conditionalCdf(std::move(other.m_conditionalCdf)),
+      m_cdfWidth(std::exchange(other.m_cdfWidth, 0u)),
+      m_cdfHeight(std::exchange(other.m_cdfHeight, 0u)) {
     other.m_ctx = nullptr;
 }
 
@@ -21,6 +28,10 @@ IblProbe& IblProbe::operator=(IblProbe&& other) noexcept {
         m_image = std::move(other.m_image);
         m_sampler = std::exchange(other.m_sampler, VK_NULL_HANDLE);
         m_ctx = other.m_ctx;
+        m_marginalCdf = std::move(other.m_marginalCdf);
+        m_conditionalCdf = std::move(other.m_conditionalCdf);
+        m_cdfWidth = std::exchange(other.m_cdfWidth, 0u);
+        m_cdfHeight = std::exchange(other.m_cdfHeight, 0u);
         other.m_ctx = nullptr;
     }
     return *this;
@@ -32,6 +43,10 @@ IblProbe::~IblProbe() {
 
 void IblProbe::reset() noexcept {
     m_image = {};
+    m_marginalCdf = {};
+    m_conditionalCdf = {};
+    m_cdfWidth = 0;
+    m_cdfHeight = 0;
     if (m_ctx != nullptr && m_sampler != VK_NULL_HANDLE) {
         vkDestroySampler(m_ctx->device, m_sampler, nullptr);
         m_sampler = VK_NULL_HANDLE;
@@ -170,6 +185,113 @@ IblProbe::loadFromEXR(const DeviceContext& ctx, const CommandPool& pool, const s
     probe.m_ctx = &ctx;
     probe.m_image = std::move(*image);
     probe.m_sampler = sampler;
+
+    // ── Build 2D separable CDF for env importance sampling ───────────────────
+    // Ref: PBR Book 4th ed §12.5 "Infinite Area Lights" — 2D separable CDF construction
+    // Resolution: 256×128 (each cell covers ~16×16 source pixels for a 4K panorama)
+    static constexpr int kCdfW = 256;
+    static constexpr int kCdfH = 128;
+    const float kPiCpu = 3.14159265358979f;
+    const float srcToGridU = static_cast<float>(kCdfW) / static_cast<float>(width);
+    const float srcToGridV = static_cast<float>(kCdfH) / static_cast<float>(height);
+
+    // Luminance grid: weighted by sin(θ) to account for equirectangular → solid-angle mapping
+    std::vector<float> lumGrid(static_cast<size_t>(kCdfW * kCdfH));
+    for (int v = 0; v < kCdfH; ++v) {
+        const float sinTheta = std::sin(kPiCpu * (static_cast<float>(v) + 0.5f) / static_cast<float>(kCdfH));
+        for (int u = 0; u < kCdfW; ++u) {
+            const int srcX0 = static_cast<int>(static_cast<float>(u) / srcToGridU);
+            const int srcX1 = std::max(srcX0 + 1, static_cast<int>(static_cast<float>(u + 1) / srcToGridU));
+            const int srcY0 = static_cast<int>(static_cast<float>(v) / srcToGridV);
+            const int srcY1 = std::max(srcY0 + 1, static_cast<int>(static_cast<float>(v + 1) / srcToGridV));
+            const int cX1 = std::min(srcX1, width);
+            const int cY1 = std::min(srcY1, height);
+
+            float sumLum = 0.0f;
+            int count = 0;
+            for (int sy = srcY0; sy < cY1; ++sy) {
+                for (int sx = srcX0; sx < cX1; ++sx) {
+                    const size_t idx = static_cast<size_t>(sy * width + sx) * 4u;
+                    const float r = rgba32f[idx + 0];
+                    const float g = rgba32f[idx + 1];
+                    const float b = rgba32f[idx + 2];
+                    // Rec.2020 luminance coefficients (ITU-R BT.2020)
+                    sumLum += std::max(0.2627f * r + 0.6780f * g + 0.0593f * b, 0.0f);
+                    ++count;
+                }
+            }
+            lumGrid[static_cast<size_t>(v * kCdfW + u)] =
+                (count > 0 ? sumLum / static_cast<float>(count) : 0.0f) * sinTheta;
+        }
+    }
+
+    // Per-row conditional CDFs: conditionalCdf[v*(W+1)..(v+1)*(W+1)] for each row v
+    std::vector<float> conditionalCdf(static_cast<size_t>(kCdfH * (kCdfW + 1)));
+    std::vector<float> rowIntegrals(static_cast<size_t>(kCdfH), 0.0f);
+    for (int v = 0; v < kCdfH; ++v) {
+        float* rowCdf = conditionalCdf.data() + static_cast<ptrdiff_t>(v * (kCdfW + 1));
+        rowCdf[0] = 0.0f;
+        for (int u = 0; u < kCdfW; ++u) {
+            rowCdf[u + 1] = rowCdf[u] + lumGrid[static_cast<size_t>(v * kCdfW + u)];
+        }
+        rowIntegrals[static_cast<size_t>(v)] = rowCdf[kCdfW];
+        if (rowIntegrals[static_cast<size_t>(v)] > 0.0f) {
+            const float invRow = 1.0f / rowIntegrals[static_cast<size_t>(v)];
+            for (int u = 1; u <= kCdfW; ++u) {
+                rowCdf[u] *= invRow;
+            }
+        } else {
+            // Degenerate dark row: uniform distribution so binary search returns valid indices
+            for (int u = 1; u <= kCdfW; ++u) {
+                rowCdf[u] = static_cast<float>(u) / static_cast<float>(kCdfW);
+            }
+        }
+        rowCdf[kCdfW] = 1.0f; // ensure exact 1.0
+    }
+
+    // Marginal CDF over rows: marginalCdf[H+1]
+    std::vector<float> marginalCdf(static_cast<size_t>(kCdfH + 1));
+    marginalCdf[0] = 0.0f;
+    for (int v = 0; v < kCdfH; ++v) {
+        marginalCdf[static_cast<size_t>(v + 1)] =
+            marginalCdf[static_cast<size_t>(v)] + rowIntegrals[static_cast<size_t>(v)];
+    }
+    const float totalWeight = marginalCdf[static_cast<size_t>(kCdfH)];
+    if (totalWeight > 0.0f) {
+        const float invTotal = 1.0f / totalWeight;
+        for (int v = 1; v <= kCdfH; ++v) {
+            marginalCdf[static_cast<size_t>(v)] *= invTotal;
+        }
+        marginalCdf[static_cast<size_t>(kCdfH)] = 1.0f;
+
+        // Upload marginal CDF buffer
+        const VkDeviceSize margSize = static_cast<VkDeviceSize>(kCdfH + 1) * sizeof(float);
+        auto mBuf = Buffer::create(ctx, margSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                   VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.marginalCdf");
+        if (mBuf) {
+            mBuf->uploadData(marginalCdf.data(), margSize);
+            probe.m_marginalCdf = std::move(*mBuf);
+        }
+
+        // Upload conditional CDF buffer
+        const VkDeviceSize condSize = static_cast<VkDeviceSize>(kCdfH * (kCdfW + 1)) * sizeof(float);
+        auto cBuf = Buffer::create(ctx, condSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                   VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, "ibl.conditionalCdf");
+        if (cBuf) {
+            cBuf->uploadData(conditionalCdf.data(), condSize);
+            probe.m_conditionalCdf = std::move(*cBuf);
+        }
+
+        if (probe.m_marginalCdf.isValid() && probe.m_conditionalCdf.isValid()) {
+            probe.m_cdfWidth = static_cast<uint32_t>(kCdfW);
+            probe.m_cdfHeight = static_cast<uint32_t>(kCdfH);
+            Logger::info("IblProbe: built {}×{} importance CDF (total weight {:.2f})",
+                         kCdfW, kCdfH, totalWeight);
+        }
+    } else {
+        Logger::warn("IblProbe: env map is completely dark — importance sampling disabled");
+    }
+
     Logger::info("IblProbe: loaded '{}' ({}×{})", path.filename().string(), width, height);
     return probe;
 #endif

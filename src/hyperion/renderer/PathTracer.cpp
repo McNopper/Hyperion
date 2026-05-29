@@ -169,7 +169,9 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
         .outputColorSpace = m_config.outputColorSpace,
         .samplesPerPixel = m_config.samplesPerPixel,
         .hasEnvMap = m_config.hasEnvMap,
-        .emissiveLightCount = scene.emissiveLightCount(),
+        .emissiveTriangleCount = scene.emissiveTriangleCount(),
+        .envImportanceWidth = m_config.envImportanceWidth,
+        .envImportanceHeight = m_config.envImportanceHeight,
         ._pad = {},
     };
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstants), &pushConstants);

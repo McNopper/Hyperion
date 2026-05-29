@@ -351,6 +351,19 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
             } else {
                 Logger::info("IBL probe loaded: '{}'", envPath.filename().string());
             }
+            if (app.m_iblProbe.cdfWidth() > 0) {
+                if (const VkResult result = app.m_descriptors.updateEnvImportance(
+                        app.m_context.deviceContext(),
+                        app.m_iblProbe.marginalCdfBuffer().handle(),
+                        app.m_iblProbe.conditionalCdfBuffer().handle());
+                    result != VK_SUCCESS) {
+                    Logger::warn("IBL importance descriptor update failed: VkResult {}",
+                                 static_cast<int>(result));
+                } else {
+                    Logger::info("IBL importance CDF descriptors updated ({}×{})",
+                                 app.m_iblProbe.cdfWidth(), app.m_iblProbe.cdfHeight());
+                }
+            }
         }
     }
 
@@ -364,6 +377,8 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
                                          .maxDepth = app.m_config.maxDepth,
                                          .envLuminance = envLuminance,
                                          .hasEnvMap = app.m_iblProbe.isValid() ? 1u : 0u,
+                                         .envImportanceWidth = app.m_iblProbe.cdfWidth(),
+                                         .envImportanceHeight = app.m_iblProbe.cdfHeight(),
                                      });
     if (!tracer) {
         Logger::error("PathTracer creation failed: VkResult {}", static_cast<int>(tracer.error()));
