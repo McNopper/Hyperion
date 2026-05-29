@@ -1,69 +1,73 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
 # Build directories
 build/
-Build/
-build-*/
+build_*/
+out/
+bin/
+lib/
+cmake-build-*/
 
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
-compile_commands.json
-
-# Temporary files
-*.tmp
-*.log
-*.bak
-*.swp
-
-# vcpkg
+# vcpkg installed packages (inside build/)
 vcpkg_installed/
 
-# debug information files
-*.dwo
-
-# test output & cache
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
 Testing/
-.cache/
+compile_commands.json
+cmake_install.cmake
+install_manifest.txt
+
+# Generated shaders
+*.spv
+
+# MSVC / Visual Studio
+.vs/
+*.vcxproj*
+*.sln
+*.user
+*.userosscache
+*.suo
+*.ilk
+*.idb
+*.ipdb
+*.iobj
+*.obj
+!assets/**/*.obj
+*.pdb
+*.pch
+*.tlog/
+*.lastbuildstate
+Debug/
+Release/
+x64/
+
+# CLion / JetBrains
+.idea/
+
+# Editors
+*.swp
+*.swo
+*~
+
+# Test artifacts
+tests/output/
+
+# Render screenshots: EXR (HDR, inspect with GIMP) not committed;
+# tone-mapped PNGs (for GitHub README) ARE committed.
+screenshots/*.exr
+
+# Hyperion runtime output
+hyperion_out.txt
+hyperion_stderr.txt
+hyperion_stdout.txt
+run_out.txt
+run_err.txt
+*.exr
+*_preview.png
+
+# Slang-generated C++ export files
+shaders/math_gen.cpp
+shaders/math_gen.hpp
+shaders/math_export_test.cpp
+shaders/math_export_test.slang

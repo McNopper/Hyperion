@@ -1,0 +1,13 @@
+# textured_cube.mtl — OpenPBR Surface material for the textured cube demo.
+# The color_grid texture is referenced for future texture pipeline support.
+# Until textures are uploaded to the GPU, the scalar base_color is used.
+
+newmtl cube_textured
+base_color                  0.800 0.600 0.200
+map_base_color              color_grid.png
+map_base_color_colorspace   srgb_texture
+specular_roughness          0.4
+specular_ior                1.5
+base_weight                 1.0
+base_metalness              0.0
+specular_weight             1.0
