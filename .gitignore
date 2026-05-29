@@ -63,7 +63,10 @@ hyperion_stderr.txt
 hyperion_stdout.txt
 run_out.txt
 run_err.txt
+
+# Exclude loose EXR files everywhere EXCEPT assets/ (tracked by Git LFS)
 *.exr
+!assets/*.exr
 *_preview.png
 
 # Slang-generated C++ export files
