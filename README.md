@@ -61,7 +61,7 @@ All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.githu
 - All internal calculations in **linear Rec.2020**
 - Physical camera exposure via **EV100** (`ev100` scene keyword)
 - Physical environment scale via **`env_unit_nits`** (cd/m² per EXR unit)
-- Tone mapping: ACES RRT+ODT (Stephen Hill fit)
+- Tone mapping: switchable per scene — **AgX** (Troy Sobotka, wide DR, natural sun highlight rolloff), **ACES** RRT+ODT (Stephen Hill fit), **Reinhard** luminance, **Hable** / Uncharted-2 filmic
 - Display output: SDR (sRGB), HDR10 (PQ/ST2084), scRGB — runtime negotiated with the swapchain
 
 ### Bindless textures
@@ -95,6 +95,7 @@ sphere  60.0
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000
+tonemapper    agx             # aces (default) | agx | reinhard | hable
 ```
 
 OBJ files contain **only geometry** — all material assignments are declared in the scene file.
@@ -189,6 +190,7 @@ The following specifications, textbooks, and learning resources informed the des
 | Resource | Relevance |
 |----------|-----------|
 | [OpenColorIO](https://opencolorio.org/) | Color space transforms, ACES RRT/ODT, tonemapping nomenclature |
+| [AgX by Troy Sobotka](https://github.com/sobotka/AgX) | AgX tone-mapping matrices and S-curve (MIT) |
 | [ITU-R BT.2100](https://www.itu.int/rec/R-REC-BT.2100/) | PQ/ST2084 and HLG OETF for HDR display output |
 | [IEC 61966-2-1 (sRGB)](https://www.color.org/srgb.xalter) | sRGB EOTF for SDR display output |
 
