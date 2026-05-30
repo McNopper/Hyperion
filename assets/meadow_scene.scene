@@ -51,8 +51,3 @@ sphere 0.75
 sphere 0.75
   translate  0.0 0.75 3.0
   usemtl mat_coated_diffuse
-
-# Emissive (light source)
-sphere 0.4
-  translate  3.0 2.5 -3.0
-  usemtl mat_emissive
