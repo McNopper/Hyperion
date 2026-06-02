@@ -1,10 +1,10 @@
 # OpenPBR Metals Showcase — Hyperion demo
 # 20 metal spheres in 4 rows × 5, lit by IBL panorama.
 # Spacing 2.5 (radius 0.70, gap 1.10) ensures inter-sphere reflections are visible.
-# Materials from openpbr_metals.mtl (F0/F82 conductor model).
+# Materials from openpbr_metals.mtlx (F0/F82 conductor model).
 
-mtllib openpbr_metals.mtl
-mtllib floor.mtl
+mtllib openpbr_metals.mtlx
+mtllib floor.mtlx
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000

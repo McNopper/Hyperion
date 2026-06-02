@@ -1,10 +1,10 @@
 # OpenPBR Coat Layer Showcase — Hyperion demo
 # 15 spheres in 3 rows × 5, lit by IBL panorama.
 # Tests coat_weight (row 0), coat_roughness (row 1), coat_darkening + real materials (row 2).
-# Materials from openpbr_coat.mtl.
+# Materials from openpbr_coat.mtlx.
 
-mtllib openpbr_coat.mtl
-mtllib floor.mtl
+mtllib openpbr_coat.mtlx
+mtllib floor.mtlx
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000

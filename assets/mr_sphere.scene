@@ -11,8 +11,8 @@
 #   Step 4 — add a second white rect light for fill
 #   Step 5 — add transmission / coat / subsurface lobes
 
-mtllib mr_sphere.mtl
-mtllib floor.mtl
+mtllib mr_sphere.mtlx
+mtllib floor.mtlx
 
 camera
 translate    0.0  0.8  6.5

@@ -1,9 +1,9 @@
 # OpenPBR Dielectrics Showcase — Hyperion demo
 # 14 transparent/refractive spheres in 3 rows, lit by IBL panorama.
-# Materials from openpbr_dielectrics.mtl.
+# Materials from openpbr_dielectrics.mtlx.
 
-mtllib openpbr_dielectrics.mtl
-mtllib floor.mtl
+mtllib openpbr_dielectrics.mtlx
+mtllib floor.mtlx
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000

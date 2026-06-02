@@ -48,14 +48,19 @@ All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.githu
 
 | Layer | Parameters |
 |-------|-----------|
-| Base | `base_weight`, `base_color`, `base_roughness`, `base_metalness` |
-| Specular | `specular_weight`, `specular_color`, `specular_ior`, `specular_roughness`, `specular_anisotropy` |
+| Base | `base_weight`, `base_color`, `base_diffuse_roughness`, `base_metalness` |
+| Specular | `specular_weight`, `specular_color`, `specular_ior`, `specular_roughness`, `specular_roughness_anisotropy` |
 | Coat | `coat_weight`, `coat_color`, `coat_ior`, `coat_roughness`, `coat_darkening` |
 | Fuzz | `fuzz_weight`, `fuzz_color`, `fuzz_roughness` |
 | Emission | `emission_luminance`, `emission_color` |
-| Thin-film | `thin_film_thickness`, `thin_film_ior` |
-| Transmission | `transmission_weight` |
+| Thin-film | `thin_film_weight`, `thin_film_thickness`, `thin_film_ior` |
+| Transmission | `transmission_weight`, `transmission_color`, `transmission_depth` |
+| Subsurface | `subsurface_weight`, `subsurface_color`, `subsurface_radius`, `subsurface_scale` |
 | Geometry | `geometry_opacity` |
+
+Conductor reflectance uses the OpenPBR generalized-Schlick **F82-tint** model
+(`base_color` = F0, `specular_color` = the 82° tint); specular/coat microfacets
+use GGX with the spec's anisotropy remapping.
 
 ### Color pipeline
 - All internal calculations in **linear Rec.2020**
@@ -67,13 +72,17 @@ All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.githu
 ### Bindless textures
 - Descriptor set 1, binding 4: `COMBINED_IMAGE_SAMPLER` array (up to 1024 entries)
 - `NonUniformResourceIndex` for correct divergent access
-- Base-color texture support (`map_base_color` in MTL)
+- Per-material texture maps, each converted to the render color space at load:
+  `map_base_color`, `map_normal`, `map_orm` (packed occlusion/roughness/metalness,
+  glTF G=roughness/B=metalness), `map_emission_color`
 
 ### Scene format
-Line-based text format (`.scene`) inspired by Wavefront OBJ/MTL:
+Line-based text format (`.scene`) inspired by — but distinct from — Wavefront OBJ/MTL.
+Material libraries use the companion `.mtlx` format (OpenPBR keyword names; **not**
+Wavefront MTL and **not** MaterialX XML):
 
 ```
-mtllib cornell.mtl          # load material library
+mtllib cornell.mtlx         # load material library (.mtlx)
 
 camera
   translate  278  273  -800
@@ -84,8 +93,8 @@ ev100        7.0            # physical camera exposure
 spp          64             # samples per pixel
 max_depth    8
 
-o cornell.obj               # load geometry (pure geometry — no materials inside OBJ)
-  material Floor     WhiteWall   # assign material per OBJ group
+instance cornell.obj        # instantiate geometry (OBJ is geometry-only — its
+  material Floor     WhiteWall   # own materials are never imported; assign here)
   material LeftWall  RedWall
   material RightWall GreenWall
 
@@ -98,7 +107,8 @@ env_unit_nits 10000
 tonemapper    agx             # aces (default) | agx | reinhard | hable
 ```
 
-OBJ files contain **only geometry** — all material assignments are declared in the scene file.
+OBJ files contribute **only geometry** — material import from OBJ/MTL is disabled by
+design; all material assignments are declared in the `.scene` file.
 
 ---
 

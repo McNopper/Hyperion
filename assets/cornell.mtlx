@@ -2,10 +2,11 @@
 #
 # FORMAT NOTE
 # -----------
-# This file uses the Wavefront .mtl syntax as a container only.
-# The ONLY standard MTL keyword honoured is "newmtl" (material name).
-# All other standard MTL keywords (Kd, Ks, Ns, Ka, d, Tr, illum, map_*, …)
-# are SILENTLY IGNORED by Hyperion's material parser.
+# Hyperion .mtlx — a line-based OpenPBR material library.  It is NOT Wavefront
+# MTL (despite reusing the familiar `newmtl` block delimiter) and NOT MaterialX
+# XML; material properties use OpenPBR Surface v1.1 parameter names.  Any classic
+# Wavefront MTL keywords (Kd, Ks, Ns, Ka, d, Tr, illum, map_*, …) are SILENTLY
+# IGNORED by Hyperion's material parser.
 #
 # Material properties are expressed exclusively using OpenPBR Surface v1.1
 # parameter names, with the following UsdPreviewSurface aliases also accepted:
@@ -27,9 +28,6 @@
 # Declare the input color space explicitly with:
 #   colorspace lin_rec709   (default — Hyperion converts to lin_rec2020)
 #   colorspace lin_rec2020  (no conversion — values are already in lin_rec2020)
-#
-# Standard MTL tools (Blender, Maya, etc.) will display this file without
-# errors — they simply skip keywords they do not recognise.
 #
 
 colorspace lin_rec709

@@ -95,6 +95,7 @@ struct HitInfo {
     float3 position;
     float3 normal;
     float3 geoNormal;
+    float3 tangent;   ///< UV-aligned surface tangent (world space); used for normal mapping
     float2 uv;
     uint   instanceIndex;
     uint   primitiveIndex;

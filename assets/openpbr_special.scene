@@ -1,9 +1,9 @@
 # OpenPBR Special Materials Showcase — Hyperion demo
 # Carpaint, soap bubble, rubber, charcoal, concrete, sand — 6 spheres.
-# Materials from openpbr_special.mtl.
+# Materials from openpbr_special.mtlx.
 
-mtllib openpbr_special.mtl
-mtllib floor.mtl
+mtllib openpbr_special.mtlx
+mtllib floor.mtlx
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000

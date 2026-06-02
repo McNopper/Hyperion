@@ -2,10 +2,10 @@
 # 15 spheres in 3 rows × 5, lit by IBL panorama.
 # Tests specular_roughness (row 0), specular_ior (row 1),
 # specular_roughness_anisotropy on brushed metal (row 2).
-# Materials from openpbr_specular.mtl.
+# Materials from openpbr_specular.mtlx.
 
-mtllib openpbr_specular.mtl
-mtllib floor.mtl
+mtllib openpbr_specular.mtlx
+mtllib floor.mtlx
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000

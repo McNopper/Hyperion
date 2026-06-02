@@ -2,8 +2,8 @@
 # Illuminated by meadow_2_4k.exr (equirectangular HDR panorama, linear Rec.2020 after load).
 # Seven spheres showcase the full OpenPBR material range.
 
-mtllib meadow_materials.mtl
-mtllib floor.mtl
+mtllib meadow_materials.mtlx
+mtllib floor.mtlx
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000

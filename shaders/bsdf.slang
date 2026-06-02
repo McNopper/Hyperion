@@ -78,12 +78,22 @@ float3 thinFilmTint(float3 baseColor, float cosTheta, float thickness, float eta
     return saturate3(lerp(baseColor, baseColor * (0.35 + 0.65 * iridescence), blend));
 }
 
+/// Generalized-Schlick conductor Fresnel with F82-tint, per the OpenPBR Surface spec.
+///   F_Schlick(μ) = F0 + (1 - F0)(1 - μ)^5
+///   F_82(μ)      = F_Schlick(μ) - [μ(1-μ)^6 / (μ̄(1-μ̄)^6)] · [F_Schlick(μ̄) - F(μ̄)]
+/// with μ̄ = 1/7 (the ~82° peak-deviation angle) and F(μ̄) = F82 · F_Schlick(μ̄),
+/// so the bracketed numerator reduces to F_Schlick(μ̄)·(1 - F82).
+///   F0  = reflectance at normal incidence (base_color for metals)
+///   F82 = tint at the 82° grazing peak  (specular_color)
 float3 fresnelF82(float3 F0, float3 F82, float cosTheta)
 {
-    float oneMinusCos = 1.0 - saturate(cosTheta);
-    float om5 = pow(oneMinusCos, 5.0);
-    float c6 = pow(saturate(cosTheta), 6.0);
-    return saturate3(F0 + (1.0 - F0) * om5 - 7.0 * F82 * c6 * om5);
+    const float muBar = 1.0 / 7.0;
+    const float denom = muBar * pow(1.0 - muBar, 6.0); // μ̄(1-μ̄)^6
+    float mu = saturate(cosTheta);
+    float3 fSchlickBar = F0 + (1.0 - F0) * pow(1.0 - muBar, 5.0); // F_Schlick(μ̄)
+    float3 a = fSchlickBar * (1.0 - F82) / denom;                 // [F_Schlick(μ̄) - F(μ̄)] / denom
+    float3 fSchlick = F0 + (1.0 - F0) * pow(1.0 - mu, 5.0);
+    return saturate3(fSchlick - a * mu * pow(1.0 - mu, 6.0));
 }
 
 float3 evalDiffuseOrenNayar(float3 albedo, float roughness, float3 wo, float3 wi)

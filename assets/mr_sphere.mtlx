@@ -1,4 +1,4 @@
-# mr_sphere.mtl — materials for the metallic-roughness sphere showcase.
+# mr_sphere.mtlx — materials for the metallic-roughness sphere showcase.
 #
 # Color values are linear Rec.709; Hyperion converts to linear Rec.2020 on load.
 

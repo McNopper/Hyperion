@@ -64,6 +64,9 @@ hyperion_stdout.txt
 run_out.txt
 run_err.txt
 
+# Build / render logs (e.g. build_configure.log, build_compile.log, render_*.log)
+*.log
+
 # Exclude loose EXR files everywhere EXCEPT assets/ (tracked by Git LFS)
 *.exr
 !assets/*.exr

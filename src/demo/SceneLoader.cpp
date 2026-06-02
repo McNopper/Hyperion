@@ -5,12 +5,14 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <array>
 #include <fstream>
 #include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 
 #include "demo/importers/ISceneImporter.hpp"
 #include "demo/importers/MaterialLibrary.hpp"
@@ -116,27 +118,39 @@ struct CameraBlock {
         if (matName.empty())
             return;
         const auto refs = lib.textureRefs(matName);
-        if (!refs || refs->base_color.empty())
+        if (!refs)
             return;
 
-        const std::string relPath = refs->base_color.path;
-        const auto it = texCache.find(relPath);
-        if (it != texCache.end()) {
-            // Already uploaded — just patch the index.
-            lib.patchTextureIndex(matName, 0, it->second);
-            return;
+        // Slot order matches GpuMaterial::textureIndices: base_color, normal, ORM, emission.
+        const std::array<std::pair<uint32_t, const MaterialLibrary::MaterialTextureRef*>, 4> slots{{
+            {0u, &refs->base_color},
+            {1u, &refs->normal},
+            {2u, &refs->orm},
+            {3u, &refs->emission},
+        }};
+
+        for (const auto& [slot, ref] : slots) {
+            if (ref->empty())
+                continue;
+
+            const std::string& relPath = ref->path;
+            if (const auto it = texCache.find(relPath); it != texCache.end()) {
+                // Already uploaded — just patch the index.
+                lib.patchTextureIndex(matName, slot, it->second);
+                continue;
+            }
+
+            auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath, ref->colorSpace, matName);
+            if (!result) {
+                Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
+                continue;
+            }
+
+            const uint32_t idx = scene.addTexture(std::move(*result));
+            texCache.emplace(relPath, idx);
+            lib.patchTextureIndex(matName, slot, idx);
+            Logger::info("SceneLoader: loaded texture '{}' (slot {}) → index {}", relPath, slot, idx);
         }
-
-        auto result = Texture::loadFromFile(ctx, pool, assetsDir / relPath, refs->base_color.colorSpace, matName);
-        if (!result) {
-            Logger::warn("SceneLoader: failed to load texture '{}' for material '{}'", relPath, matName);
-            return;
-        }
-
-        const uint32_t idx = scene.addTexture(std::move(*result));
-        texCache.emplace(relPath, idx);
-        lib.patchTextureIndex(matName, 0, idx);
-        Logger::info("SceneLoader: loaded texture '{}' → index {}", relPath, idx);
     };
 
     loadMatTextures(blk.materialName);
@@ -267,7 +281,9 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
             camBlk = {};
             activeBlock = ActiveBlock::Camera;
 
-        } else if (kw == "o") {
+        } else if (kw == "instance") {
+            // Instantiate a Wavefront OBJ as a scene object (geometry only — the
+            // OBJ's own materials are never imported; assign via usemtl/material).
             if (!flushActive())
                 return std::nullopt;
             blk = {};
@@ -394,11 +410,16 @@ std::optional<SceneLoader::SceneConfig> SceneLoader::load(const std::filesystem:
                 cfg.envMapFile = std::filesystem::path(std::string(rv));
         } else if (kw == "tonemapper") {
             const std::string name(rv);
-            if      (name == "aces")     cfg.tonemapper = 0u;
-            else if (name == "agx")      cfg.tonemapper = 1u;
-            else if (name == "reinhard") cfg.tonemapper = 2u;
-            else if (name == "hable")    cfg.tonemapper = 3u;
-            else Logger::warn("SceneLoader: unknown tonemapper '{}' — using default (aces)", name);
+            if (name == "aces")
+                cfg.tonemapper = 0u;
+            else if (name == "agx")
+                cfg.tonemapper = 1u;
+            else if (name == "reinhard")
+                cfg.tonemapper = 2u;
+            else if (name == "hable")
+                cfg.tonemapper = 3u;
+            else
+                Logger::warn("SceneLoader: unknown tonemapper '{}' — using default (aces)", name);
         }
         // Unknown keywords are silently ignored, consistent with OBJ/MTL.
     }

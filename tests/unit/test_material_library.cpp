@@ -9,13 +9,13 @@ namespace {
 
 constexpr float kEps = 1.0e-4F;
 
-[[nodiscard]] std::filesystem::path fixtureMtl() {
-    return std::filesystem::path(__FILE__).parent_path().parent_path() / "fixtures" / "openpbr_test.mtl";
+[[nodiscard]] std::filesystem::path fixtureMtlx() {
+    return std::filesystem::path(__FILE__).parent_path().parent_path() / "fixtures" / "openpbr_test.mtlx";
 }
 
 class MaterialLibraryTest : public ::testing::Test {
   protected:
-    void SetUp() override { ASSERT_TRUE(m_lib.load(fixtureMtl())); }
+    void SetUp() override { ASSERT_TRUE(m_lib.load(fixtureMtlx())); }
 
     MaterialLibrary m_lib;
 };
@@ -230,12 +230,11 @@ TEST_F(MaterialLibraryTest, EmissiveColorIsNonZero) {
 TEST(MaterialLibraryColorspace, Lin709InputIsConvertedToRec2020) {
     // A pure-red color in lin_rec709 (1,0,0) should produce a different
     // value in lin_rec2020 — specifically it gets a green component.
-    const std::string content =
-        "colorspace lin_rec709\n"
-        "newmtl PureRed709\n"
-        "base_color 1.0 0.0 0.0\n";
+    const std::string content = "colorspace lin_rec709\n"
+                                "newmtl PureRed709\n"
+                                "base_color 1.0 0.0 0.0\n";
 
-    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_test_cs.mtl";
+    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_test_cs.mtlx";
     {
         std::ofstream out(tmp);
         out << content;
@@ -250,12 +249,11 @@ TEST(MaterialLibraryColorspace, Lin709InputIsConvertedToRec2020) {
 }
 
 TEST(MaterialLibraryColorspace, Lin2020InputIsNotConverted) {
-    const std::string content =
-        "colorspace lin_rec2020\n"
-        "newmtl PureRed2020\n"
-        "base_color 1.0 0.0 0.0\n";
+    const std::string content = "colorspace lin_rec2020\n"
+                                "newmtl PureRed2020\n"
+                                "base_color 1.0 0.0 0.0\n";
 
-    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_test_cs2.mtl";
+    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_test_cs2.mtlx";
     {
         std::ofstream out(tmp);
         out << content;
@@ -273,8 +271,10 @@ TEST(MaterialLibraryColorspace, Lin2020InputIsNotConverted) {
 // ── Edge cases ────────────────────────────────────────────────────────────────
 
 TEST(MaterialLibraryEdge, EmptyFileLoadsSuccessfully) {
-    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_empty.mtl";
-    { std::ofstream out(tmp); }
+    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_empty.mtlx";
+    {
+        std::ofstream out(tmp);
+    }
     MaterialLibrary lib;
     EXPECT_TRUE(lib.load(tmp));
     EXPECT_TRUE(lib.empty());
@@ -283,18 +283,17 @@ TEST(MaterialLibraryEdge, EmptyFileLoadsSuccessfully) {
 
 TEST(MaterialLibraryEdge, NonExistentFileReturnsFalse) {
     MaterialLibrary lib;
-    EXPECT_FALSE(lib.load("/no/such/file.mtl"));
+    EXPECT_FALSE(lib.load("/no/such/file.mtlx"));
 }
 
 TEST(MaterialLibraryEdge, CommentsAreIgnored) {
-    const std::string content =
-        "# This is a comment\n"
-        "newmtl Commented\n"
-        "# Another comment\n"
-        "base_color 0.5 0.5 0.5  # inline comment\n"
-        "specular_roughness 0.4\n";
+    const std::string content = "# This is a comment\n"
+                                "newmtl Commented\n"
+                                "# Another comment\n"
+                                "base_color 0.5 0.5 0.5  # inline comment\n"
+                                "specular_roughness 0.4\n";
 
-    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_comments.mtl";
+    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_comments.mtlx";
     {
         std::ofstream out(tmp);
         out << content;
@@ -312,21 +311,20 @@ TEST(MaterialLibraryEdge, ClassicMtlKeywordsAreSilentlyIgnored) {
     // Kd, Ks, Pm, Pr, Ni, Tr, Ke, map_Kd, map_Ns, map_bump are classic OBJ/MTL
     // keywords — they must be silently ignored. Proof: Kd sets green=0.2, blue=0.1;
     // if ignored those channels stay at the default base_color value (0.8), not 0.2/0.1.
-    const std::string content =
-        "colorspace lin_rec709\n"
-        "newmtl ClassicMat\n"
-        "Kd 0.8 0.2 0.1\n"
-        "Ks 1.0 1.0 1.0\n"
-        "Pm 1.0\n"
-        "Pr 0.3\n"
-        "Ni 1.5\n"
-        "Tr 1.0\n"
-        "Ke 5.0 4.0 3.0\n"
-        "map_Kd some_texture.png\n"
-        "map_Ns roughness.png\n"
-        "map_bump normal.png\n";
+    const std::string content = "colorspace lin_rec709\n"
+                                "newmtl ClassicMat\n"
+                                "Kd 0.8 0.2 0.1\n"
+                                "Ks 1.0 1.0 1.0\n"
+                                "Pm 1.0\n"
+                                "Pr 0.3\n"
+                                "Ni 1.5\n"
+                                "Tr 1.0\n"
+                                "Ke 5.0 4.0 3.0\n"
+                                "map_Kd some_texture.png\n"
+                                "map_Ns roughness.png\n"
+                                "map_bump normal.png\n";
 
-    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_classic.mtl";
+    const std::filesystem::path tmp = std::filesystem::temp_directory_path() / "hyperion_classic.mtlx";
     {
         std::ofstream out(tmp);
         out << content;

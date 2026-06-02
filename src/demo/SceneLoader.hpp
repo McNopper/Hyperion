@@ -13,13 +13,13 @@
 ///
 /// FORMAT OVERVIEW
 /// ───────────────
-/// Line-based text format inspired by Wavefront OBJ/MTL.
+/// Line-based text format inspired by — but distinct from — Wavefront OBJ/MTL.
 /// Lines starting with '#' are comments.  All asset paths are resolved
 /// relative to the assets directory passed to load().
 ///
 /// ── Global keywords ──────────────────────────────────────────────────────────
 ///
-///   mtllib        <path>        Load a material library (.mtl).
+///   mtllib        <path>        Load a Hyperion .mtlx OpenPBR material library.
 ///   spp           <n>           Samples per pixel.
 ///   max_depth     <n>           Maximum ray bounce depth.
 ///   env_map       <path>        Equirectangular HDR panorama (.exr) for IBL.
@@ -49,7 +49,8 @@
 /// ── Block keywords  (each starts a new block) ────────────────────────────────
 ///
 ///   camera                     Camera block.  Must appear before geometry.
-///   o      <path>              Load a Wavefront OBJ file.
+///   instance <path>            Instantiate a Wavefront OBJ as a scene object
+///                              (geometry only — OBJ materials are not imported).
 ///   sphere <r>                 Analytic sphere — radius only; position
 ///                              via the translate modifier.
 ///   box    <hx> <hy> <hz>      Procedural box — half-extents only;
@@ -80,7 +81,7 @@
 ///   - Block modifiers are collected until the next block keyword or EOF.
 ///   - 'sphere': translate sets the centre; rotate is ignored (symmetric);
 ///     scale.x is used as a uniform radius multiplier.
-///   - 'box' and 'o': full TRS is applied.
+///   - 'box' and 'instance': full TRS is applied.
 ///   - Camera rotate and look_at are mutually exclusive; last one wins.
 ///   - Unrecognised keywords are silently ignored, matching OBJ/MTL behaviour.
 class SceneLoader {

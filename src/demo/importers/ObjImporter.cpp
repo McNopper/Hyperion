@@ -29,7 +29,6 @@ struct ObjIndex {
 
 struct PendingMesh {
     std::string name;
-    std::string materialName;
     std::vector<ObjIndex> indices;
 };
 
@@ -81,17 +80,17 @@ struct PendingMesh {
 
 // ── Material resolution ───────────────────────────────────────────────────
 //
+// OBJ files are treated as pure geometry.  The scene file (via SceneLoader)
+// is the sole authority for material assignment; the OBJ's own mtllib/usemtl
+// directives are intentionally NOT consulted (material import is disabled by
+// design).
+//
 // Priority order (highest first):
-//   1. options.groupMaterials[meshName]  — per-group override from scene library
-//   2. options.overrideMaterial          — whole-object override from scene library
-//   3. usemtl lookup in options.library  — when a scene-level library is provided
-//   4. usemtl lookup in objMaterials     — OBJ's own per-file .mtl (standalone import)
-//   5. fallback: diffuse gray
+//   1. options.groupMaterials[meshName]  — per-group override from the scene library
+//   2. options.overrideMaterial          — whole-object override from the scene library
+//   3. fallback: diffuse gray
 
-[[nodiscard]] Material resolveMaterial(const std::string& meshName,
-                                       const std::string& usemtlName,
-                                       const ImportOptions& options,
-                                       const MaterialLibrary& objMaterials) {
+[[nodiscard]] Material resolveMaterial(const std::string& meshName, const ImportOptions& options) {
     if (options.library != nullptr) {
         // Per-group override.
         if (const auto it = options.groupMaterials.find(meshName); it != options.groupMaterials.end()) {
@@ -103,12 +102,8 @@ struct PendingMesh {
             if (auto m = options.library->get(options.overrideMaterial))
                 return *m;
         }
-        // The scene is the sole authority for material assignment; fall back to
-        // default diffuse gray rather than consulting OBJ's own usemtl names.
-        return Material::diffuse(glm::vec3(0.8f));
     }
-    // Standalone OBJ import (no scene library): use the OBJ's own per-file materials.
-    return objMaterials.getOrDefault(usemtlName);
+    return Material::diffuse(glm::vec3(0.8f));
 }
 
 // ── Mesh flush ────────────────────────────────────────────────────────────
@@ -120,8 +115,7 @@ bool flushMesh(PendingMesh& pending,
                const std::vector<glm::vec3>& positions,
                const std::vector<glm::vec3>& normals,
                const std::vector<glm::vec2>& texcoords,
-               const ImportOptions& options,
-               const MaterialLibrary& objMaterials) {
+               const ImportOptions& options) {
     if (pending.indices.empty())
         return true;
 
@@ -165,7 +159,7 @@ bool flushMesh(PendingMesh& pending,
         mesh.indices.push_back(it->second);
     }
 
-    const Material mat = resolveMaterial(pending.name, pending.materialName, options, objMaterials);
+    const Material mat = resolveMaterial(pending.name, options);
     const uint32_t mi = scene.addMaterial(mat);
     if (scene.addMesh(ctx, pool, std::move(mesh), mi, pending.name) == std::numeric_limits<uint32_t>::max()) {
         Logger::error("OBJ: failed to upload mesh '{}'", pending.name);
@@ -191,14 +185,10 @@ bool ObjImporter::import(const std::filesystem::path& path,
         return false;
     }
 
-    // Per-OBJ material library (loaded from mtllib directives).
-    // Uses the same OpenPBR-keyword MTL format as MaterialLibrary.
-    MaterialLibrary objMaterials;
-
     std::vector<glm::vec3> positions;
     std::vector<glm::vec3> normals;
     std::vector<glm::vec2> texcoords;
-    PendingMesh pending{.name = path.stem().string(), .materialName = "default", .indices = {}};
+    PendingMesh pending{.name = path.stem().string(), .indices = {}};
 
     std::string line;
     while (std::getline(file, line)) {
@@ -222,23 +212,14 @@ bool ObjImporter::import(const std::filesystem::path& path,
             glm::vec2 uv{};
             if (parseVec2(ss, uv))
                 texcoords.push_back(uv);
-        } else if (kw == "mtllib") {
-            if (options.library == nullptr) {
-                // Standalone OBJ import: load materials from the OBJ's own .mtl file.
-                std::string fname;
-                std::getline(ss, fname);
-                objMaterials.load(path.parent_path() / trim(fname));
-            }
-            // When options.library is set, the scene has already loaded all required
-            // materials.  Loading the OBJ's own .mtl would be redundant.
         } else if (kw == "usemtl") {
-            if (!flushMesh(pending, scene, ctx, pool, positions, normals, texcoords, options, objMaterials))
+            // OBJ material directives are ignored by design — materials are assigned
+            // exclusively by the scene file.  usemtl still acts as a mesh boundary so
+            // multi-material OBJs split into separately-assignable sub-meshes.
+            if (!flushMesh(pending, scene, ctx, pool, positions, normals, texcoords, options))
                 return false;
-            std::string matName;
-            std::getline(ss, matName);
-            pending.materialName = trim(matName);
         } else if (kw == "o" || kw == "g") {
-            if (!flushMesh(pending, scene, ctx, pool, positions, normals, texcoords, options, objMaterials))
+            if (!flushMesh(pending, scene, ctx, pool, positions, normals, texcoords, options))
                 return false;
             std::string name;
             std::getline(ss, name);
@@ -261,5 +242,5 @@ bool ObjImporter::import(const std::filesystem::path& path,
         }
     }
 
-    return flushMesh(pending, scene, ctx, pool, positions, normals, texcoords, options, objMaterials);
+    return flushMesh(pending, scene, ctx, pool, positions, normals, texcoords, options);
 }

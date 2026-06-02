@@ -7,7 +7,7 @@
 #   short box  −18° around Y  →  0  −0.1564  0  0.9877
 #   tall  box  +15° around Y  →  0   0.1305  0  0.9914
 
-mtllib cornell.mtl
+mtllib cornell.mtlx
 
 camera
 translate    278.0  273.0  -800.0
@@ -18,7 +18,7 @@ spp          64
 max_depth    8
 ev100        7.0
 
-o cornell.obj
+instance cornell.obj
   material Floor     WhiteWall
   material Ceiling   WhiteWall
   material AreaLight AreaLight

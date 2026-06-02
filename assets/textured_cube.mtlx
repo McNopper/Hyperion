@@ -1,6 +1,7 @@
-# textured_cube.mtl — OpenPBR Surface material for the textured cube demo.
-# The color_grid texture is referenced for future texture pipeline support.
-# Until textures are uploaded to the GPU, the scalar base_color is used.
+# textured_cube.mtlx — OpenPBR Surface material for the textured cube demo.
+# map_base_color is uploaded to bindless slot 0 and sampled by the path tracer;
+# the scalar base_color below is the fallback tint when no map is bound.
+# Additional map slots are available: map_normal, map_orm, map_emission_color.
 
 newmtl cube_textured
 base_color                  0.800 0.600 0.200

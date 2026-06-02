@@ -28,10 +28,10 @@ struct MatParams {
     float base_weight = 1.0f;
     float base_metalness = 0.0f;
     float base_diffuse_roughness = 0.0f; ///< Oren-Nayar σ for the diffuse lobe
-    // specular
+    // specular  (defaults per OpenPBR Surface spec)
     glm::vec3 specular_color{1.0f, 1.0f, 1.0f};
     float specular_weight = 1.0f;
-    float specular_roughness = 0.5f;
+    float specular_roughness = 0.3f;
     float specular_roughness_anisotropy = 0.0f; ///< 0 = isotropic, 1 = fully anisotropic
     float specular_ior = 1.5f;
     // transmission
@@ -39,12 +39,12 @@ struct MatParams {
     glm::vec3 transmission_color{1.0f, 1.0f, 1.0f};
     float transmission_depth = 0.0f; ///< Beer-law depth (world units); 0 = no absorption
     glm::vec3 transmission_scatter{0.0f, 0.0f, 0.0f};
-    // coat
+    // coat  (defaults per OpenPBR Surface spec)
     float coat_weight = 0.0f;
     glm::vec3 coat_color{1.0f, 1.0f, 1.0f};
-    float coat_roughness = 0.0f;
+    float coat_roughness = 0.3f;
     float coat_roughness_anisotropy = 0.0f;
-    float coat_ior = 1.6f;
+    float coat_ior = 1.5f;
     float coat_darkening = 1.0f; ///< energy darkening at base/coat interface
     // fuzz / sheen
     float fuzz_weight = 0.0f;
@@ -57,10 +57,10 @@ struct MatParams {
     // emission
     glm::vec3 emission_color{1.0f, 1.0f, 1.0f};
     float emission_luminance = 0.0f;
-    // subsurface
+    // subsurface  (defaults per OpenPBR Surface spec; radius scale = Rayleigh-like 1/0.5/0.25)
     float subsurface_weight = 0.0f;
-    glm::vec3 subsurface_color{1.0f, 1.0f, 1.0f};
-    glm::vec3 subsurface_radius{1.0f, 1.0f, 1.0f};
+    glm::vec3 subsurface_color{0.8f, 0.8f, 0.8f};
+    glm::vec3 subsurface_radius{1.0f, 0.5f, 0.25f};
     float subsurface_scale = 1.0f;
     // opacity
     float opacity = 1.0f;
@@ -114,6 +114,9 @@ struct MatParams {
         return "transmission_weight";
     if (kw == "specularColor")
         return "specular_color";
+    // OpenPBR canonical geometry opacity name (Hyperion stores it as `opacity`).
+    if (kw == "geometry_opacity")
+        return "opacity";
     return kw;
 }
 
@@ -339,9 +342,12 @@ bool MaterialLibrary::load(const std::filesystem::path& path) {
     auto flush = [&] {
         if (hasCurrent && !currentName.empty()) {
             m_materials.insert_or_assign(currentName, buildMaterial(currentParams));
-            // Store texture references so SceneLoader can pre-load them.
+            // Store texture references so SceneLoader can pre-load them (one per slot).
             MaterialTextureRefs refs;
             refs.base_color = {currentParams.map_base_color.path, currentParams.map_base_color.colorSpace};
+            refs.normal = {currentParams.map_normal.path, currentParams.map_normal.colorSpace};
+            refs.orm = {currentParams.map_orm.path, currentParams.map_orm.colorSpace};
+            refs.emission = {currentParams.map_emission_color.path, currentParams.map_emission_color.colorSpace};
             m_textureRefs.insert_or_assign(currentName, std::move(refs));
         }
     };

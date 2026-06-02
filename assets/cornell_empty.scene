@@ -3,7 +3,7 @@
 #
 # Syntax reference: see SceneLoader.hpp
 
-mtllib cornell.mtl
+mtllib cornell.mtlx
 
 camera
 translate    278.0  273.0  -800.0
@@ -14,7 +14,7 @@ spp          64
 max_depth    8
 ev100        7.0
 
-o cornell.obj
+instance cornell.obj
   material Floor     WhiteWall
   material Ceiling   WhiteWall
   material AreaLight AreaLight

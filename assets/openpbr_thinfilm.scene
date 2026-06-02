@@ -2,10 +2,10 @@
 # 15 spheres in 3 rows × 5, lit by IBL panorama.
 # Tests thin_film_thickness on glass (row 0), on silver metal (row 1),
 # and named iridescent materials (row 2).
-# Materials from openpbr_thinfilm.mtl.
+# Materials from openpbr_thinfilm.mtlx.
 
-mtllib openpbr_thinfilm.mtl
-mtllib floor.mtl
+mtllib openpbr_thinfilm.mtlx
+mtllib floor.mtlx
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000

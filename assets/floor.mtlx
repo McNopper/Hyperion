@@ -1,4 +1,4 @@
-# floor.mtl — Neutral reference floor shared by all IBL showcase scenes.
+# floor.mtlx — Neutral reference floor shared by all IBL showcase scenes.
 #
 # A medium-grey rough dielectric (IOR 1.50, specular_roughness 0.80).
 # Using the same material across every IBL scene enables fair side-by-side

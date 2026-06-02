@@ -1,10 +1,10 @@
 # OpenPBR Fuzz / Sheen Layer Showcase — Hyperion demo
 # 15 spheres in 3 rows × 5, lit by IBL panorama.
 # Tests fuzz_weight (row 0), fuzz_roughness (row 1), named fabric archetypes (row 2).
-# Materials from openpbr_fuzz.mtl.
+# Materials from openpbr_fuzz.mtlx.
 
-mtllib openpbr_fuzz.mtl
-mtllib floor.mtl
+mtllib openpbr_fuzz.mtlx
+mtllib floor.mtlx
 
 env_map       meadow_2_4k.exr
 env_unit_nits 10000

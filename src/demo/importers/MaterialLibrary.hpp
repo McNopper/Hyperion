@@ -8,12 +8,12 @@
 #include "hyperion/scene/Material.hpp"
 #include "hyperion/scene/Texture.hpp"
 
-/// Loads a Wavefront .mtl file using OpenPBR Surface v1.1 keyword names.
+/// Loads a Hyperion `.mtlx` OpenPBR material library.
 ///
-/// The only standard MTL keyword retained is `newmtl` (material name).
-/// All material properties use OpenPBR or UsdPreviewSurface names directly
-/// as keywords.  Standard MTL tools ignore unknown keywords, so files remain
-/// compatible with other tools.
+/// This format is NOT Wavefront MTL and NOT MaterialX XML: it is a line-based
+/// text format that reuses the `newmtl` block delimiter but expresses every
+/// material property with OpenPBR Surface v1.1 keyword names.  Any classic
+/// Wavefront MTL keyword (Kd, Ks, Ni, Tr, Ke, map_Kd, …) is silently ignored.
 ///
 /// All color values are linear Rec.709 by default and are converted to
 /// linear Rec.2020 on load.  Declare a different input color space with:
@@ -42,15 +42,18 @@
 ///   emission_color          r g b    emission_luminance               v
 ///   subsurface_weight       v        subsurface_color                 r g b
 ///   subsurface_radius       r g b    subsurface_scale                 v
-///   opacity                 v
+///   geometry_opacity        v        (alias: opacity)
 ///
-/// Texture map keywords (path is relative to the .mtl file directory):
-///   map_base_color          path     map_base_color_colorspace        name
-///   map_normal              path     map_normal_colorspace            name
-///   map_orm                 path     map_orm_colorspace               name
-///   map_roughness           path     map_roughness_colorspace         name
-///   map_metalness           path     map_metalness_colorspace         name
-///   map_emission_color      path     map_emission_color_colorspace    name
+/// Texture map keywords (path is relative to the .mtlx file directory).
+/// Maps tagged [slot N] are uploaded to bindless texture slot N and sampled by
+/// the path tracer; map_roughness / map_metalness are parsed but reserved
+/// (use the packed map_orm instead — G = roughness, B = metalness):
+///   map_base_color     [0] path     map_base_color_colorspace        name
+///   map_normal         [1] path     map_normal_colorspace            name
+///   map_orm            [2] path     map_orm_colorspace               name
+///   map_emission_color [3] path     map_emission_color_colorspace    name
+///   map_roughness          path     map_roughness_colorspace         name
+///   map_metalness          path     map_metalness_colorspace         name
 ///
 /// Color space names follow the OCIO / OpenEXR IIF registry.
 /// Textures are converted to linear Rec.2020 at load time.
@@ -68,11 +71,7 @@
 ///   emissiveColor → emission_color      emissiveLuminance → emission_luminance
 ///   clearcoat → coat_weight             clearcoatRoughness → coat_roughness
 ///   transmissionAmount → transmission_weight
-///
-/// Standard MTL aliases:
-///   map_Kd / map_kd → map_base_color
-///   map_bump / norm → map_normal
-///   map_Ns / map_ns → map_roughness
+///   geometry_opacity → opacity          (OpenPBR canonical opacity name)
 class MaterialLibrary {
   public:
     /// Reference to one texture map: file path + source color space.
@@ -82,13 +81,17 @@ class MaterialLibrary {
         [[nodiscard]] bool empty() const noexcept { return path.empty(); }
     };
 
-    /// All texture references for one material (one entry per map slot).
-    /// Currently only base_color is tracked; additional slots can be added later.
+    /// All texture references for one material (one entry per bindless map slot).
+    /// Slot order matches GpuMaterial::textureIndices: [0] base_color, [1] normal,
+    /// [2] ORM (occlusion/roughness/metalness), [3] emission.
     struct MaterialTextureRefs {
         MaterialTextureRef base_color;
+        MaterialTextureRef normal;
+        MaterialTextureRef orm;
+        MaterialTextureRef emission;
     };
 
-    /// Load material definitions from a .mtl file.
+    /// Load material definitions from a .mtlx file.
     /// Returns false only if the file cannot be opened.
     bool load(const std::filesystem::path& path);
 

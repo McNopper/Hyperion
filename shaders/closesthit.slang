@@ -28,6 +28,16 @@ HitInfo makeTriangleHit(BuiltInTriangleIntersectionAttributes attr)
         hit.normal = -hit.normal;
     }
     hit.uv = v0.uv * b0 + v1.uv * b1 + v2.uv * b2;
+
+    // UV-aligned tangent from triangle position/UV deltas (Lengyel's method).
+    // Computed per-hit so normal mapping does not depend on baked vertex tangents.
+    float2 duv1 = v1.uv - v0.uv;
+    float2 duv2 = v2.uv - v0.uv;
+    float3 dp1  = v1.position - v0.position;
+    float3 dp2  = v2.position - v0.position;
+    float  det  = duv1.x * duv2.y - duv2.x * duv1.y;
+    hit.tangent = abs(det) > 1.0e-8 ? (dp1 * duv2.y - dp2 * duv1.y) / det : float3(1.0, 0.0, 0.0);
+
     hit.instanceIndex = instanceIndex;
     hit.primitiveIndex = primitiveIndex;
     hit.frontFace = HitKind() == HIT_KIND_TRIANGLE_FRONT_FACE;
@@ -48,10 +58,22 @@ HitInfo makeSphereHit(SphereIntersectionAttributes attr)
     float phi = atan2(hit.geoNormal.z, hit.geoNormal.x);
     float theta = acos(clamp(hit.geoNormal.y, -1.0, 1.0));
     hit.uv = float2((phi + kPi) / (2.0 * kPi), theta / kPi);
+    // Tangent along increasing longitude (∂P/∂φ) for normal mapping.
+    hit.tangent = normalize(float3(-hit.geoNormal.z, 0.0, hit.geoNormal.x));
     hit.instanceIndex = instanceIndex;
     hit.primitiveIndex = 0u;
     hit.frontFace = dot(WorldRayDirection(), hit.geoNormal) < 0.0;
     return hit;
+}
+
+/// Sentinel: material texture slot holds no texture (matches kNoTexture on the host).
+static const uint kNoTexture = 0xFFFFFFFFu;
+
+/// Sample a bindless texture (mip 0) by its descriptor index.
+float4 sampleBindless(uint idx, float2 uv)
+{
+    return bindlessTextures[NonUniformResourceIndex(idx)]
+        .SampleLevel(bindlessSamplers[NonUniformResourceIndex(idx)], uv, 0.0);
 }
 
 /// Fire a shadow ray from `origin` in `direction` up to `tMax`.
@@ -85,17 +107,42 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     GpuInstance instance = instances[hit.instanceIndex];
     GpuMaterial mat = materials[instance.materialIndex];
 
-    // Apply base color texture if bound (textureIndices.x != 0xFFFFFFFFu).
-    if (mat.textureIndices.x != 0xFFFFFFFFu) {
-        const uint texIdx = mat.textureIndices.x;
-        mat.baseColorWeight.xyz =
-            bindlessTextures[NonUniformResourceIndex(texIdx)]
-                .SampleLevel(bindlessSamplers[NonUniformResourceIndex(texIdx)], hit.uv, 0.0).rgb;
+    // ── Texture maps (bindless) — each slot is applied only when bound. ──────────
+    // Slot layout: [0] base_color, [1] normal, [2] ORM, [3] emission.
+    // Colour maps (base/emission) are pre-converted to linear Rec.2020 at load;
+    // data maps (normal/ORM) are raw.
+
+    // [0] base_color — replaces base_color tint.
+    if (mat.textureIndices.x != kNoTexture) {
+        mat.baseColorWeight.xyz = sampleBindless(mat.textureIndices.x, hit.uv).rgb;
+    }
+    // [2] ORM — glTF packing: G = roughness, B = metalness (R = occlusion, unused here).
+    if (mat.textureIndices.z != kNoTexture) {
+        float3 orm = sampleBindless(mat.textureIndices.z, hit.uv).rgb;
+        mat.specularRoughAnisoIor.x = orm.g;   // specular_roughness
+        mat.baseMetalnessDiffRough.x = orm.b;  // base_metalness
+    }
+    // [3] emission — modulates emission_color.
+    if (mat.textureIndices.w != kNoTexture) {
+        mat.emissionColorLum.xyz *= sampleBindless(mat.textureIndices.w, hit.uv).rgb;
     }
 
     float3 wo = -normalize(WorldRayDirection());
     float3 N = dot(wo, hit.normal) >= 0.0 ? hit.normal : -hit.normal;
     float3 geoN = dot(wo, hit.geoNormal) >= 0.0 ? hit.geoNormal : -hit.geoNormal;
+
+    // [1] normal map — perturb the shading normal in a UV-aligned tangent frame.
+    if (mat.textureIndices.y != kNoTexture) {
+        float3 nTex = sampleBindless(mat.textureIndices.y, hit.uv).xyz * 2.0 - 1.0;
+        float3 Tt = hit.tangent - N * dot(N, hit.tangent);
+        if (dot(Tt, Tt) > 1.0e-12) {
+            Tt = normalize(Tt);
+            float3 Bt = cross(N, Tt);
+            float3 Np = normalize(Tt * nTex.x + Bt * nTex.y + N * nTex.z);
+            N = dot(wo, Np) >= 0.0 ? Np : N; // keep the perturbed normal on the visible side
+        }
+    }
+
     float3x3 tbn = buildTBN(N);
     float3 T = tbn[0];
     float3 B = tbn[1];

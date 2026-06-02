@@ -5,8 +5,8 @@
 #
 # Quaternion for 180° around Y  →  0  1  0  0
 
-mtllib cornell.mtl
-mtllib suzanne.mtl
+mtllib cornell.mtlx
+mtllib suzanne.mtlx
 
 camera
 translate    278.0  273.0  -800.0
@@ -17,7 +17,7 @@ spp          64
 max_depth    8
 ev100        7.0
 
-o cornell.obj
+instance cornell.obj
   material Floor     WhiteWall
   material Ceiling   WhiteWall
   material AreaLight AreaLight
@@ -27,7 +27,7 @@ o cornell.obj
 
 # Suzanne spans ±1.3 Blender units; scaled to ±130 world units.
 # Rotated 180° around Y so the face points toward the camera.
-o suzanne.obj
+instance suzanne.obj
 usemtl SuzanneDefault
 translate  278.0  250.0  280.0
 rotate     0.0    1.0    0.0    0.0
