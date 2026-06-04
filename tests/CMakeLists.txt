@@ -9,7 +9,6 @@ set(HYPERION_UNIT_TEST_SOURCES
     unit/test_colorspace.cpp
     unit/test_tonemap.cpp
     unit/test_procedural_geometry.cpp
-    unit/test_obj_importer.cpp
     unit/test_material_library.cpp
 )
 

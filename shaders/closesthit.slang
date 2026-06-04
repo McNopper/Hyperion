@@ -147,6 +147,60 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     float3 T = tbn[0];
     float3 B = tbn[1];
 
+    // geometry_tangent [slot 5] — reorient the anisotropy frame. The map stores a
+    // tangent direction (xy) in the UV-aligned tangent plane; rotate T/B accordingly.
+    if (mat.textureIndices2.y != kNoTexture) {
+        float2 tDir = sampleBindless(mat.textureIndices2.y, hit.uv).xy * 2.0 - 1.0;
+        float3 Tuv = hit.tangent - N * dot(N, hit.tangent);
+        if (dot(Tuv, Tuv) > 1.0e-12 && dot(tDir, tDir) > 1.0e-12) {
+            Tuv = normalize(Tuv);
+            float3 Buv = cross(N, Tuv);
+            float3 Tn = normalize(Tuv * tDir.x + Buv * tDir.y);
+            T = Tn - N * dot(N, Tn);
+            if (dot(T, T) > 1.0e-12) {
+                T = normalize(T);
+                B = cross(N, T);
+            } else {
+                T = tbn[0];
+                B = tbn[1];
+            }
+        }
+    }
+
+    // ── Coat frame (geometry_coat_normal [4], geometry_coat_tangent [6]) ──────────
+    // Defaults to the base frame (incl. any geometry_tangent rotation) so unbound
+    // slots reproduce the shared-frame result exactly.
+    float3 coatN = N;
+    float3 coatT = T;
+    float3 coatB = B;
+    if (mat.textureIndices2.x != kNoTexture) {
+        float3 nTex = sampleBindless(mat.textureIndices2.x, hit.uv).xyz * 2.0 - 1.0;
+        float3 Tt = hit.tangent - N * dot(N, hit.tangent);
+        if (dot(Tt, Tt) > 1.0e-12) {
+            Tt = normalize(Tt);
+            float3 Bt = cross(N, Tt);
+            float3 Np = normalize(Tt * nTex.x + Bt * nTex.y + N * nTex.z);
+            coatN = dot(wo, Np) >= 0.0 ? Np : N;
+            float3x3 coatTbn = buildTBN(coatN);
+            coatT = coatTbn[0];
+            coatB = coatTbn[1];
+        }
+    }
+    if (mat.textureIndices2.z != kNoTexture) {
+        float2 tDir = sampleBindless(mat.textureIndices2.z, hit.uv).xy * 2.0 - 1.0;
+        float3 Tuv = hit.tangent - coatN * dot(coatN, hit.tangent);
+        if (dot(Tuv, Tuv) > 1.0e-12 && dot(tDir, tDir) > 1.0e-12) {
+            Tuv = normalize(Tuv);
+            float3 Buv = cross(coatN, Tuv);
+            float3 Tn = normalize(Tuv * tDir.x + Buv * tDir.y);
+            float3 cT = Tn - coatN * dot(coatN, Tn);
+            if (dot(cT, cT) > 1.0e-12) {
+                coatT = normalize(cT);
+                coatB = cross(coatN, coatT);
+            }
+        }
+    }
+
     float3 emission = max(mat.emissionColorLum.xyz, 0.0.xxx) * max(mat.emissionColorLum.w, 0.0);
     if (max(emission.x, max(emission.y, emission.z)) > 0.0 && dot(wo, hit.geoNormal) > 0.0) {
         // Add emissive contribution only for:
@@ -200,7 +254,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
             float  shadowTMax   = max(dist - kRayEpsilon, 0.0);
             float3 shadowOrigin = hit.position + geoN * kRayEpsilon;
             if (traceNEEShadowRay(shadowOrigin, wi, shadowTMax)) {
-                float3 bsdfVal = evalBSDF(mat, wo, wi, N, T, B);
+                float3 bsdfVal = evalBSDF(mat, wo, wi, N, T, B, coatN, coatT, coatB);
                 payload.radiance += payload.throughput * bsdfVal * Le * cosI / solidPdf;
             }
         }
@@ -217,14 +271,14 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
             float3 shadowOrigin = hit.position + geoN * kRayEpsilon;
             if (traceNEEShadowRay(shadowOrigin, wi, kInf)) {
                 float3 Le = sampleEnvMap(wi) * pushConst.envLuminanceScale;
-                float bsdfPdf = pdfBSDF(mat, wo, wi, N, T, B);
+                float bsdfPdf = pdfBSDF(mat, wo, wi, N, T, B, coatN, coatT, coatB);
                 float misW = envPdf / (envPdf + bsdfPdf); // balance heuristic
-                payload.radiance += payload.throughput * evalBSDF(mat, wo, wi, N, T, B) * Le * cosI * misW / envPdf;
+                payload.radiance += payload.throughput * evalBSDF(mat, wo, wi, N, T, B, coatN, coatT, coatB) * Le * cosI * misW / envPdf;
             }
         }
     }
 
-    BSDFSample bsdfSample = sampleBSDF(mat, wo, N, T, B, seed);
+    BSDFSample bsdfSample = sampleBSDF(mat, wo, N, T, B, coatN, coatT, coatB, seed);
     payload.seed = seed;
     if (bsdfSample.pdf <= 0.0 || max(bsdfSample.weight.x, max(bsdfSample.weight.y, bsdfSample.weight.z)) <= 0.0) {
         payload.terminated = true;

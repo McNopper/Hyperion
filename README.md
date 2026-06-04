@@ -27,6 +27,10 @@ It implements the [OpenPBR Surface v1.1](https://academysoftwarefoundation.githu
 |:---------:|:----------:|:-------------:|
 | ![openpbr_thinfilm](screenshots/openpbr_thinfilm.png) | ![meadow_scene](screenshots/meadow_scene.png) | ![textured_cube](screenshots/textured_cube.png) |
 
+| A Beautiful Game (chess, IBL) | Dragon & Teapot (IBL) | Advanced Transmission |
+|:----------------------------------:|:---------------------:|:---------------------:|
+| ![ABeautifulGame](screenshots/ABeautifulGame.png) | ![dragon_teapot](screenshots/dragon_teapot.png) | ![openpbr_advanced](screenshots/openpbr_advanced.png) |
+
 ---
 
 ## Features
@@ -74,7 +78,7 @@ use GGX with the spec's anisotropy remapping.
 - `NonUniformResourceIndex` for correct divergent access
 - Per-material texture maps, each converted to the render color space at load:
   `map_base_color`, `map_normal`, `map_orm` (packed occlusion/roughness/metalness,
-  glTF G=roughness/B=metalness), `map_emission_color`
+  G=roughness/B=metalness), `map_emission_color`
 
 ### Scene format
 Line-based text format (`.scene`) inspired by — but distinct from — Wavefront OBJ/MTL.

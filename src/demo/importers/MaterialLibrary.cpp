@@ -39,6 +39,9 @@ struct MatParams {
     glm::vec3 transmission_color{1.0f, 1.0f, 1.0f};
     float transmission_depth = 0.0f; ///< Beer-law depth (world units); 0 = no absorption
     glm::vec3 transmission_scatter{0.0f, 0.0f, 0.0f};
+    float transmission_scatter_anisotropy = 0.0f; ///< HG mean cosine g ∈ [-1,1]
+    float transmission_dispersion_scale = 0.0f;   ///< chromatic dispersion strength; 0 = off
+    float transmission_dispersion_abbe_number = 20.0f; ///< Abbe number Vd (lower = more dispersion)
     // coat  (defaults per OpenPBR Surface spec)
     float coat_weight = 0.0f;
     glm::vec3 coat_color{1.0f, 1.0f, 1.0f};
@@ -62,8 +65,10 @@ struct MatParams {
     glm::vec3 subsurface_color{0.8f, 0.8f, 0.8f};
     glm::vec3 subsurface_radius{1.0f, 0.5f, 0.25f};
     float subsurface_scale = 1.0f;
+    float subsurface_scatter_anisotropy = 0.0f; ///< HG mean cosine g ∈ [-1,1]
     // opacity
     float opacity = 1.0f;
+    bool thin_walled = false; ///< geometry_thin_walled: double-sided thin sheet
     // texture maps — path + source color space (converted to linear Rec.2020 at load)
     TextureRef map_base_color{"", TextureColorSpace::SrgbTexture};
     TextureRef map_normal{"", TextureColorSpace::Raw};
@@ -71,6 +76,9 @@ struct MatParams {
     TextureRef map_roughness{"", TextureColorSpace::Raw};
     TextureRef map_metalness{"", TextureColorSpace::Raw};
     TextureRef map_emission_color{"", TextureColorSpace::SrgbTexture};
+    TextureRef map_coat_normal{"", TextureColorSpace::Raw};
+    TextureRef map_tangent{"", TextureColorSpace::Raw};
+    TextureRef map_coat_tangent{"", TextureColorSpace::Raw};
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -117,6 +125,20 @@ struct MatParams {
     // OpenPBR canonical geometry opacity name (Hyperion stores it as `opacity`).
     if (kw == "geometry_opacity")
         return "opacity";
+    if (kw == "geometry_thin_walled")
+        return "thin_walled";
+    // OpenPBR canonical subsurface radius-scale name (Hyperion stores it as `subsurface_scale`).
+    if (kw == "subsurface_radius_scale")
+        return "subsurface_scale";
+    // OpenPBR canonical geometry normal/tangent map names.
+    if (kw == "geometry_normal")
+        return "map_normal";
+    if (kw == "geometry_coat_normal")
+        return "map_coat_normal";
+    if (kw == "geometry_tangent")
+        return "map_tangent";
+    if (kw == "geometry_coat_tangent")
+        return "map_coat_tangent";
     return kw;
 }
 
@@ -160,6 +182,18 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
         p.map_emission_color.path = std::string(rest);
         return;
     }
+    if (kw == "map_coat_normal") {
+        p.map_coat_normal.path = std::string(rest);
+        return;
+    }
+    if (kw == "map_tangent") {
+        p.map_tangent.path = std::string(rest);
+        return;
+    }
+    if (kw == "map_coat_tangent") {
+        p.map_coat_tangent.path = std::string(rest);
+        return;
+    }
 
     // ── Texture map color spaces (OCIO / OpenEXR IIF names) ──────────────
     if (kw == "map_base_color_colorspace") {
@@ -184,6 +218,18 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
     }
     if (kw == "map_emission_color_colorspace") {
         p.map_emission_color.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
+    if (kw == "map_coat_normal_colorspace") {
+        p.map_coat_normal.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
+    if (kw == "map_tangent_colorspace") {
+        p.map_tangent.colorSpace = parseTextureColorSpace(rest);
+        return;
+    }
+    if (kw == "map_coat_tangent_colorspace") {
+        p.map_coat_tangent.colorSpace = parseTextureColorSpace(rest);
         return;
     }
 
@@ -241,6 +287,12 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
         p.transmission_weight = f;
     else if (kw == "transmission_depth")
         p.transmission_depth = f;
+    else if (kw == "transmission_scatter_anisotropy")
+        p.transmission_scatter_anisotropy = std::clamp(f, -1.0f, 1.0f);
+    else if (kw == "transmission_dispersion_scale")
+        p.transmission_dispersion_scale = std::max(f, 0.0f);
+    else if (kw == "transmission_dispersion_abbe_number")
+        p.transmission_dispersion_abbe_number = f;
     else if (kw == "thin_film_weight")
         p.thin_film_weight = f;
     else if (kw == "thin_film_thickness")
@@ -267,8 +319,12 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
         p.subsurface_weight = f;
     else if (kw == "subsurface_scale")
         p.subsurface_scale = f;
+    else if (kw == "subsurface_scatter_anisotropy")
+        p.subsurface_scatter_anisotropy = std::clamp(f, -1.0f, 1.0f);
     else if (kw == "opacity")
         p.opacity = f;
+    else if (kw == "thin_walled")
+        p.thin_walled = (f != 0.0f);
 }
 
 // ── Build GpuMaterial from parsed OpenPBR params ─────────────────────────
@@ -289,8 +345,11 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
 
     // Transmission
     g.transmissionColorWeight = glm::vec4(p.transmission_color, p.transmission_weight);
-    g.transmissionParams = glm::vec4(p.transmission_depth, p.specular_roughness, 0.0f, 0.0f);
-    g.transmissionScatter = glm::vec4(p.transmission_scatter, 0.0f);
+    g.transmissionParams = glm::vec4(p.transmission_depth,
+                                     p.specular_roughness,
+                                     p.transmission_dispersion_scale,
+                                     std::max(p.transmission_dispersion_abbe_number, 1.0f));
+    g.transmissionScatter = glm::vec4(p.transmission_scatter, p.transmission_scatter_anisotropy);
 
     // Subsurface
     g.subsurfaceColorWeight = glm::vec4(p.subsurface_color, p.subsurface_weight);
@@ -298,6 +357,7 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
 
     // Texture indices (filled by uploadTextures later; sentinel = kNoTexture)
     g.textureIndices = glm::uvec4(kNoTexture);
+    g.textureIndices2 = glm::uvec4(kNoTexture);
 
     // Thin film
     g.thinFilmParams = glm::vec4(p.thin_film_thickness, std::max(p.thin_film_ior, 1.0f), p.thin_film_weight, 0.0f);
@@ -318,7 +378,10 @@ void applyKw(MatParams& p, std::string_view rawKw, std::string_view rest, bool c
 
     // Opacity + flags: glass mode enables Fresnel split in sampleBSDF.
     const float flags = (p.transmission_weight >= 0.5f && p.base_metalness < 0.5f) ? 2.0f : 0.0f;
-    g.opacityFlagsPad = glm::vec4(std::clamp(p.opacity, 0.0f, 1.0f), flags, 0.0f, 0.0f);
+    g.opacityFlagsPad = glm::vec4(std::clamp(p.opacity, 0.0f, 1.0f),
+                                  flags,
+                                  p.subsurface_scatter_anisotropy,
+                                  p.thin_walled ? 1.0f : 0.0f);
 
     return Material::fromGpu(g);
 }
@@ -348,6 +411,9 @@ bool MaterialLibrary::load(const std::filesystem::path& path) {
             refs.normal = {currentParams.map_normal.path, currentParams.map_normal.colorSpace};
             refs.orm = {currentParams.map_orm.path, currentParams.map_orm.colorSpace};
             refs.emission = {currentParams.map_emission_color.path, currentParams.map_emission_color.colorSpace};
+            refs.coat_normal = {currentParams.map_coat_normal.path, currentParams.map_coat_normal.colorSpace};
+            refs.tangent = {currentParams.map_tangent.path, currentParams.map_tangent.colorSpace};
+            refs.coat_tangent = {currentParams.map_coat_tangent.path, currentParams.map_coat_tangent.colorSpace};
             m_textureRefs.insert_or_assign(currentName, std::move(refs));
         }
     };

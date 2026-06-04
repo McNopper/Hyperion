@@ -5,8 +5,8 @@ struct GpuMaterial {
     float4 specularColorWeight;
     float4 specularRoughAnisoIor;
     float4 transmissionColorWeight;
-    float4 transmissionParams;
-    float4 transmissionScatter;
+    float4 transmissionParams;     ///< x = transmission_depth, z = dispersion_scale, w = dispersion_abbe_number
+    float4 transmissionScatter;    ///< xyz = transmission_scatter albedo, w = transmission_scatter_anisotropy (g)
     float4 subsurfaceColorWeight;
     float4 subsurfaceRadiusScale;
     uint4  textureIndices;  ///< bindless indices: [base_color, normal, orm, emission]; ~0u = none
@@ -16,7 +16,8 @@ struct GpuMaterial {
     float4 fuzzColorWeight;
     float4 fuzzRoughPad;
     float4 emissionColorLum;
-    float4 opacityFlagsPad;
+    float4 opacityFlagsPad;        ///< x = opacity, y = flags, z = subsurface_scatter_anisotropy, w = thin_walled
+    uint4  textureIndices2; ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
 };
 struct GpuInstance { uint meshIndex, materialIndex, vertexOffset, indexOffset, geometryKind; float sphereRadius; uint _pad[2]; };
 

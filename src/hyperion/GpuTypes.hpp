@@ -42,8 +42,8 @@ struct GpuMaterial {
     glm::vec4 specularColorWeight;
     glm::vec4 specularRoughAnisoIor;
     glm::vec4 transmissionColorWeight;
-    glm::vec4 transmissionParams;
-    glm::vec4 transmissionScatter;
+    glm::vec4 transmissionParams; ///< x = transmission_depth, y = (spec_roughness dup), z = dispersion_scale, w = dispersion_abbe_number
+    glm::vec4 transmissionScatter; ///< xyz = transmission_scatter (single-scatter albedo), w = transmission_scatter_anisotropy (g)
     glm::vec4 subsurfaceColorWeight;
     glm::vec4 subsurfaceRadiusScale;
     glm::uvec4 textureIndices; ///< bindless texture indices: [base_color, normal, orm, emission]; ~0u = none
@@ -54,7 +54,8 @@ struct GpuMaterial {
     glm::vec4 fuzzRoughPad;
     glm::vec4
         emissionColorLum; ///< xyz = emission_color (linear Rec.2020), w = emission_luminance in cd/m² (OpenPBR spec)
-    glm::vec4 opacityFlagsPad;
+    glm::vec4 opacityFlagsPad; ///< x = geometry_opacity, y = flags, z = subsurface_scatter_anisotropy, w = geometry_thin_walled
+    glm::uvec4 textureIndices2; ///< bindless indices: [coat_normal, tangent, coat_tangent, unused]; ~0u = none
 };
 
 struct GpuInstance {
@@ -140,7 +141,7 @@ static_assert(std::is_trivially_copyable_v<CameraData>);
 static_assert(std::is_trivially_copyable_v<PushConstants>);
 
 static_assert(sizeof(GpuVertex) == 48);
-static_assert(sizeof(GpuMaterial) == 272);
+static_assert(sizeof(GpuMaterial) == 288);
 static_assert(sizeof(GpuInstance) == 32);
 static_assert(sizeof(GpuLight) == 64);
 static_assert(sizeof(GpuEmissiveTriangle) == 64);

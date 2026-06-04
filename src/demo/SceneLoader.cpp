@@ -121,12 +121,16 @@ struct CameraBlock {
         if (!refs)
             return;
 
-        // Slot order matches GpuMaterial::textureIndices: base_color, normal, ORM, emission.
-        const std::array<std::pair<uint32_t, const MaterialLibrary::MaterialTextureRef*>, 4> slots{{
+        // Slot order matches GpuMaterial textures: [0-3] base_color, normal, ORM, emission;
+        // [4-6] coat_normal, tangent, coat_tangent (textureIndices2).
+        const std::array<std::pair<uint32_t, const MaterialLibrary::MaterialTextureRef*>, 7> slots{{
             {0u, &refs->base_color},
             {1u, &refs->normal},
             {2u, &refs->orm},
             {3u, &refs->emission},
+            {4u, &refs->coat_normal},
+            {5u, &refs->tangent},
+            {6u, &refs->coat_tangent},
         }};
 
         for (const auto& [slot, ref] : slots) {

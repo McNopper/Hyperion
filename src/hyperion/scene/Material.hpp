@@ -19,6 +19,7 @@ class Material {
         material.m_gpu.transmissionColorWeight = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
         material.m_gpu.subsurfaceRadiusScale = glm::vec4(1.0f);
         material.m_gpu.textureIndices = glm::uvec4(kNoTexture);
+        material.m_gpu.textureIndices2 = glm::uvec4(kNoTexture);
         material.m_gpu.coatColorWeight = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
         material.m_gpu.coatRoughAnisoIorDark = glm::vec4(0.0f, 0.0f, 1.6f, 0.0f);
         material.m_gpu.fuzzColorWeight = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
@@ -99,7 +100,8 @@ class Material {
     }
 
     /// Set a bindless texture index for a given map slot.
-    /// Slot 0 = base_color, 1 = normal, 2 = ORM, 3 = emission.
+    /// Slots 0-3 → textureIndices [base_color, normal, ORM, emission];
+    /// slots 4-6 → textureIndices2 [coat_normal, tangent, coat_tangent].
     void setTextureIndex(uint32_t slot, uint32_t idx) noexcept {
         switch (slot) {
         case 0:
@@ -113,6 +115,15 @@ class Material {
             break;
         case 3:
             m_gpu.textureIndices.w = idx;
+            break;
+        case 4:
+            m_gpu.textureIndices2.x = idx;
+            break;
+        case 5:
+            m_gpu.textureIndices2.y = idx;
+            break;
+        case 6:
+            m_gpu.textureIndices2.z = idx;
             break;
         default:
             break;

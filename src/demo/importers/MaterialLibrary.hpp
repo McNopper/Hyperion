@@ -32,6 +32,9 @@
 ///   specular_ior            v
 ///   transmission_weight     v        transmission_color               r g b
 ///   transmission_depth      v        transmission_scatter             r g b
+///   transmission_scatter_anisotropy  v   (Henyey-Greenstein g ∈ [-1,1])
+///   transmission_dispersion_scale        v
+///   transmission_dispersion_abbe_number  v   (Abbe Vd; lower = more dispersion)
 ///   thin_film_weight        v        thin_film_thickness              v (nm)
 ///   thin_film_ior           v
 ///   coat_weight             v        coat_color                       r g b
@@ -42,7 +45,9 @@
 ///   emission_color          r g b    emission_luminance               v
 ///   subsurface_weight       v        subsurface_color                 r g b
 ///   subsurface_radius       r g b    subsurface_scale                 v
+///   subsurface_scatter_anisotropy    v   (Henyey-Greenstein g ∈ [-1,1])
 ///   geometry_opacity        v        (alias: opacity)
+///   geometry_thin_walled    v        (alias: thin_walled; 0/1 double-sided sheet)
 ///
 /// Texture map keywords (path is relative to the .mtlx file directory).
 /// Maps tagged [slot N] are uploaded to bindless texture slot N and sampled by
@@ -52,6 +57,9 @@
 ///   map_normal         [1] path     map_normal_colorspace            name
 ///   map_orm            [2] path     map_orm_colorspace               name
 ///   map_emission_color [3] path     map_emission_color_colorspace    name
+///   map_coat_normal    [4] path     (alias: geometry_coat_normal)
+///   map_tangent        [5] path     (alias: geometry_tangent; anisotropy frame)
+///   map_coat_tangent   [6] path     (alias: geometry_coat_tangent)
 ///   map_roughness          path     map_roughness_colorspace         name
 ///   map_metalness          path     map_metalness_colorspace         name
 ///
@@ -89,6 +97,9 @@ class MaterialLibrary {
         MaterialTextureRef normal;
         MaterialTextureRef orm;
         MaterialTextureRef emission;
+        MaterialTextureRef coat_normal;
+        MaterialTextureRef tangent;
+        MaterialTextureRef coat_tangent;
     };
 
     /// Load material definitions from a .mtlx file.
