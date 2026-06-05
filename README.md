@@ -27,7 +27,7 @@ It implements the [OpenPBR Surface v1.1](https://academysoftwarefoundation.githu
 |:---------:|:----------:|:-------------:|
 | ![openpbr_thinfilm](screenshots/openpbr_thinfilm.png) | ![meadow_scene](screenshots/meadow_scene.png) | ![textured_cube](screenshots/textured_cube.png) |
 
-| A Beautiful Game (chess, IBL) | Dragon & Teapot (IBL) | Advanced Transmission |
+| A Beautiful Game (IBL) | Dragon & Teapot (IBL) | Advanced Transmission |
 |:----------------------------------:|:---------------------:|:---------------------:|
 | ![ABeautifulGame](screenshots/ABeautifulGame.png) | ![dragon_teapot](screenshots/dragon_teapot.png) | ![openpbr_advanced](screenshots/openpbr_advanced.png) |
 
