@@ -12,8 +12,8 @@
 #include <volk/volk.h>
 
 #include "fixtures/VulkanTestFixture.hpp"
-#include "hyperion/core/Buffer.hpp"
-#include "hyperion/core/Image.hpp"
+#include "harmonia/core/Buffer.hpp"
+#include "harmonia/core/Image.hpp"
 
 TEST_F(VulkanFixture, Image_CreateAndDestroyR32G32B32A32) {
     constexpr VkExtent2D kExtent{16U, 16U};

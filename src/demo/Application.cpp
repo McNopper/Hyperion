@@ -15,13 +15,13 @@
 #include <vector>
 
 #include "demo/SceneLoader.hpp"
-#include "hyperion/core/Buffer.hpp"
-#include "hyperion/core/Logger.hpp"
-#include "hyperion/scene/Material.hpp"
-#include "hyperion/utils/ColorSpace.hpp"
-#include "hyperion/utils/ToneMapping.hpp"
+#include "harmonia/core/Buffer.hpp"
+#include "harmonia/core/Logger.hpp"
+#include "harmonia/scene/Material.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/utils/ToneMapping.hpp"
 
-#ifdef HYPERION_HAS_OPENEXR
+#ifdef HARMONIA_HAS_OPENEXR
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfHeader.h>
@@ -871,7 +871,7 @@ void Application::handleResize(uint32_t w, uint32_t h) {
 }
 
 void Application::saveEXR(const std::filesystem::path& path) {
-#ifndef HYPERION_HAS_OPENEXR
+#ifndef HARMONIA_HAS_OPENEXR
     Logger::warn("OpenEXR support is not enabled; cannot save {}", path.string());
 #else
     if (m_context.deviceContext().device == VK_NULL_HANDLE || !m_hdrImage.isValid()) {

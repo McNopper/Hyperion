@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "demo/importers/MaterialLibrary.hpp"
-#include "hyperion/GpuTypes.hpp"
+#include "harmonia/GpuTypes.hpp"
 
 namespace {
 

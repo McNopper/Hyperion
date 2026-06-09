@@ -19,6 +19,21 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_definitions(VK_NO_PROTOTYPES)
 
+# ── Shared libraries: Aether (file format) + Harmonia (common Vulkan) ─────────
+# Consumed via FetchContent. Pushes are not available yet, so the source dir is
+# the sibling working copy by default; override FETCHCONTENT_SOURCE_DIR_* or the
+# GIT_* args to pull from GitHub once the libraries are published.
+# Aether is declared first so Harmonia reuses this same source (dedup by name).
+FetchContent_Declare(
+    aether
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Aether"
+)
+FetchContent_Declare(
+    harmonia
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../Harmonia"
+)
+FetchContent_MakeAvailable(aether harmonia)
+
 set(HYPERION_SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
 
 set(HYPERION_ENTRY_SHADERS
@@ -27,33 +42,13 @@ set(HYPERION_ENTRY_SHADERS
     intersection.slang
     miss.slang
     shadow_miss.slang
-    tonemap_vert.slang
-    tonemap.slang
 )
 
+# Hyperion-specific sources only. Everything common now lives in Harmonia, and
+# the file-format parsers in Aether; both are linked via harmonia::harmonia.
 set(HYPERION_LIBRARY_SOURCES
-    src/hyperion/core/Buffer.cpp
-    src/hyperion/core/CommandPool.cpp
-    src/hyperion/core/Image.cpp
-    src/hyperion/core/Logger.cpp
-    src/hyperion/core/Queue.cpp
-    src/hyperion/core/Timer.cpp
-    src/hyperion/renderer/AccelerationStructure.cpp
-    src/hyperion/renderer/Camera.cpp
-    src/hyperion/renderer/Descriptors.cpp
     src/hyperion/renderer/PathTracer.cpp
-    src/hyperion/renderer/Pipeline.cpp
     src/hyperion/renderer/ShaderBindingTable.cpp
-    src/hyperion/scene/Geometry.cpp
-    src/hyperion/scene/IblProbe.cpp
-    src/hyperion/scene/Light.cpp
-    src/hyperion/scene/Mesh.cpp
-    src/hyperion/scene/ProceduralGeometry.cpp
-    src/hyperion/scene/Scene.cpp
-    src/hyperion/scene/Texture.cpp
-    src/hyperion/utils/ColorSpace.cpp
-    src/vma_impl.cpp
-    src/stb_image_impl.cpp
     # Pure-CPU importers — no Vulkan deps; live in hyperion_lib so unit tests
     # can link them without pulling in the full demo (SDL3, Vulkan context).
     src/demo/importers/ObjImporter.cpp
@@ -61,12 +56,6 @@ set(HYPERION_LIBRARY_SOURCES
 )
 
 set(HYPERION_DEMO_SOURCES
-    src/demo/vulkan_init/Context.cpp
-    src/demo/vulkan_init/PhysicalDevice.cpp
-    src/demo/vulkan_init/DebugUtils.cpp
-    src/demo/presentation/Surface.cpp
-    src/demo/presentation/Swapchain.cpp
-    src/demo/presentation/ToneMapper.cpp
     src/demo/SceneLoader.cpp
     src/demo/Application.cpp
 )
@@ -75,10 +64,13 @@ set(HYPERION_APP_SOURCES
     src/demo/main.cpp
 )
 
-# Volk — compiled from the Vulkan SDK source
-add_library(volk STATIC "${VULKANSDK_VOLK_SOURCE}")
-target_include_directories(volk SYSTEM PUBLIC "${VULKANSDK_INCLUDE_DIR}")
-set_target_properties(volk PROPERTIES LINKER_LANGUAGE C)
+# Volk is provided by Harmonia (created during FetchContent above); only define
+# it ourselves if Harmonia did not (e.g. when building Hyperion in isolation).
+if(NOT TARGET volk)
+    add_library(volk STATIC "${VULKANSDK_VOLK_SOURCE}")
+    target_include_directories(volk SYSTEM PUBLIC "${VULKANSDK_INCLUDE_DIR}")
+    set_target_properties(volk PROPERTIES LINKER_LANGUAGE C)
+endif()
 
 add_library(hyperion_project_options INTERFACE)
 hyperion_configure_target(hyperion_project_options)
@@ -114,9 +106,6 @@ if(BUILD_TESTING)
     endif()
 endif()
 
-find_package(OpenEXR QUIET)
-find_package(Stb REQUIRED)
-
 compile_slang_shaders(hyperion_shaders "${HYPERION_SHADER_OUTPUT_DIR}" ${HYPERION_ENTRY_SHADERS})
 
 add_library(hyperion_lib STATIC ${HYPERION_LIBRARY_SOURCES})
@@ -126,30 +115,15 @@ target_include_directories(hyperion_lib
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
+# harmonia::harmonia brings the common Vulkan library plus Aether, Vulkan SDK,
+# volk, stb and OpenEXR (incl. HARMONIA_HAS_OPENEXR) transitively.
 target_link_libraries(hyperion_lib
-    PUBLIC hyperion_project_options hyperion_vulkan_sdk volk
-)
-
-target_include_directories(hyperion_lib
-    SYSTEM PUBLIC "${Stb_INCLUDE_DIR}"
+    PUBLIC hyperion_project_options harmonia::harmonia
 )
 
 target_compile_definitions(hyperion_lib
     PUBLIC HYPERION_SHADER_DIR=\"${HYPERION_SHADER_OUTPUT_DIR}\"
 )
-
-if(OpenEXR_FOUND)
-    if(TARGET OpenEXR::OpenEXR)
-        set_property(TARGET OpenEXR::OpenEXR PROPERTY SYSTEM ON)
-        target_link_libraries(hyperion_lib PUBLIC OpenEXR::OpenEXR)
-    elseif(OPENEXR_LIBRARIES)
-        target_link_libraries(hyperion_lib PUBLIC ${OPENEXR_LIBRARIES})
-        if(OPENEXR_INCLUDE_DIRS)
-            target_include_directories(hyperion_lib SYSTEM PUBLIC ${OPENEXR_INCLUDE_DIRS})
-        endif()
-    endif()
-    target_compile_definitions(hyperion_lib PUBLIC HYPERION_HAS_OPENEXR=1)
-endif()
 
 add_library(hyperion_demo STATIC ${HYPERION_DEMO_SOURCES})
 target_link_libraries(hyperion_demo PUBLIC hyperion_lib)
@@ -171,17 +145,3 @@ target_link_libraries(hyperion_diag PRIVATE volk hyperion_vulkan_sdk hyperion_pr
 # orange every frame for 5 s. Validates SDL + Vulkan + swapchain end-to-end.
 add_executable(hyperion_window_test tests/diag/window_swapchain_loop.cpp)
 target_link_libraries(hyperion_window_test PRIVATE volk hyperion_vulkan_sdk hyperion_project_options)
-
-# EXR diagnostic tool — checks pixel values for inf/NaN (only built when OpenEXR is available).
-if(OpenEXR_FOUND)
-    add_executable(check_exr tools/check_exr.cpp)
-    target_link_libraries(check_exr PRIVATE hyperion_project_options)
-    if(TARGET OpenEXR::OpenEXR)
-        target_link_libraries(check_exr PRIVATE OpenEXR::OpenEXR)
-    else()
-        target_link_libraries(check_exr PRIVATE ${OPENEXR_LIBRARIES})
-        if(OPENEXR_INCLUDE_DIRS)
-            target_include_directories(check_exr SYSTEM PRIVATE ${OPENEXR_INCLUDE_DIRS})
-        endif()
-    endif()
-endif()

@@ -6,7 +6,7 @@
 #include <span>
 #include <vector>
 
-#include "hyperion/renderer/Pipeline.hpp"
+#include "harmonia/renderer/Pipeline.hpp"
 
 namespace {
 [[nodiscard]] constexpr VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment) noexcept {

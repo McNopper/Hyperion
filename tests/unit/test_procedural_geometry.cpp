@@ -7,8 +7,8 @@
 #include <gtest/gtest.h>
 #include <limits>
 
-#include "hyperion/scene/ProceduralGeometry.hpp"
-#include "hyperion/utils/Math.hpp"
+#include "harmonia/scene/ProceduralGeometry.hpp"
+#include "harmonia/utils/Math.hpp"
 
 namespace {
 constexpr float kEpsilon = 1.0e-5F;

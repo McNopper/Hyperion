@@ -13,8 +13,8 @@
 #include <volk/volk.h>
 
 #include "fixtures/VulkanTestFixture.hpp"
-#include "hyperion/core/Buffer.hpp"
-#include "hyperion/core/CommandPool.hpp"
+#include "harmonia/core/Buffer.hpp"
+#include "harmonia/core/CommandPool.hpp"
 
 TEST_F(VulkanFixture, CommandPool_HandleNonNull) {
     EXPECT_NE(commandPool().handle(), VK_NULL_HANDLE);

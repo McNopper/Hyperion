@@ -5,7 +5,7 @@
 #include <array>
 #include <gtest/gtest.h>
 
-#include "hyperion/utils/ColorSpace.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
 
 namespace {
 constexpr float kEpsilon = 1.0e-5F;

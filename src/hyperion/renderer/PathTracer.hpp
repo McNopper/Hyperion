@@ -4,10 +4,10 @@
 
 #include <expected>
 
-#include "hyperion/DeviceContext.hpp"
-#include "hyperion/core/Buffer.hpp"
-#include "hyperion/core/Image.hpp"
-#include "hyperion/renderer/Camera.hpp"
+#include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/Buffer.hpp"
+#include "harmonia/core/Image.hpp"
+#include "harmonia/renderer/Camera.hpp"
 
 class Descriptors;
 class Pipeline;

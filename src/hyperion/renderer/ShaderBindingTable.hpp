@@ -4,8 +4,8 @@
 
 #include <expected>
 
-#include "hyperion/DeviceContext.hpp"
-#include "hyperion/core/Buffer.hpp"
+#include "harmonia/DeviceContext.hpp"
+#include "harmonia/core/Buffer.hpp"
 
 class Pipeline;
 

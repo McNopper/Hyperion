@@ -17,9 +17,9 @@
 
 #include <gtest/gtest.h>
 
-#include "demo/vulkan_init/Context.hpp"
-#include "demo/vulkan_init/PhysicalDevice.hpp"
-#include "hyperion/core/CommandPool.hpp"
+#include "harmonia/vulkan_init/Context.hpp"
+#include "harmonia/vulkan_init/PhysicalDevice.hpp"
+#include "harmonia/core/CommandPool.hpp"
 
 struct VulkanTestContext {
     SDL_Window* window{};

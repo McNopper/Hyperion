@@ -5,7 +5,7 @@
 #include <memory>
 #include <string>
 
-#include "demo/vulkan_init/Context.hpp"
+#include "harmonia/vulkan_init/Context.hpp"
 
 namespace {
 class SdlVideoScope {

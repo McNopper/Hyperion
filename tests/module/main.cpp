@@ -11,9 +11,9 @@
 
 #include <gtest/gtest.h>
 
-#include "demo/vulkan_init/Context.hpp"
+#include "harmonia/vulkan_init/Context.hpp"
 #include "fixtures/VulkanTestFixture.hpp"
-#include "hyperion/core/CommandPool.hpp"
+#include "harmonia/core/CommandPool.hpp"
 
 namespace {
 struct WindowDeleter {

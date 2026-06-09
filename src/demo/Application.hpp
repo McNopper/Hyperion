@@ -11,18 +11,18 @@
 #include <string>
 #include <vector>
 
-#include "demo/presentation/Swapchain.hpp"
-#include "demo/presentation/ToneMapper.hpp"
-#include "demo/vulkan_init/Context.hpp"
-#include "hyperion/core/CommandPool.hpp"
-#include "hyperion/core/Image.hpp"
-#include "hyperion/renderer/Camera.hpp"
-#include "hyperion/renderer/Descriptors.hpp"
+#include "harmonia/presentation/Swapchain.hpp"
+#include "harmonia/presentation/ToneMapper.hpp"
+#include "harmonia/vulkan_init/Context.hpp"
+#include "harmonia/core/CommandPool.hpp"
+#include "harmonia/core/Image.hpp"
+#include "harmonia/renderer/Camera.hpp"
+#include "harmonia/renderer/Descriptors.hpp"
 #include "hyperion/renderer/PathTracer.hpp"
-#include "hyperion/renderer/Pipeline.hpp"
+#include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
-#include "hyperion/scene/IblProbe.hpp"
-#include "hyperion/scene/Scene.hpp"
+#include "harmonia/scene/IblProbe.hpp"
+#include "harmonia/scene/Scene.hpp"
 
 class Application {
   public:

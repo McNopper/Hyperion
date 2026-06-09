@@ -15,7 +15,7 @@
 #include <volk/volk.h>
 
 #include "fixtures/VulkanTestFixture.hpp"
-#include "hyperion/core/Buffer.hpp"
+#include "harmonia/core/Buffer.hpp"
 
 namespace {
 // Copy device-local buffer to a host-visible readback buffer and return the bytes.

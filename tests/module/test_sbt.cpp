@@ -13,8 +13,8 @@
 #include <volk/volk.h>
 
 #include "fixtures/VulkanTestFixture.hpp"
-#include "hyperion/renderer/Descriptors.hpp"
-#include "hyperion/renderer/Pipeline.hpp"
+#include "harmonia/renderer/Descriptors.hpp"
+#include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 
 namespace {

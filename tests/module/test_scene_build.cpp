@@ -13,9 +13,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "fixtures/VulkanTestFixture.hpp"
-#include "hyperion/scene/Material.hpp"
-#include "hyperion/scene/ProceduralGeometry.hpp"
-#include "hyperion/scene/Scene.hpp"
+#include "harmonia/scene/Material.hpp"
+#include "harmonia/scene/ProceduralGeometry.hpp"
+#include "harmonia/scene/Scene.hpp"
 
 // Mesh + sphere: the same geometry combination used in the integration render test.
 TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {

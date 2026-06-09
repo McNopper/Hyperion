@@ -5,8 +5,8 @@
 #include <cmath>
 #include <gtest/gtest.h>
 
-#include "hyperion/utils/ColorSpace.hpp"
-#include "hyperion/utils/ToneMapping.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/utils/ToneMapping.hpp"
 
 namespace {
 constexpr float kEps    = 1.0e-4F;  // tolerance for tone curve outputs

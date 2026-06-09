@@ -8,7 +8,7 @@
 #include <limits>
 #include <random>
 
-#include "hyperion/utils/Math.hpp"
+#include "harmonia/utils/Math.hpp"
 
 namespace {
 constexpr float kEpsilon = 1.0e-5F;

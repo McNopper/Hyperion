@@ -14,19 +14,19 @@
 #include <memory>
 #include <string>
 
-#include "demo/vulkan_init/Context.hpp"
-#include "hyperion/core/Buffer.hpp"
-#include "hyperion/core/CommandPool.hpp"
-#include "hyperion/core/Image.hpp"
-#include "hyperion/renderer/Camera.hpp"
-#include "hyperion/renderer/Descriptors.hpp"
+#include "harmonia/vulkan_init/Context.hpp"
+#include "harmonia/core/Buffer.hpp"
+#include "harmonia/core/CommandPool.hpp"
+#include "harmonia/core/Image.hpp"
+#include "harmonia/renderer/Camera.hpp"
+#include "harmonia/renderer/Descriptors.hpp"
 #include "hyperion/renderer/PathTracer.hpp"
-#include "hyperion/renderer/Pipeline.hpp"
+#include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
-#include "hyperion/scene/Material.hpp"
-#include "hyperion/scene/ProceduralGeometry.hpp"
-#include "hyperion/scene/Scene.hpp"
-#include "hyperion/utils/Math.hpp"
+#include "harmonia/scene/Material.hpp"
+#include "harmonia/scene/ProceduralGeometry.hpp"
+#include "harmonia/scene/Scene.hpp"
+#include "harmonia/utils/Math.hpp"
 
 namespace {
 class SdlVideoScope {
