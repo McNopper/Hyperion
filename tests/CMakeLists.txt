@@ -2,14 +2,14 @@ include(GoogleTest)
 
 # ---------------------------------------------------------------------------
 # Unit tests — pure CPU, no Vulkan, no GPU resources
+#
+# Only Hyperion-specific tests live here. Shared CPU tests (math, color space,
+# tonemapping, procedural geometry, material library) moved to Harmonia/Aether.
+#   - BSDF: GGX/Smith importance-sampling and energy-conservation properties
+#           the path tracer relies on.
 # ---------------------------------------------------------------------------
 set(HYPERION_UNIT_TEST_SOURCES
-    unit/test_math.cpp
     unit/test_bsdf.cpp
-    unit/test_colorspace.cpp
-    unit/test_tonemap.cpp
-    unit/test_procedural_geometry.cpp
-    unit/test_material_library.cpp
 )
 
 add_executable(hyperion_unit_tests ${HYPERION_UNIT_TEST_SOURCES})
@@ -20,37 +20,8 @@ target_link_libraries(hyperion_unit_tests
 )
 target_include_directories(hyperion_unit_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../src"
-    "${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
 gtest_discover_tests(hyperion_unit_tests)
-
-# ---------------------------------------------------------------------------
-# Component tests — single Vulkan object lifecycle (Buffer, Image, CommandPool)
-#
-# Catch regressions at the lowest GPU level:
-#   - Buffer: vmaUnmapMemory bug, host-mapped round-trip, staging upload,
-#             device address
-#   - Image:  creation, layout transition, pixel readback via clear + copy
-#   - CommandPool: one-shot command buffer submission, vkCmdFillBuffer verify
-# ---------------------------------------------------------------------------
-set(HYPERION_COMPONENT_TEST_SOURCES
-    component/main.cpp
-    component/test_buffer.cpp
-    component/test_image.cpp
-    component/test_commandpool.cpp
-)
-
-add_executable(hyperion_component_tests ${HYPERION_COMPONENT_TEST_SOURCES})
-target_link_libraries(hyperion_component_tests
-    PRIVATE
-        hyperion_demo
-        GTest::gtest
-)
-target_include_directories(hyperion_component_tests PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src"
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-)
-gtest_discover_tests(hyperion_component_tests)
 
 # ---------------------------------------------------------------------------
 # Module tests — multi-object GPU workflows (Scene build, Pipeline + SBT)
@@ -59,6 +30,9 @@ gtest_discover_tests(hyperion_component_tests)
 #   - SceneBuild: BLAS + TLAS construction for mesh-only, sphere-only, mixed
 #   - SBT:        raygen size == stride (VUID-vkCmdTraceRaysKHR-size-04023),
 #                 miss/hit region device addresses, pipeline handle validity
+#
+# The shared Vulkan test fixture is owned by Harmonia; include it from the
+# Harmonia source tree populated by FetchContent.
 # ---------------------------------------------------------------------------
 set(HYPERION_MODULE_TEST_SOURCES
     module/main.cpp
@@ -75,7 +49,7 @@ target_link_libraries(hyperion_module_tests
 )
 target_include_directories(hyperion_module_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../src"
-    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${harmonia_SOURCE_DIR}/tests"
 )
 gtest_discover_tests(hyperion_module_tests)
 
@@ -88,7 +62,6 @@ gtest_discover_tests(hyperion_module_tests)
 # ---------------------------------------------------------------------------
 set(HYPERION_INTEGRATION_TEST_SOURCES
     integration/test_smoke.cpp
-    integration/test_context.cpp
     integration/test_render.cpp
 )
 
