@@ -13,6 +13,7 @@
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/renderer/AccelerationStructure.hpp"
 #include "harmonia/scene/Geometry.hpp"
+#include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/scene/Light.hpp"
 #include "harmonia/scene/Material.hpp"
 #include "harmonia/scene/Texture.hpp"
@@ -34,18 +35,18 @@ static_assert(sizeof(GpuInstance) == 32);
 
 class SceneBuilder;
 
-class Scene {
+class Scene : public ISceneBuilder {
   public:
     using Builder = SceneBuilder;
 
-    [[nodiscard]] uint32_t addMaterial(Material mat);
+    [[nodiscard]] uint32_t addMaterial(Material mat) override;
     [[nodiscard]] uint32_t addMesh(const DeviceContext& ctx,
                                    const CommandPool& pool,
                                    MeshData data,
                                    uint32_t materialIdx,
-                                   std::string_view name = "");
+                                   std::string_view name = "") override;
     [[nodiscard]] uint32_t
-    addSphere(const DeviceContext& ctx, const CommandPool& pool, glm::vec3 center, float radius, uint32_t materialIdx);
+    addSphere(const DeviceContext& ctx, const CommandPool& pool, glm::vec3 center, float radius, uint32_t materialIdx) override;
 
     /// Add a light to the scene. Returns the light index.
     /// Must be called before build().
@@ -53,7 +54,7 @@ class Scene {
 
     /// Add a texture to the scene. Returns the bindless texture index.
     /// Must be called before build() / updateSceneSet().
-    [[nodiscard]] uint32_t addTexture(Texture texture);
+    [[nodiscard]] uint32_t addTexture(Texture texture) override;
 
     VkResult build(const DeviceContext& ctx, const CommandPool& pool);
 

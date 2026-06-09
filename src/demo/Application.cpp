@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-#include "demo/SceneLoader.hpp"
+#include "harmonia/scene/SceneLoader.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/presentation/ImageCapture.hpp"
