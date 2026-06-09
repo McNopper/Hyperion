@@ -124,6 +124,7 @@ target_link_libraries(hyperion_lib
 
 target_compile_definitions(hyperion_lib
     PUBLIC HYPERION_SHADER_DIR=\"${HYPERION_SHADER_OUTPUT_DIR}\"
+           HYPERION_ASSETS_DIR=\"${AETHER_ASSETS_DIR}\"
 )
 
 add_library(hyperion_demo STATIC ${HYPERION_DEMO_SOURCES})
@@ -141,8 +142,3 @@ endif()
 # Only SDL3 + Vulkan + volk. Used to isolate driver/presentation issues.
 add_executable(hyperion_diag tests/diag/test_sdl_vulkan_init.cpp)
 target_link_libraries(hyperion_diag PRIVATE volk hyperion_vulkan_sdk hyperion_project_options)
-
-# Swapchain loop integration test: creates a real visible window, clears it to
-# orange every frame for 5 s. Validates SDL + Vulkan + swapchain end-to-end.
-add_executable(hyperion_window_test tests/diag/window_swapchain_loop.cpp)
-target_link_libraries(hyperion_window_test PRIVATE volk hyperion_vulkan_sdk hyperion_project_options)

@@ -35,10 +35,12 @@ class Application {
         bool validation = false;
         bool sppExplicit = false; ///< true if --spp was given on the command line
         std::filesystem::path shaderDir = "";
-        std::filesystem::path assetsDir = "assets";
-        /// Scene definition file (.scene).  Path is resolved from the
-        /// working directory.  Defaults to the classic Cornell box scene.
-        std::filesystem::path sceneFile = "assets/cornell_classic.scene";
+        std::filesystem::path assetsDir = HYPERION_ASSETS_DIR;
+        /// Scene definition file (.scene).  A bare name (e.g. "cornell_classic" or
+        /// "cornell_classic.scene") is resolved against @ref assetsDir (the canonical
+        /// Aether asset collection); an absolute/existing path is used as-is.
+        /// Defaults to the classic Cornell box scene.
+        std::filesystem::path sceneFile = "cornell_classic.scene";
         /// If set, save this EXR after spp samples are accumulated, then exit.
         /// An empty path means interactive mode (default).
         std::filesystem::path outputFile;
@@ -70,9 +72,6 @@ class Application {
     /// buffer is ready for further processing (tonemap, EXR save, etc.).
     uint64_t renderFrame(Image& hdrTarget);
     void handleResize(uint32_t w, uint32_t h);
-    void saveEXR(const std::filesystem::path& path);
-    /// Tone-maps the HDR image (ACES SDR) and writes an 8-bit sRGB PNG.
-    void savePNG(const std::filesystem::path& path);
 
     Config m_config{};
     SDL_Window* m_window{};

@@ -9,7 +9,6 @@
 #include <cmath>
 #include <format>
 #include <span>
-#include <stb_image_write.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,16 +16,8 @@
 #include "demo/SceneLoader.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/presentation/ImageCapture.hpp"
 #include "harmonia/scene/Material.hpp"
-#include "harmonia/utils/ColorSpace.hpp"
-#include "harmonia/utils/ToneMapping.hpp"
-
-#ifdef HARMONIA_HAS_OPENEXR
-#include <OpenEXR/ImfChannelList.h>
-#include <OpenEXR/ImfFrameBuffer.h>
-#include <OpenEXR/ImfHeader.h>
-#include <OpenEXR/ImfOutputFile.h>
-#endif
 
 namespace {
 [[nodiscard]] VkResult createBinarySemaphore(VkDevice device, VkSemaphore& semaphore) {
@@ -286,6 +277,24 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
         return std::unexpected(1);
     }
 
+    // Resolve the scene path: an absolute/existing path is used as-is, otherwise the
+    // name (with an optional ".scene" extension) is looked up in the assets directory
+    // — the canonical Aether asset collection.
+    {
+        std::error_code ec;
+        std::filesystem::path& sf = app.m_config.sceneFile;
+        if (sf.empty()) {
+            sf = "cornell_classic.scene";
+        }
+        if (!std::filesystem::exists(sf, ec)) {
+            std::filesystem::path candidate = app.m_config.assetsDir / sf.filename();
+            if (candidate.extension() != ".scene") {
+                candidate += ".scene";
+            }
+            sf = candidate;
+        }
+    }
+
     // Load scene file — populates geometry and overrides camera / render config.
     SceneLoader loader;
     const auto sceneConfig = loader.load(
@@ -511,11 +520,11 @@ int Application::run() {
             renderFrame(m_hdrImage);
         }
         vkDeviceWaitIdle(m_context.deviceContext().device);
-        saveEXR(m_config.outputFile);
+        ImageCapture::saveExr(m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile);
         // Also write a tone-mapped sRGB PNG (ACES SDR) for GitHub / README display.
         auto pngPath = m_config.outputFile;
         pngPath.replace_extension(".png");
-        savePNG(pngPath);
+        ImageCapture::savePng(m_context.deviceContext(), m_commandPool, m_hdrImage, pngPath);
         return 0;
     }
 
@@ -532,7 +541,10 @@ int Application::run() {
                 if (event.key.key == SDLK_ESCAPE) {
                     m_running = false;
                 } else if (event.key.key == SDLK_S) {
-                    saveEXR(std::format("hyperion_{:06}.exr", m_frameIndex));
+                    ImageCapture::saveExr(m_context.deviceContext(),
+                                          m_commandPool,
+                                          m_hdrImage,
+                                          std::format("hyperion_{:06}.exr", m_frameIndex));
                 }
             }
         }
@@ -877,179 +889,6 @@ void Application::handleResize(uint32_t w, uint32_t h) {
     }
 }
 
-void Application::saveEXR(const std::filesystem::path& path) {
-#ifndef HARMONIA_HAS_OPENEXR
-    Logger::warn("OpenEXR support is not enabled; cannot save {}", path.string());
-#else
-    if (m_context.deviceContext().device == VK_NULL_HANDLE || !m_hdrImage.isValid()) {
-        return;
-    }
-
-    vkDeviceWaitIdle(m_context.deviceContext().device);
-    const VkDeviceSize byteSize = static_cast<VkDeviceSize>(m_hdrImage.extent().width) *
-                                  static_cast<VkDeviceSize>(m_hdrImage.extent().height) * sizeof(float) * 4U;
-    auto readback = Buffer::create(m_context.deviceContext(),
-                                   byteSize,
-                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                   "demo.hdr.readback");
-    if (!readback) {
-        Logger::error("Failed to create readback buffer: VkResult {}", static_cast<int>(readback.error()));
-        return;
-    }
-
-    auto cmd = m_commandPool.beginOneShot();
-    if (!cmd) {
-        Logger::error("Failed to allocate screenshot command buffer: VkResult {}", static_cast<int>(cmd.error()));
-        return;
-    }
-    m_hdrImage.transition(*cmd,
-                          VK_IMAGE_LAYOUT_GENERAL,
-                          VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                          VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                          VK_ACCESS_2_SHADER_WRITE_BIT,
-                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                          VK_ACCESS_2_TRANSFER_READ_BIT);
-
-    const VkBufferImageCopy copyRegion{
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource =
-            VkImageSubresourceLayers{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-        .imageOffset = VkOffset3D{0, 0, 0},
-        .imageExtent = VkExtent3D{m_hdrImage.extent().width, m_hdrImage.extent().height, 1},
-    };
-    vkCmdCopyImageToBuffer(
-        *cmd, m_hdrImage.handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback->handle(), 1, &copyRegion);
-
-    m_hdrImage.transition(*cmd,
-                          VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                          VK_IMAGE_LAYOUT_GENERAL,
-                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                          VK_ACCESS_2_TRANSFER_READ_BIT,
-                          VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                          VK_ACCESS_2_SHADER_WRITE_BIT);
-
-    if (const VkResult result = m_commandPool.endOneShot(*cmd); result != VK_SUCCESS) {
-        Logger::error("Screenshot copy failed: VkResult {}", static_cast<int>(result));
-        return;
-    }
-
-    using namespace OPENEXR_IMF_NAMESPACE;
-    Header header(static_cast<int>(m_hdrImage.extent().width), static_cast<int>(m_hdrImage.extent().height));
-    header.channels().insert("R", Channel(FLOAT));
-    header.channels().insert("G", Channel(FLOAT));
-    header.channels().insert("B", Channel(FLOAT));
-
-    FrameBuffer frameBuffer;
-    char* const base = static_cast<char*>(readback->mappedData());
-    const size_t pixelStride = sizeof(float) * 4U;
-    const size_t rowStride = pixelStride * m_hdrImage.extent().width;
-    frameBuffer.insert("R", Slice(FLOAT, base + 0U * sizeof(float), pixelStride, rowStride));
-    frameBuffer.insert("G", Slice(FLOAT, base + 1U * sizeof(float), pixelStride, rowStride));
-    frameBuffer.insert("B", Slice(FLOAT, base + 2U * sizeof(float), pixelStride, rowStride));
-
-    OutputFile file(path.string().c_str(), header);
-    file.setFrameBuffer(frameBuffer);
-    file.writePixels(static_cast<int>(m_hdrImage.extent().height));
-    Logger::info("Saved HDR screenshot to {}", path.string());
-#endif
-}
-
-void Application::savePNG(const std::filesystem::path& path) {
-    if (m_context.deviceContext().device == VK_NULL_HANDLE || !m_hdrImage.isValid()) {
-        return;
-    }
-
-    vkDeviceWaitIdle(m_context.deviceContext().device);
-    const uint32_t width = m_hdrImage.extent().width;
-    const uint32_t height = m_hdrImage.extent().height;
-    const VkDeviceSize byteSize =
-        static_cast<VkDeviceSize>(width) * static_cast<VkDeviceSize>(height) * sizeof(float) * 4U;
-
-    auto readback = Buffer::create(m_context.deviceContext(),
-                                   byteSize,
-                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                   "demo.hdr.readback.png");
-    if (!readback) {
-        Logger::error("savePNG: failed to create readback buffer: VkResult {}", static_cast<int>(readback.error()));
-        return;
-    }
-
-    auto cmd = m_commandPool.beginOneShot();
-    if (!cmd) {
-        Logger::error("savePNG: failed to allocate command buffer: VkResult {}", static_cast<int>(cmd.error()));
-        return;
-    }
-    m_hdrImage.transition(*cmd,
-                          VK_IMAGE_LAYOUT_GENERAL,
-                          VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                          VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                          VK_ACCESS_2_SHADER_WRITE_BIT,
-                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                          VK_ACCESS_2_TRANSFER_READ_BIT);
-    const VkBufferImageCopy copyRegion{
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource =
-            VkImageSubresourceLayers{
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-        .imageOffset = VkOffset3D{0, 0, 0},
-        .imageExtent = VkExtent3D{width, height, 1},
-    };
-    vkCmdCopyImageToBuffer(
-        *cmd, m_hdrImage.handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback->handle(), 1, &copyRegion);
-    m_hdrImage.transition(*cmd,
-                          VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                          VK_IMAGE_LAYOUT_GENERAL,
-                          VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                          VK_ACCESS_2_TRANSFER_READ_BIT,
-                          VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                          VK_ACCESS_2_SHADER_WRITE_BIT);
-    if (const VkResult result = m_commandPool.endOneShot(*cmd); result != VK_SUCCESS) {
-        Logger::error("savePNG: copy failed: VkResult {}", static_cast<int>(result));
-        return;
-    }
-
-    // Tone-map (ACES SDR: Rec.2020 linear → Rec.709 linear → sRGB 8-bit) and
-    // pack into a contiguous R8G8B8 byte buffer.
-    const auto* src = static_cast<const float*>(readback->mappedData());
-    std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 3U);
-
-    for (uint32_t y = 0; y < height; ++y) {
-        for (uint32_t x = 0; x < width; ++x) {
-            const size_t srcIdx = (static_cast<size_t>(y) * width + x) * 4U;
-            const glm::vec3 hdr(src[srcIdx + 0], src[srcIdx + 1], src[srcIdx + 2]);
-            const glm::vec3 sdrLinear = ToneMapping::acesFittedSDR(hdr);
-            const glm::vec3 sdrGamma = ColorSpace::linearRec709ToSrgb(sdrLinear);
-            const glm::vec3 clamped = glm::clamp(sdrGamma, 0.f, 1.f);
-            const size_t dstIdx = (static_cast<size_t>(y) * width + x) * 3U;
-            pixels[dstIdx + 0] = static_cast<uint8_t>(std::lround(clamped.r * 255.f));
-            pixels[dstIdx + 1] = static_cast<uint8_t>(std::lround(clamped.g * 255.f));
-            pixels[dstIdx + 2] = static_cast<uint8_t>(std::lround(clamped.b * 255.f));
-        }
-    }
-
-    const int stride = static_cast<int>(width) * 3;
-    if (!stbi_write_png(
-            path.string().c_str(), static_cast<int>(width), static_cast<int>(height), 3, pixels.data(), stride)) {
-        Logger::error("savePNG: stbi_write_png failed for {}", path.string());
-        return;
-    }
-    Logger::info("Saved tone-mapped PNG to {}", path.string());
-}
 
 void Application::destroy() noexcept {
     if (m_context.deviceContext().device != VK_NULL_HANDLE) {
