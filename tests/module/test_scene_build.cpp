@@ -15,7 +15,7 @@
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/scene/Material.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
-#include "harmonia/scene/Scene.hpp"
+#include "hyperion/scene/Scene.hpp"
 
 // Mesh + sphere: the same geometry combination used in the integration render test.
 TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {

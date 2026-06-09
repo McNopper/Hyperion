@@ -329,7 +329,14 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
         return std::unexpected(1);
     }
     Logger::info("Scene built (BLAS+TLAS)");
-    if (const VkResult result = app.m_descriptors.updateSceneSet(app.m_context.deviceContext(), app.m_scene);
+    if (const VkResult result = app.m_descriptors.updateSceneSet(app.m_context.deviceContext(),
+                                                                 app.m_scene.instanceBuffer().handle(),
+                                                                 app.m_scene.materialBuffer().handle(),
+                                                                 app.m_scene.vertexBuffer().handle(),
+                                                                 app.m_scene.indexBuffer().handle(),
+                                                                 app.m_scene.lightBuffer().handle(),
+                                                                 app.m_scene.emissiveTriangleBuffer().handle(),
+                                                                 app.m_scene.textures());
         result != VK_SUCCESS) {
         Logger::error("Descriptor update failed: VkResult {}", static_cast<int>(result));
         return std::unexpected(1);

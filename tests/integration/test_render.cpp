@@ -25,7 +25,7 @@
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "harmonia/scene/Material.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
-#include "harmonia/scene/Scene.hpp"
+#include "hyperion/scene/Scene.hpp"
 #include "harmonia/utils/Math.hpp"
 
 namespace {
@@ -205,7 +205,14 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Failed to build scene acceleration structures: VkResult=" << static_cast<int>(buildResult);
     }
 
-    if (const VkResult descriptorResult = descriptors->updateSceneSet(context->deviceContext(), scene);
+    if (const VkResult descriptorResult = descriptors->updateSceneSet(context->deviceContext(),
+                                                                      scene.instanceBuffer().handle(),
+                                                                      scene.materialBuffer().handle(),
+                                                                      scene.vertexBuffer().handle(),
+                                                                      scene.indexBuffer().handle(),
+                                                                      scene.lightBuffer().handle(),
+                                                                      scene.emissiveTriangleBuffer().handle(),
+                                                                      scene.textures());
         descriptorResult != VK_SUCCESS) {
         GTEST_SKIP() << "Failed to update scene descriptor set: VkResult=" << static_cast<int>(descriptorResult);
     }

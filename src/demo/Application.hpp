@@ -22,7 +22,7 @@
 #include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "harmonia/scene/IblProbe.hpp"
-#include "harmonia/scene/Scene.hpp"
+#include "hyperion/scene/Scene.hpp"
 
 class Application {
   public:

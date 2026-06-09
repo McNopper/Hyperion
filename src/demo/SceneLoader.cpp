@@ -19,7 +19,7 @@
 #include "demo/importers/ObjImporter.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
-#include "harmonia/scene/Scene.hpp"
+#include "hyperion/scene/Scene.hpp"
 #include "harmonia/scene/Texture.hpp"
 
 namespace {

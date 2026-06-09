@@ -49,6 +49,7 @@ set(HYPERION_ENTRY_SHADERS
 set(HYPERION_LIBRARY_SOURCES
     src/hyperion/renderer/PathTracer.cpp
     src/hyperion/renderer/ShaderBindingTable.cpp
+    src/hyperion/scene/Scene.cpp
     # Pure-CPU importers — no Vulkan deps; live in hyperion_lib so unit tests
     # can link them without pulling in the full demo (SDL3, Vulkan context).
     src/demo/importers/ObjImporter.cpp

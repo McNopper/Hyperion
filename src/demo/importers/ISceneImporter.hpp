@@ -8,7 +8,7 @@
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/CommandPool.hpp"
-#include "harmonia/scene/Scene.hpp"
+#include "hyperion/scene/Scene.hpp"
 
 class MaterialLibrary;
 

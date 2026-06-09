@@ -5,7 +5,7 @@
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
-#include "harmonia/scene/Scene.hpp"
+#include "hyperion/scene/Scene.hpp"
 
 std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
                                                        VkExtent2D renderExtent,
