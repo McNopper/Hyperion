@@ -116,6 +116,24 @@ design; all material assignments are declared in the `.scene` file.
 
 ---
 
+## Architecture
+
+Hyperion is the **offline / ground-truth** renderer in a family of four repositories:
+
+| Repository | Role |
+|------------|------|
+| [Aether](https://github.com/McNopper/Aether) | GPU-agnostic file formats & scene data (`.scene` / `.mtlx` / OBJ → plain CPU structs); no Vulkan |
+| [Harmonia](https://github.com/McNopper/Harmonia) | Shared Vulkan foundation reused **1:1** by both renderers — core/context, presentation, color management, tonemapping, bindless textures, shared GPU types |
+| **Hyperion** | This repo — offline path tracer (ground truth) |
+| [Theia](https://github.com/McNopper/Theia) | Real-time forward renderer |
+
+Hyperion consumes Aether and Harmonia via CMake `FetchContent`. The **GPU scene layout is
+renderer-specific**: Hyperion owns its own `Scene` and `GpuInstance` (`src/hyperion/scene/`)
+built around index buffers and the ray-tracing pipeline, distinct from Theia's meshlet
+layout. Only code shared 1:1 lives in Harmonia.
+
+---
+
 ## Building
 
 **Requirements:** Vulkan SDK 1.4, CMake 3.28+, Ninja, clang-cl, vcpkg.
@@ -170,6 +188,8 @@ cd build && ctest --output-on-failure
 
 | Library | Purpose |
 |---------|---------|
+| [Aether](https://github.com/McNopper/Aether) | Scene & material file formats (`.scene` / `.mtlx` / OBJ) — GPU-agnostic CPU data |
+| [Harmonia](https://github.com/McNopper/Harmonia) | Shared Vulkan foundation (core, presentation, color, tonemapping, shared GPU types) |
 | [Vulkan SDK](https://vulkan.lunarg.com/) | Ray tracing API |
 | [volk](https://github.com/zeux/volk) | Vulkan loader |
 | [VMA](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) | GPU memory allocation |
