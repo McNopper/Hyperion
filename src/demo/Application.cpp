@@ -278,18 +278,18 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
     }
 
     // Resolve the scene path: an absolute/existing path is used as-is, otherwise the
-    // name (with an optional ".scene" extension) is looked up in the assets directory
-    // — the canonical Aether asset collection.
+    // name (with an optional ".scene.toml" extension) is looked up in the assets
+    // directory — the canonical Aether asset collection.
     {
         std::error_code ec;
         std::filesystem::path& sf = app.m_config.sceneFile;
         if (sf.empty()) {
-            sf = "cornell_classic.scene";
+            sf = "cornell_classic.scene.toml";
         }
         if (!std::filesystem::exists(sf, ec)) {
             std::filesystem::path candidate = app.m_config.assetsDir / sf.filename();
-            if (candidate.extension() != ".scene") {
-                candidate += ".scene";
+            if (!candidate.string().ends_with(".scene.toml")) {
+                candidate += ".scene.toml";
             }
             sf = candidate;
         }
