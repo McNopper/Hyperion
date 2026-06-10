@@ -2,105 +2,65 @@
 
 #include <volk/volk.h>
 
-#include <SDL3/SDL.h>
-
-#include <array>
-#include <expected>
 #include <filesystem>
-#include <memory>
-#include <string>
-#include <vector>
 
-#include "harmonia/presentation/Swapchain.hpp"
-#include "harmonia/presentation/ToneMapper.hpp"
-#include "harmonia/vulkan_init/Context.hpp"
-#include "harmonia/core/CommandPool.hpp"
+#include "harmonia/app/App.hpp"
+#include "harmonia/app/IRenderer.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/renderer/Camera.hpp"
-#include "harmonia/renderer/Descriptors.hpp"
-#include "hyperion/renderer/PathTracer.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
+#include "hyperion/renderer/PathTracer.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
-#include "harmonia/scene/IblProbe.hpp"
-#include "harmonia/utils/ColorSpace.hpp"
 #include "hyperion/scene/Scene.hpp"
 
-class Application {
+/// Hyperion demo: the path tracer injected into the shared harmonia::App host.
+///
+/// The host owns window/context/swapchain/HDR image/tonemap/present; this
+/// class owns only what is path-tracer specific — RT pipeline + SBT,
+/// G-buffers, the Scene, the camera and the PathTracer itself.  Per the host
+/// contract, record() produces a linear image in the scene-referred working
+/// color space and leaves it in VK_IMAGE_LAYOUT_GENERAL.
+class Application final : public harmonia::App, public harmonia::IRenderer {
   public:
-    struct Config {
-        std::string title = "Hyperion — Real-Time Path Tracer";
-        uint32_t width = 1920;
-        uint32_t height = 1080;
+    struct DemoConfig {
         uint32_t spp = 4;
         uint32_t maxDepth = 8;
-        bool validation = false;
         bool sppExplicit = false; ///< true if --spp was given on the command line
-        std::filesystem::path shaderDir = "";
-        std::filesystem::path assetsDir = HYPERION_ASSETS_DIR;
-        /// Scene definition file (.scene.toml).  A bare name (e.g. "cornell_classic" or
-        /// "cornell_classic.scene.toml") is resolved against @ref assetsDir (the canonical
-        /// Aether asset collection); an absolute/existing path is used as-is.
-        /// Defaults to the classic Cornell box scene.
-        std::filesystem::path sceneFile = "cornell_classic.scene.toml";
-        /// If set, save this EXR after spp samples are accumulated, then exit.
-        /// An empty path means interactive mode (default).
-        std::filesystem::path outputFile;
+        std::filesystem::path shaderDir;
     };
 
-    [[nodiscard]] static std::expected<std::unique_ptr<Application>, int> create(Config config);
+    int run(Config config, DemoConfig demoConfig);
 
-    Application() = default;
-    Application(const Application&) = delete;
-    Application& operator=(const Application&) = delete;
-    Application(Application&& other) noexcept;
-    Application& operator=(Application&& other) noexcept;
-    ~Application();
+    // harmonia::IRenderer
+    void record(VkCommandBuffer cmd, const harmonia::RenderTarget& target) noexcept override;
+    void onResize(VkExtent2D extent) noexcept override;
+    [[nodiscard]] VkPipelineStageFlags2 outputStageMask() const noexcept override {
+        return VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+    }
+    [[nodiscard]] const char* name() const noexcept override { return "Hyperion PathTracer"; }
 
-    int run();
+  protected:
+    // harmonia::App hooks
+    [[nodiscard]] harmonia::IRenderer& renderer() noexcept override { return *this; }
+    [[nodiscard]] ISceneBuilder& sceneBuilder() noexcept override { return m_scene; }
+    [[nodiscard]] bool onInitialize() override;
+    [[nodiscard]] bool onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) override;
+    void onSceneUnload() override;
+    bool onEvent(const SDL_Event& event) override;
+    void onResized(VkExtent2D extent) override;
+    [[nodiscard]] uint32_t offscreenFrameCount() const noexcept override { return m_demoConfig.spp; }
 
   private:
-    struct FrameResources {
-        VkCommandBuffer traceCmd{};   ///< path trace recording
-        VkCommandBuffer displayCmd{}; ///< tonemap recording (interactive only)
-        VkSemaphore imageAvailable{};
-        uint64_t completionValue{}; ///< highest timeline value signalled for this slot
-    };
+    [[nodiscard]] bool createGBuffers(VkExtent2D extent);
 
-    void destroy() noexcept;
-
-    /// Accumulates one path-traced sample into hdrTarget.
-    /// Returns the timeline semaphore value that will be signalled when the
-    /// buffer is ready for further processing (tonemap, EXR save, etc.).
-    uint64_t renderFrame(Image& hdrTarget);
-    void handleResize(uint32_t w, uint32_t h);
-
-    Config m_config{};
-    SDL_Window* m_window{};
-    Context m_context{};
-    CommandPool m_commandPool{};
-    Swapchain m_swapchain{};
-    Descriptors m_descriptors{};
+    DemoConfig m_demoConfig{};
+    std::filesystem::path m_shaderDir;
     Pipeline m_pipeline{};
     ShaderBindingTable m_sbt{};
-    ToneMapper m_toneMapper{};
     PathTracer m_pathTracer{};
     Scene m_scene{};
     Camera m_camera{};
-    Image m_hdrImage{};
-    Image m_gNormal{};     ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
-    Image m_gDepth{};      ///< G-buffer ray hit distance  (R32_SFLOAT)
-    IblProbe m_iblProbe{}; ///< IBL equirectangular panorama (may be empty)
-    /// Scene-referred working color space (from the scene file; default linear Rec.2020).
-    ColorSpace::WorkingColorSpace m_workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
-    std::array<FrameResources, 2> m_frames{};
-    /// One binary semaphore per swapchain image: signalled by the display submit,
-    /// consumed by vkQueuePresentKHR.  Indexed by swapchain imageIndex (not frame slot)
-    /// to avoid reuse before the presentation engine has consumed the signal.
-    std::vector<VkSemaphore> m_renderComplete;
-    VkSemaphore m_timelineSemaphore{};
-    uint64_t m_nextTimelineValue = 1;
-    uint32_t m_currentFrame = 0;
-    uint32_t m_frameIndex = 0;
-    std::vector<VkImageLayout> m_swapchainLayouts;
-    bool m_running = false;
+    Image m_gNormal{}; ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
+    Image m_gDepth{};  ///< G-buffer ray hit distance  (R32_SFLOAT)
+    bool m_targetsFirstUse = true; ///< HDR/G-buffer images need UNDEFINED→GENERAL
 };

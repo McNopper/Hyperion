@@ -22,50 +22,28 @@ bool consumeValue(int& index, int argc, char* argv[], std::string_view option, u
     }
     return false;
 }
-
-bool consumeString(int& index, int argc, char* argv[], std::string_view option, std::string& outValue) {
-    std::string_view arg = argv[index];
-    if (arg.starts_with(option) && arg.size() > option.size() && arg[option.size()] == '=') {
-        outValue = std::string(arg.substr(option.size() + 1));
-        return true;
-    }
-    if (arg == option && (index + 1) < argc) {
-        outValue = argv[++index];
-        return true;
-    }
-    return false;
-}
 } // namespace
 
 int main(int argc, char* argv[]) {
-    Application::Config config;
+    harmonia::App::Config config;
+    config.title = "Hyperion — Real-Time Path Tracer";
+    config.assetsDir = HYPERION_ASSETS_DIR;
+    config.sceneFile = "cornell_classic.scene.toml";
+    Application::DemoConfig demoConfig;
 
     for (int i = 1; i < argc; ++i) {
         std::string_view arg = argv[i];
         uint32_t value = 0;
-        std::string strValue;
-        if (!arg.starts_with('-')) {
-            // First non-flag argument is the scene file path.
-            config.sceneFile = arg;
-        } else if (consumeValue(i, argc, argv, "--spp", value)) {
-            config.spp = value;
-            config.sppExplicit = true;
+        if (consumeValue(i, argc, argv, "--spp", value)) {
+            demoConfig.spp = value;
+            demoConfig.sppExplicit = true;
         } else if (consumeValue(i, argc, argv, "--depth", value)) {
-            config.maxDepth = value;
-        } else if (consumeValue(i, argc, argv, "--width", value)) {
-            config.width = value;
-        } else if (consumeValue(i, argc, argv, "--height", value)) {
-            config.height = value;
-        } else if (consumeString(i, argc, argv, "--output", strValue)) {
-            config.outputFile = strValue;
-        } else if (arg == "--no-validation") {
-            config.validation = false;
+            demoConfig.maxDepth = value;
+        } else if (harmonia::App::applyCommonArg(config, i, argc, argv)) {
+            continue;
         }
     }
 
-    auto app = Application::create(config);
-    if (!app) {
-        return app.error();
-    }
-    return (*app)->run();
+    Application app;
+    return app.run(std::move(config), std::move(demoConfig));
 }
