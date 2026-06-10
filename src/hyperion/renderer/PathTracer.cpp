@@ -173,6 +173,7 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
         .envImportanceWidth = m_config.envImportanceWidth,
         .envImportanceHeight = m_config.envImportanceHeight,
         .tonemapper = m_config.tonemapper,
+        .workingColorSpace = m_config.workingColorSpace,
     };
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstants), &pushConstants);
 

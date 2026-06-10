@@ -25,6 +25,10 @@ class PathTracer {
         uint32_t envImportanceWidth = 0;  ///< CDF grid width; 0 = importance sampling disabled
         uint32_t envImportanceHeight = 0; ///< CDF grid height
         uint32_t tonemapper = 0;          ///< Tonemapper enum value; 0 = eACES (SDR/P3 only)
+        /// ColorSpace::WorkingColorSpace value of the scene-referred working
+        /// space (0 = linear Rec.2020, 1 = linear Rec.709); forwarded to the
+        /// tonemap push constant.
+        uint32_t workingColorSpace = 0;
     };
 
     [[nodiscard]] static std::expected<PathTracer, VkResult> create(const DeviceContext& ctx,

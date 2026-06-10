@@ -71,7 +71,8 @@ struct PushConstants {
     uint  emissiveTriangleCount; ///< number of emissive triangles for NEE area sampling (0 = disabled)
     uint  envImportanceWidth;    ///< CDF grid width for env importance sampling (0 = disabled)
     uint  envImportanceHeight;   ///< CDF grid height
-    uint  _pad;
+    uint  tonemapper;            ///< Tonemapper enum (used by tonemap pass)
+    uint  workingColorSpace;     ///< 0 = linear Rec.2020, 1 = linear Rec.709 (used by tonemap pass)
 };
 
 [raypayload]

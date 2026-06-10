@@ -304,6 +304,9 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
         return std::unexpected(1);
     }
 
+    app.m_workingColorSpace = sceneConfig->workingColorSpace;
+    Logger::info("Working color space: {}", ColorSpace::interopId(app.m_workingColorSpace));
+
     if (sceneConfig->spp && !app.m_config.sppExplicit)
         app.m_config.spp = *sceneConfig->spp;
     if (sceneConfig->maxDepth)
@@ -355,7 +358,8 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
     // Load IBL environment map if specified in the scene file.
     if (sceneConfig->envMapFile) {
         const auto envPath = app.m_config.assetsDir / *sceneConfig->envMapFile;
-        auto probe = IblProbe::loadFromEXR(app.m_context.deviceContext(), app.m_commandPool, envPath);
+        auto probe =
+            IblProbe::loadFromEXR(app.m_context.deviceContext(), app.m_commandPool, envPath, app.m_workingColorSpace);
         if (!probe) {
             Logger::warn("IBL probe load failed for '{}' — using procedural sky", envPath.string());
         } else {
@@ -396,6 +400,7 @@ std::expected<std::unique_ptr<Application>, int> Application::create(Config conf
                                          .envImportanceWidth = app.m_iblProbe.cdfWidth(),
                                          .envImportanceHeight = app.m_iblProbe.cdfHeight(),
                                          .tonemapper = sceneConfig->tonemapper.value_or(0u),
+                                         .workingColorSpace = static_cast<uint32_t>(app.m_workingColorSpace),
                                      });
     if (!tracer) {
         Logger::error("PathTracer creation failed: VkResult {}", static_cast<int>(tracer.error()));
@@ -457,6 +462,7 @@ Application::Application(Application&& other) noexcept
       m_gNormal(std::move(other.m_gNormal)),
       m_gDepth(std::move(other.m_gDepth)),
       m_iblProbe(std::move(other.m_iblProbe)),
+      m_workingColorSpace(other.m_workingColorSpace),
       m_frames(other.m_frames),
       m_renderComplete(std::move(other.m_renderComplete)),
       m_timelineSemaphore(std::exchange(other.m_timelineSemaphore, VK_NULL_HANDLE)),
@@ -491,6 +497,7 @@ Application& Application::operator=(Application&& other) noexcept {
         m_gNormal = std::move(other.m_gNormal);
         m_gDepth = std::move(other.m_gDepth);
         m_iblProbe = std::move(other.m_iblProbe);
+        m_workingColorSpace = other.m_workingColorSpace;
         m_frames = other.m_frames;
         m_renderComplete = std::move(other.m_renderComplete);
         m_timelineSemaphore = std::exchange(other.m_timelineSemaphore, VK_NULL_HANDLE);
@@ -520,11 +527,11 @@ int Application::run() {
             renderFrame(m_hdrImage);
         }
         vkDeviceWaitIdle(m_context.deviceContext().device);
-        ImageCapture::saveExr(m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile);
+        ImageCapture::saveExr(m_context.deviceContext(), m_commandPool, m_hdrImage, m_config.outputFile, m_workingColorSpace);
         // Also write a tone-mapped sRGB PNG (ACES SDR) for GitHub / README display.
         auto pngPath = m_config.outputFile;
         pngPath.replace_extension(".png");
-        ImageCapture::savePng(m_context.deviceContext(), m_commandPool, m_hdrImage, pngPath);
+        ImageCapture::savePng(m_context.deviceContext(), m_commandPool, m_hdrImage, pngPath, m_workingColorSpace);
         return 0;
     }
 
@@ -544,7 +551,8 @@ int Application::run() {
                     ImageCapture::saveExr(m_context.deviceContext(),
                                           m_commandPool,
                                           m_hdrImage,
-                                          std::format("hyperion_{:06}.exr", m_frameIndex));
+                                          std::format("hyperion_{:06}.exr", m_frameIndex),
+                                          m_workingColorSpace);
                 }
             }
         }
@@ -607,7 +615,8 @@ int Application::run() {
                             m_hdrImage.view(),
                             m_swapchain.imageView(imageIndex),
                             m_swapchain.extent(),
-                            m_swapchain.outputColorSpace());
+                            m_swapchain.outputColorSpace(),
+                            m_workingColorSpace);
 
         const std::array presentBarrier{
             imageBarrier(m_swapchain.image(imageIndex),

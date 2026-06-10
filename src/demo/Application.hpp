@@ -22,6 +22,7 @@
 #include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "harmonia/scene/IblProbe.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
 #include "hyperion/scene/Scene.hpp"
 
 class Application {
@@ -89,6 +90,8 @@ class Application {
     Image m_gNormal{};     ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
     Image m_gDepth{};      ///< G-buffer ray hit distance  (R32_SFLOAT)
     IblProbe m_iblProbe{}; ///< IBL equirectangular panorama (may be empty)
+    /// Scene-referred working color space (from the scene file; default linear Rec.2020).
+    ColorSpace::WorkingColorSpace m_workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
     std::array<FrameResources, 2> m_frames{};
     /// One binary semaphore per swapchain image: signalled by the display submit,
     /// consumed by vkQueuePresentKHR.  Indexed by swapchain imageIndex (not frame slot)
