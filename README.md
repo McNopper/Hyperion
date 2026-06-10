@@ -67,11 +67,15 @@ Conductor reflectance uses the OpenPBR generalized-Schlick **F82-tint** model
 use GGX with the spec's anisotropy remapping.
 
 ### Color pipeline
-- All internal calculations in **linear Rec.2020**
+- Scene-referred rendering in a selectable **working color space**: linear **Rec.2020**
+  (default) or linear **Rec.709**, chosen per scene via `working_color_space` in the
+  `[render]` table; assets (material colors, textures, environment maps) are converted
+  automatically on load
 - Physical camera exposure via **EV100** (`ev100` scene keyword)
 - Physical environment scale via **`env_unit_nits`** (cd/m² per EXR unit)
-- Tone mapping: switchable per scene — **AgX** (Troy Sobotka, wide DR, natural sun highlight rolloff), **ACES** RRT+ODT (Stephen Hill fit), **Reinhard** luminance, **Hable** / Uncharted-2 filmic
+- Tone mapping (shared Harmonia stage): switchable per scene — **AgX** (Troy Sobotka, wide DR, natural sun highlight rolloff), **ACES** RRT+ODT (Stephen Hill fit), **Reinhard** luminance, **Hable** / Uncharted-2 filmic
 - Display output: SDR (sRGB), HDR10 (PQ/ST2084), scRGB — runtime negotiated with the swapchain
+- Headless output: **EXR** is the scene-referred, untonemapped frame; **PNG** is the tonemapped version
 
 ### Bindless textures
 - Descriptor set 1, binding 4: `COMBINED_IMAGE_SAMPLER` array (up to 1024 entries)
@@ -81,38 +85,32 @@ use GGX with the spec's anisotropy remapping.
   G=roughness/B=metalness), `map_emission_color`
 
 ### Scene format
-Line-based text format (`.scene`) inspired by — but distinct from — Wavefront OBJ/MTL.
-Material libraries use the companion `.mtlx` format (OpenPBR keyword names; **not**
-Wavefront MTL and **not** MaterialX XML):
+TOML-based formats parsed by [Aether](https://github.com/McNopper/Aether): a
+`<name>.scene.toml` scene description with companion `<name>.materials.toml` OpenPBR
+material libraries (`model = "openpbr"`) and geometry-only OBJ meshes:
 
-```
-mtllib cornell.mtlx         # load material library (.mtlx)
+```toml
+material_libraries = ["cornell.materials.toml"]
 
-camera
-  translate  278  273  -800
-  look_at    278  273   279
-  vfov       39.1
+[render]
+reference = "presets/preview.render.toml"      # shared preset; inline keys override
+working_color_space = "lin_rec2020_scene"      # or "lin_rec709_scene"
 
-ev100        7.0            # physical camera exposure
-spp          64             # samples per pixel
-max_depth    8
+[camera]
+reference = "presets/cornell.camera.toml"      # translate / look_at / vfov / ev100
 
-instance cornell.obj        # instantiate geometry (OBJ is geometry-only — its
-  material Floor     WhiteWall   # own materials are never imported; assign here)
-  material LeftWall  RedWall
-  material RightWall GreenWall
+[tonemap]
+tonemapper = "agx"                             # aces | agx | reinhard | hable
 
-sphere  60.0
-  usemtl Glass
-  translate  430  60  200
-
-env_map       meadow_2_4k.exr
-env_unit_nits 10000
-tonemapper    agx             # aces (default) | agx | reinhard | hable
+[[geometry]]
+type = "instance"                              # instance | box | sphere
+mesh = "cornell.obj"
+materials = { Floor = "WhiteWall", LeftWall = "RedWall", RightWall = "GreenWall" }
 ```
 
 OBJ files contribute **only geometry** — material import from OBJ/MTL is disabled by
-design; all material assignments are declared in the `.scene` file.
+design; all material assignments are declared in the scene file. See the
+[Aether README](https://github.com/McNopper/Aether) for the full format reference.
 
 ---
 
@@ -122,15 +120,20 @@ Hyperion is the **offline / ground-truth** renderer in a family of four reposito
 
 | Repository | Role |
 |------------|------|
-| [Aether](https://github.com/McNopper/Aether) | GPU-agnostic file formats & scene data (`.scene` / `.mtlx` / OBJ → plain CPU structs); no Vulkan |
-| [Harmonia](https://github.com/McNopper/Harmonia) | Shared Vulkan foundation reused **1:1** by both renderers — core/context, presentation, color management, tonemapping, bindless textures, shared GPU types |
+| [Aether](https://github.com/McNopper/Aether) | GPU-agnostic file formats & scene data (`.scene.toml` / `.materials.toml` / OBJ → plain CPU structs); no Vulkan |
+| [Harmonia](https://github.com/McNopper/Harmonia) | Shared Vulkan foundation reused **1:1** by both renderers — `harmonia::App` host, core/context, presentation, color management, tonemapping, bindless textures, shared GPU types, Slang shader build |
 | **Hyperion** | This repo — offline path tracer (ground truth) |
 | [Theia](https://github.com/McNopper/Theia) | Real-time forward renderer |
 
-Hyperion consumes Aether and Harmonia via CMake `FetchContent`. The **GPU scene layout is
-renderer-specific**: Hyperion owns its own `Scene` and `GpuInstance` (`src/hyperion/scene/`)
-built around index buffers and the ray-tracing pipeline, distinct from Theia's meshlet
-layout. Only code shared 1:1 lives in Harmonia.
+Hyperion consumes Aether and Harmonia via CMake `FetchContent`. The demo application is a
+thin subclass of the shared **`harmonia::App`** host: Harmonia owns the window, swapchain,
+HDR target, tonemapping/presentation, IBL probe and scene loading, while Hyperion injects
+its renderer through the `harmonia::IRenderer` seam (Theia does the same). Slang shaders
+are compiled at build time by Harmonia's shared `compile_slang_shaders` CMake rule
+(`shaders/*.slang` → `build/shaders/*.spv`) and loaded through Harmonia's SPIR-V loader.
+The **GPU scene layout is renderer-specific**: Hyperion owns its own `Scene` and
+`GpuInstance` (`src/hyperion/scene/`) built around index buffers and the ray-tracing
+pipeline, distinct from Theia's meshlet layout. Only code shared 1:1 lives in Harmonia.
 
 ---
 
@@ -153,30 +156,30 @@ cmake --build build
 ## Running
 
 ```bash
-# Headless render → PNG + EXR  (window is hidden)
-build/hyperion.exe assets/cornell_classic.scene --output screenshots/cornell_classic.png
+# Headless render → EXR (scene-referred) + PNG (tonemapped)  (window is hidden)
+build/hyperion.exe cornell_classic --output screenshots/cornell_classic.png
 
-# Interactive window (default scene)
-build/hyperion.exe assets/meadow_scene.scene
+# Interactive window (default scene: cornell_classic)
+build/hyperion.exe meadow_scene
 ```
 
 ### Command-line flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `<scene>` | `assets/cornell_classic.scene` | Path to `.scene` file (first positional argument) |
-| `--output <file>` | — | Headless mode: accumulate and save PNG + EXR, then exit |
-| `--spp <n>` | scene value / 4 | Override samples per pixel |
-| `--depth <n>` | scene value / 8 | Override maximum bounce depth |
+| `--scene <name>` / `-s` | `cornell_classic.scene.toml` | Scene name or path; bare names resolve against the assets directory (also accepted as first positional argument) |
+| `--output <file>` / `-o` | — | Headless mode: accumulate and save EXR (untonemapped) + PNG (tonemapped), then exit; a `.png` output saves PNG only |
+| `--spp <n>` | scene value | Override samples per pixel |
+| `--depth <n>` | scene value | Override maximum bounce depth |
 | `--width <n>` | 1920 | Override render width in pixels |
 | `--height <n>` | 1080 | Override render height in pixels |
-| `--no-validation` | — | Disable Vulkan validation layers |
+| `--validation` / `--no-validation` | disabled | Enable / disable Vulkan validation layers |
 
 ---
 
 ## Tests
 
-107 tests across unit, component, module and integration suites:
+Unit, component, module and integration suites:
 
 ```bash
 cd build && ctest --output-on-failure
@@ -188,15 +191,15 @@ cd build && ctest --output-on-failure
 
 | Library | Purpose |
 |---------|---------|
-| [Aether](https://github.com/McNopper/Aether) | Scene & material file formats (`.scene` / `.mtlx` / OBJ) — GPU-agnostic CPU data |
-| [Harmonia](https://github.com/McNopper/Harmonia) | Shared Vulkan foundation (core, presentation, color, tonemapping, shared GPU types) |
+| [Aether](https://github.com/McNopper/Aether) | Scene & material file formats (`.scene.toml` / `.materials.toml` / OBJ) — GPU-agnostic CPU data |
+| [Harmonia](https://github.com/McNopper/Harmonia) | Shared Vulkan foundation (`harmonia::App` host, core, presentation, color, tonemapping, shared GPU types) |
 | [Vulkan SDK](https://vulkan.lunarg.com/) | Ray tracing API |
 | [volk](https://github.com/zeux/volk) | Vulkan loader |
 | [VMA](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) | GPU memory allocation |
 | [SDL3](https://libsdl.org/) | Window & surface |
 | [GLM](https://github.com/g-truc/glm) | Math |
 | [stb_image](https://github.com/nothings/stb) | PNG/JPEG load |
-| [tinyexr](https://github.com/syoyo/tinyexr) | EXR load/save |
+| [OpenEXR](https://openexr.com/) | EXR load/save |
 | [Slang](https://shader-slang.com/) | Shader language |
 | [Google Test](https://github.com/google/googletest) | Testing |
 
@@ -243,4 +246,4 @@ The following specifications, textbooks, and learning resources informed the des
 |----------|-----------|
 | [OpenUSD](https://openusd.org/release/api/index.html) | Naming conventions: Prim, Xform, Mesh, Material, Light, Camera, Instance |
 | [glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html) | PBR material and scene graph conventions |
-| [Wavefront OBJ](http://paulbourke.net/dataformats/obj/) | Geometry-only OBJ import (no MTL — materials are assigned in the `.scene` file) |
+| [Wavefront OBJ](http://paulbourke.net/dataformats/obj/) | Geometry-only OBJ import (no MTL — materials are assigned in the scene TOML) |
