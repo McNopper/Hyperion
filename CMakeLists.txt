@@ -8,7 +8,8 @@ include(CTest)
 include(FetchContent)
 include(Platform)
 include(VulkanSDK)
-include(CompileShaders)
+# compile_slang_shaders() is provided by Harmonia (cmake/CompileShaders.cmake),
+# loaded when Harmonia is added via FetchContent below.
 
 enable_testing()
 
