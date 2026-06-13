@@ -202,8 +202,7 @@ cd build && ctest --output-on-failure
 | [VMA](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) | GPU memory allocation |
 | [SDL3](https://libsdl.org/) | Window & surface |
 | [GLM](https://github.com/g-truc/glm) | Math |
-| [stb_image](https://github.com/nothings/stb) | PNG/JPEG load |
-| [OpenEXR](https://openexr.com/) | EXR load/save |
+| [OpenImageIO](https://openimageio.readthedocs.io/) | Image I/O — PNG/JPEG/EXR load and save (via Harmonia; stb and OpenEXR are transitive dependencies) |
 | [Slang](https://shader-slang.com/) | Shader language |
 | [Google Test](https://github.com/google/googletest) | Testing |
 
