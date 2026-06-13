@@ -27,6 +27,8 @@ bool consumeValue(int& index, int argc, char* argv[], std::string_view option, u
 int main(int argc, char* argv[]) {
     harmonia::App::Config config;
     config.title = "Hyperion — Real-Time Path Tracer";
+    config.width = 1024;
+    config.height = 768;
     config.assetsDir = HYPERION_ASSETS_DIR;
     config.sceneFile = "cornell_classic.scene.toml";
     Application::DemoConfig demoConfig;
