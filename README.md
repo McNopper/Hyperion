@@ -23,13 +23,17 @@ It implements the [OpenPBR Surface v1.1](https://academysoftwarefoundation.githu
 |:----:|:--------:|:--------:|
 | ![openpbr_fuzz](screenshots/openpbr_fuzz.png) | ![openpbr_specular](screenshots/openpbr_specular.png) | ![openpbr_organics](screenshots/openpbr_organics.png) |
 
-| Thin-film | Meadow IBL | Textured Cube |
-|:---------:|:----------:|:-------------:|
-| ![openpbr_thinfilm](screenshots/openpbr_thinfilm.png) | ![meadow_scene](screenshots/meadow_scene.png) | ![textured_cube](screenshots/textured_cube.png) |
+| Thin-film | Special Materials | Meadow IBL |
+|:---------:|:-----------------:|:----------:|
+| ![openpbr_thinfilm](screenshots/openpbr_thinfilm.png) | ![openpbr_special](screenshots/openpbr_special.png) | ![meadow_scene](screenshots/meadow_scene.png) |
 
-| A Beautiful Game (IBL) | Dragon & Teapot (IBL) | Advanced Transmission |
-|:----------------------------------:|:---------------------:|:---------------------:|
-| ![ABeautifulGame](screenshots/ABeautifulGame.png) | ![dragon_teapot](screenshots/dragon_teapot.png) | ![openpbr_advanced](screenshots/openpbr_advanced.png) |
+| Textured Cube | Dragon & Teapot (IBL) | Advanced Transmission |
+|:-------------:|:---------------------:|:---------------------:|
+| ![textured_cube](screenshots/textured_cube.png) | ![dragon_teapot](screenshots/dragon_teapot.png) | ![openpbr_advanced](screenshots/openpbr_advanced.png) |
+
+| A Beautiful Game (IBL) |
+|:----------------------:|
+| ![ABeautifulGame](screenshots/ABeautifulGame.png) |
 
 ---
 
