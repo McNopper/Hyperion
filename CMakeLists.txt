@@ -106,7 +106,11 @@ if(BUILD_TESTING)
     endif()
 endif()
 
+# Harmonia's shared Slang modules (env_sample, math, bsdf, …) are the source
+# of truth; add their directory so slangc resolves imports from there.
+set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${HARMONIA_SHADER_SOURCE_DIR}")
 compile_slang_shaders(hyperion_shaders "${HYPERION_SHADER_OUTPUT_DIR}" ${HYPERION_ENTRY_SHADERS})
+unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
 
 add_library(hyperion_lib STATIC ${HYPERION_LIBRARY_SOURCES})
 add_dependencies(hyperion_lib hyperion_shaders)
