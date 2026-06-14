@@ -281,8 +281,8 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
         if (mesh == nullptr) {
             continue;
         }
-        const auto& verts   = mesh->data().vertices;
-        const auto& idxBuf  = mesh->data().indices;
+        const auto& verts = mesh->data().vertices;
+        const auto& idxBuf = mesh->data().indices;
         if (verts.empty() || idxBuf.empty()) {
             continue;
         }
@@ -297,13 +297,13 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
             const glm::vec3 lv1 = verts[idxBuf[t * 3 + 1]].position;
             const glm::vec3 lv2 = verts[idxBuf[t * 3 + 2]].position;
 
-            const glm::vec3 wv0   = glm::vec3(xformMat * glm::vec4(lv0, 1.0F));
-            const glm::vec3 wv1   = glm::vec3(xformMat * glm::vec4(lv1, 1.0F));
-            const glm::vec3 wv2   = glm::vec3(xformMat * glm::vec4(lv2, 1.0F));
+            const glm::vec3 wv0 = glm::vec3(xformMat * glm::vec4(lv0, 1.0F));
+            const glm::vec3 wv1 = glm::vec3(xformMat * glm::vec4(lv1, 1.0F));
+            const glm::vec3 wv2 = glm::vec3(xformMat * glm::vec4(lv2, 1.0F));
             const glm::vec3 edge1 = wv1 - wv0;
             const glm::vec3 edge2 = wv2 - wv0;
             const glm::vec3 cross = glm::cross(edge1, edge2);
-            const float     area  = 0.5F * glm::length(cross);
+            const float area = 0.5F * glm::length(cross);
 
             if (area <= 1.0e-6F) {
                 continue; // skip degenerate triangles
@@ -311,9 +311,9 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
             const glm::vec3 normal = cross / (2.0F * area); // normalize: cross/|cross|
 
             emissiveTriangles.push_back(GpuEmissiveTriangle{
-                .v0_area      = glm::vec4(wv0,    area),
-                .edge1_emitR  = glm::vec4(edge1,  emission.r),
-                .edge2_emitG  = glm::vec4(edge2,  emission.g),
+                .v0_area = glm::vec4(wv0, area),
+                .edge1_emitR = glm::vec4(edge1, emission.r),
+                .edge2_emitG = glm::vec4(edge2, emission.g),
                 .normal_emitB = glm::vec4(normal, emission.b),
             });
         }
@@ -322,13 +322,12 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     if (emissiveTriangles.empty()) {
         emissiveTriangles.push_back(GpuEmissiveTriangle{}); // sentinel — keeps the binding valid
     }
-    auto emissiveTriangleBuffer =
-        uploadBytes(ctx,
-                    pool,
-                    std::as_bytes(std::span<const GpuEmissiveTriangle>(emissiveTriangles.data(),
-                                                                        emissiveTriangles.size())),
-                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                    "scene.emissiveTriangles");
+    auto emissiveTriangleBuffer = uploadBytes(
+        ctx,
+        pool,
+        std::as_bytes(std::span<const GpuEmissiveTriangle>(emissiveTriangles.data(), emissiveTriangles.size())),
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        "scene.emissiveTriangles");
     if (!emissiveTriangleBuffer) {
         return emissiveTriangleBuffer.error();
     }

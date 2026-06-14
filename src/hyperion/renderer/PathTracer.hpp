@@ -20,8 +20,8 @@ class PathTracer {
         uint32_t samplesPerPixel = 4;
         uint32_t maxDepth = 8;
         float envLuminance = 1.0f;
-        uint32_t outputColorSpace = 0; ///< OutputColorSpace enum value; 0 = eHDR10 (see OutputColorSpace.hpp)
-        uint32_t hasEnvMap = 0;        ///< 1 = IBL env map bound at set1/binding6
+        uint32_t outputColorSpace = 0;    ///< OutputColorSpace enum value; 0 = eHDR10 (see OutputColorSpace.hpp)
+        uint32_t hasEnvMap = 0;           ///< 1 = IBL env map bound at set1/binding6
         uint32_t envImportanceWidth = 0;  ///< CDF grid width; 0 = importance sampling disabled
         uint32_t envImportanceHeight = 0; ///< CDF grid height
         uint32_t tonemapper = 0;          ///< Tonemapper enum value; 0 = eACES (SDR/P3 only)

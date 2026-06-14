@@ -1,4 +1,5 @@
 #include <volk/volk.h>
+
 #include <SDL3/SDL.h>
 
 #include <glm/geometric.hpp>
@@ -14,19 +15,19 @@
 #include <memory>
 #include <string>
 
-#include "harmonia/vulkan_init/Context.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/CommandPool.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/renderer/Camera.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
-#include "hyperion/renderer/PathTracer.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
-#include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "harmonia/scene/Material.hpp"
 #include "harmonia/scene/ProceduralGeometry.hpp"
-#include "hyperion/scene/Scene.hpp"
 #include "harmonia/utils/Math.hpp"
+#include "harmonia/vulkan_init/Context.hpp"
+#include "hyperion/renderer/PathTracer.hpp"
+#include "hyperion/renderer/ShaderBindingTable.hpp"
+#include "hyperion/scene/Scene.hpp"
 
 namespace {
 class SdlVideoScope {
@@ -63,12 +64,12 @@ struct WindowDeleter {
 
 [[nodiscard]] Pipeline::ShaderPaths makeShaderPaths(const std::filesystem::path& root) {
     return Pipeline::ShaderPaths{
-        .raygen             = root / "raygen.spv",
+        .raygen = root / "raygen.spv",
         .closesthitTriangle = root / "closesthit.spv",
-        .closesthitSphere   = root / "closesthit.spv",
-        .intersection       = root / "intersection.spv",
-        .miss               = root / "miss.spv",
-        .shadowMiss         = root / "shadow_miss.spv",
+        .closesthitSphere = root / "closesthit.spv",
+        .intersection = root / "intersection.spv",
+        .miss = root / "miss.spv",
+        .shadowMiss = root / "shadow_miss.spv",
     };
 }
 
@@ -217,13 +218,12 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Failed to update scene descriptor set: VkResult=" << static_cast<int>(descriptorResult);
     }
 
-    auto pathTracer =
-        PathTracer::create(context->deviceContext(),
-                           renderExtent,
-                           *pipeline,
-                           *sbt,
-                           *descriptors,
-                           PathTracer::Config{.samplesPerPixel = 1U, .maxDepth = 2U});
+    auto pathTracer = PathTracer::create(context->deviceContext(),
+                                         renderExtent,
+                                         *pipeline,
+                                         *sbt,
+                                         *descriptors,
+                                         PathTracer::Config{.samplesPerPixel = 1U, .maxDepth = 2U});
     if (!pathTracer) {
         GTEST_SKIP() << "Failed to create path tracer: VkResult=" << static_cast<int>(pathTracer.error());
     }

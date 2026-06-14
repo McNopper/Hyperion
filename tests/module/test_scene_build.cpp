@@ -6,11 +6,11 @@
 // Regression target: VK_ERROR_DEVICE_LOST from scene.build() in Debug without
 // the validation layer, caused by invalid Vulkan usage that the layer masked.
 
-#include <limits>
-
-#include <gtest/gtest.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+
+#include <gtest/gtest.h>
+#include <limits>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/scene/Material.hpp"
@@ -21,11 +21,10 @@
 TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {
     Scene scene;
     const uint32_t matDiffuse = scene.addMaterial(Material::diffuse(glm::vec3(0.8F), 1.0F));
-    const uint32_t matMetal   = scene.addMaterial(Material::metal(glm::vec3(0.9F, 0.3F, 0.2F), 0.15F));
+    const uint32_t matMetal = scene.addMaterial(Material::metal(glm::vec3(0.9F, 0.3F, 0.2F), 0.15F));
 
     MeshData box = ProceduralGeometry::makeBox(glm::vec3(2.0F, 0.1F, 2.0F), glm::mat4(1.0F));
-    const uint32_t meshInst =
-        scene.addMesh(deviceCtx(), commandPool(), std::move(box), matDiffuse, "test.box");
+    const uint32_t meshInst = scene.addMesh(deviceCtx(), commandPool(), std::move(box), matDiffuse, "test.box");
     ASSERT_NE(meshInst, std::numeric_limits<uint32_t>::max()) << "Failed to upload floor mesh";
 
     const uint32_t sphereInst =
@@ -59,8 +58,7 @@ TEST_F(RtFixture, Scene_BuildWithSphereOnly) {
     Scene scene;
     const uint32_t mat = scene.addMaterial(Material::metal(glm::vec3(0.9F, 0.1F, 0.1F), 0.2F));
 
-    const uint32_t inst =
-        scene.addSphere(deviceCtx(), commandPool(), glm::vec3(0.0F), 1.0F, mat);
+    const uint32_t inst = scene.addSphere(deviceCtx(), commandPool(), glm::vec3(0.0F), 1.0F, mat);
     ASSERT_NE(inst, std::numeric_limits<uint32_t>::max());
 
     ASSERT_EQ(scene.build(deviceCtx(), commandPool()), VK_SUCCESS);
@@ -77,8 +75,7 @@ TEST_F(RtFixture, Scene_BuildWithMultipleMeshes) {
         const glm::mat4 transform =
             glm::translate(glm::mat4(1.0F), glm::vec3(static_cast<float>(i) * 2.0F, 0.0F, 0.0F));
         MeshData box = ProceduralGeometry::makeBox(glm::vec3(0.8F), transform);
-        const uint32_t inst =
-            scene.addMesh(deviceCtx(), commandPool(), std::move(box), mat, "test.multi");
+        const uint32_t inst = scene.addMesh(deviceCtx(), commandPool(), std::move(box), mat, "test.multi");
         ASSERT_NE(inst, std::numeric_limits<uint32_t>::max()) << "mesh " << i;
     }
 

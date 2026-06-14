@@ -3,17 +3,17 @@
 // One Vulkan context is created here and shared across all tests via g_vulkanTestCtx.
 
 #define SDL_MAIN_HANDLED
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_main.h>
 #include <volk/volk.h>
 
-#include <memory>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 
 #include <gtest/gtest.h>
+#include <memory>
 
-#include "harmonia/vulkan_init/Context.hpp"
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/core/CommandPool.hpp"
+#include "harmonia/vulkan_init/Context.hpp"
 
 namespace {
 struct WindowDeleter {
@@ -34,23 +34,22 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<SDL_Window, WindowDeleter> window;
 
     if (volkInitialize() == VK_SUCCESS && SDL_Init(SDL_INIT_VIDEO)) {
-        window.reset(
-            SDL_CreateWindow("Hyperion Module Tests", 64, 64, SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN));
+        window.reset(SDL_CreateWindow("Hyperion Module Tests", 64, 64, SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN));
         if (window != nullptr) {
             Context::Config cfg;
-            cfg.appName          = "HyperionModuleTests";
+            cfg.appName = "HyperionModuleTests";
             cfg.enableValidation = false;
-            cfg.window           = window.get();
+            cfg.window = window.get();
 
             auto ctx = Context::create(cfg);
             if (ctx) {
                 testCtx.context = std::make_unique<Context>(std::move(*ctx));
-                auto pool       = CommandPool::create(testCtx.context->deviceContext(),
+                auto pool = CommandPool::create(testCtx.context->deviceContext(),
                                                 testCtx.context->deviceContext().graphicsFamily);
                 if (pool) {
                     testCtx.commandPool = std::make_unique<CommandPool>(std::move(*pool));
-                    testCtx.window      = window.get();
-                    g_vulkanTestCtx     = &testCtx;
+                    testCtx.window = window.get();
+                    g_vulkanTestCtx = &testCtx;
                 }
             }
         }

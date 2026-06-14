@@ -60,7 +60,7 @@ class Application final : public harmonia::App, public harmonia::IRenderer {
     PathTracer m_pathTracer{};
     Scene m_scene{};
     Camera m_camera{};
-    Image m_gNormal{}; ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
-    Image m_gDepth{};  ///< G-buffer ray hit distance  (R32_SFLOAT)
+    Image m_gNormal{};             ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
+    Image m_gDepth{};              ///< G-buffer ray hit distance  (R32_SFLOAT)
     bool m_targetsFirstUse = true; ///< HDR/G-buffer images need UNDEFINED→GENERAL
 };

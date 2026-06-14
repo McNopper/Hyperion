@@ -119,15 +119,14 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
         physical.shutterSpeedHz = std::pow(2.0f, ev100);
     }
     const glm::vec3 camPos = sceneConfig.cameraPos.value_or(glm::vec3(278.0f, 273.0f, -800.0f));
-    const glm::vec3 camAt  = sceneConfig.cameraAt.value_or(glm::vec3(278.0f, 273.0f, 279.5f));
+    const glm::vec3 camAt = sceneConfig.cameraAt.value_or(glm::vec3(278.0f, 273.0f, 279.5f));
     const auto [nearPlane, farPlane] = Camera::nearFarFromDistance(glm::length(camAt - camPos));
     m_camera = Camera(Camera::Params{
         .position = camPos,
         .target = camAt,
         .up = sceneConfig.cameraUp.value_or(glm::vec3(0.0f, 1.0f, 0.0f)),
         .vfovDeg = sceneConfig.cameraVfov.value_or(39.1f),
-        .aspectRatio =
-            static_cast<float>(swapchain().extent().width) / static_cast<float>(swapchain().extent().height),
+        .aspectRatio = static_cast<float>(swapchain().extent().width) / static_cast<float>(swapchain().extent().height),
         .nearPlane = nearPlane,
         .farPlane = farPlane,
         .lensRadius = 0.0f,

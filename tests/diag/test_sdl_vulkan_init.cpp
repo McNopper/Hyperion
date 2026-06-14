@@ -10,8 +10,8 @@
 // ---- Step 2: can we load SDL3 headers? ------------------------------------
 // SDL_MAIN_HANDLED tells SDL_main.h not to redefine main; we handle it ourselves.
 #define SDL_MAIN_HANDLED
-#include <SDL3/SDL_main.h>
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 #include <SDL3/SDL_vulkan.h>
 
 int main(int /*argc*/, char* /*argv*/[]) {
@@ -58,8 +58,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // ------------------------------------------------------------------
     std::puts("DIAG: calling SDL_CreateWindow...");
     std::fflush(stdout);
-    SDL_Window* window = SDL_CreateWindow("diag", 64, 64,
-                                          SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN);
+    SDL_Window* window = SDL_CreateWindow("diag", 64, 64, SDL_WINDOW_VULKAN | SDL_WINDOW_HIDDEN);
     if (!window) {
         std::printf("DIAG: SDL_CreateWindow FAILED: %s\n", SDL_GetError());
         SDL_Quit();
@@ -93,29 +92,28 @@ int main(int /*argc*/, char* /*argv*/[]) {
     std::puts("DIAG: creating VkInstance...");
     std::fflush(stdout);
     const VkApplicationInfo appInfo{
-        .sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pNext              = nullptr,
-        .pApplicationName   = "hyperion-diag",
+        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        .pNext = nullptr,
+        .pApplicationName = "hyperion-diag",
         .applicationVersion = 1,
-        .pEngineName        = "Hyperion",
-        .engineVersion      = 1,
-        .apiVersion         = VK_API_VERSION_1_4,
+        .pEngineName = "Hyperion",
+        .engineVersion = 1,
+        .apiVersion = VK_API_VERSION_1_4,
     };
     const VkInstanceCreateInfo instInfo{
-        .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pNext                   = nullptr,
-        .flags                   = 0,
-        .pApplicationInfo        = &appInfo,
-        .enabledLayerCount       = 0,
-        .ppEnabledLayerNames     = nullptr,
-        .enabledExtensionCount   = extCount,
+        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .pApplicationInfo = &appInfo,
+        .enabledLayerCount = 0,
+        .ppEnabledLayerNames = nullptr,
+        .enabledExtensionCount = extCount,
         .ppEnabledExtensionNames = exts,
     };
     VkInstance instance = VK_NULL_HANDLE;
     VkResult result = vkCreateInstance(&instInfo, nullptr, &instance);
     if (result != VK_SUCCESS) {
-        std::printf("DIAG: vkCreateInstance FAILED (VkResult=%d)\n",
-                    static_cast<int>(result));
+        std::printf("DIAG: vkCreateInstance FAILED (VkResult=%d)\n", static_cast<int>(result));
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;

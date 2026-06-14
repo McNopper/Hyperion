@@ -7,10 +7,10 @@
 //
 // Fix: use stride for both size and stride of the raygen VkStridedDeviceAddressRegionKHR.
 
-#include <filesystem>
-
-#include <gtest/gtest.h>
 #include <volk/volk.h>
+
+#include <filesystem>
+#include <gtest/gtest.h>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
@@ -28,12 +28,12 @@ namespace {
 
 [[nodiscard]] Pipeline::ShaderPaths makeShaderPaths(const std::filesystem::path& root) {
     return Pipeline::ShaderPaths{
-        .raygen              = root / "raygen.spv",
-        .closesthitTriangle  = root / "closesthit.spv",
-        .closesthitSphere    = root / "closesthit.spv",
-        .intersection        = root / "intersection.spv",
-        .miss                = root / "miss.spv",
-        .shadowMiss          = root / "shadow_miss.spv",
+        .raygen = root / "raygen.spv",
+        .closesthitTriangle = root / "closesthit.spv",
+        .closesthitSphere = root / "closesthit.spv",
+        .intersection = root / "intersection.spv",
+        .miss = root / "miss.spv",
+        .shadowMiss = root / "shadow_miss.spv",
     };
 }
 } // namespace
@@ -46,8 +46,7 @@ class SbtFixture : public RtFixture {
 
         const auto paths = makeShaderPaths(shaderRoot());
         if (!std::filesystem::exists(paths.raygen) || !std::filesystem::exists(paths.miss) ||
-            !std::filesystem::exists(paths.closesthitTriangle) ||
-            !std::filesystem::exists(paths.intersection)) {
+            !std::filesystem::exists(paths.closesthitTriangle) || !std::filesystem::exists(paths.intersection)) {
             GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();
         }
 
@@ -56,8 +55,7 @@ class SbtFixture : public RtFixture {
         m_descriptors = std::make_unique<Descriptors>(std::move(*desc));
 
         auto pipeline = Pipeline::create(deviceCtx(), *m_descriptors, paths, 2U);
-        ASSERT_TRUE(pipeline.has_value())
-            << "Pipeline::create failed: " << static_cast<int>(pipeline.error());
+        ASSERT_TRUE(pipeline.has_value()) << "Pipeline::create failed: " << static_cast<int>(pipeline.error());
         m_pipeline = std::make_unique<Pipeline>(std::move(*pipeline));
 
         auto sbt = ShaderBindingTable::create(deviceCtx(), *m_pipeline, physInfo().rtProps);
@@ -65,9 +63,9 @@ class SbtFixture : public RtFixture {
         m_sbt = std::make_unique<ShaderBindingTable>(std::move(*sbt));
     }
 
-    std::unique_ptr<Descriptors>         m_descriptors;
-    std::unique_ptr<Pipeline>            m_pipeline;
-    std::unique_ptr<ShaderBindingTable>  m_sbt;
+    std::unique_ptr<Descriptors> m_descriptors;
+    std::unique_ptr<Pipeline> m_pipeline;
+    std::unique_ptr<ShaderBindingTable> m_sbt;
 };
 
 // Regression: VUID-vkCmdTraceRaysKHR-size-04023
@@ -75,9 +73,8 @@ class SbtFixture : public RtFixture {
 // Previous bug: size = alignUp(stride * 1, baseAlignment) = 64 (stride = 32).
 TEST_F(SbtFixture, ShaderBindingTable_RaygenSizeEqualsStride) {
     const auto& raygen = m_sbt->raygenRegion();
-    EXPECT_EQ(raygen.size, raygen.stride)
-        << "Raygen region: size (" << raygen.size << ") != stride (" << raygen.stride
-        << ") — violates VUID-vkCmdTraceRaysKHR-size-04023";
+    EXPECT_EQ(raygen.size, raygen.stride) << "Raygen region: size (" << raygen.size << ") != stride (" << raygen.stride
+                                          << ") — violates VUID-vkCmdTraceRaysKHR-size-04023";
     EXPECT_GT(raygen.stride, VkDeviceSize{0}) << "Raygen stride must be non-zero";
     EXPECT_NE(raygen.deviceAddress, VkDeviceAddress{0}) << "Raygen device address must be non-zero";
 }
@@ -85,12 +82,12 @@ TEST_F(SbtFixture, ShaderBindingTable_RaygenSizeEqualsStride) {
 // Miss and hit group SBT regions must have valid device addresses and strides.
 TEST_F(SbtFixture, ShaderBindingTable_MissAndHitRegionsNonZero) {
     EXPECT_NE(m_sbt->missRegion().deviceAddress, VkDeviceAddress{0}) << "Miss region address";
-    EXPECT_GT(m_sbt->missRegion().stride, VkDeviceSize{0})           << "Miss region stride";
-    EXPECT_GT(m_sbt->missRegion().size, VkDeviceSize{0})             << "Miss region size";
+    EXPECT_GT(m_sbt->missRegion().stride, VkDeviceSize{0}) << "Miss region stride";
+    EXPECT_GT(m_sbt->missRegion().size, VkDeviceSize{0}) << "Miss region size";
 
     EXPECT_NE(m_sbt->hitRegion().deviceAddress, VkDeviceAddress{0}) << "Hit region address";
-    EXPECT_GT(m_sbt->hitRegion().stride, VkDeviceSize{0})           << "Hit region stride";
-    EXPECT_GT(m_sbt->hitRegion().size, VkDeviceSize{0})             << "Hit region size";
+    EXPECT_GT(m_sbt->hitRegion().stride, VkDeviceSize{0}) << "Hit region stride";
+    EXPECT_GT(m_sbt->hitRegion().size, VkDeviceSize{0}) << "Hit region size";
 }
 
 // Pipeline's RT pipeline handle must be non-null after creation.
