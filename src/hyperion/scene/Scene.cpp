@@ -223,6 +223,9 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
         if (inst.geometryKind != 0U) {
             continue; // spheres not supported for NEE yet
         }
+        if (inst.materialIndex >= m_materials.size() || !m_materials[inst.materialIndex].emissiveAsLightSource()) {
+            continue;
+        }
         const GpuMaterial& gpuMat = gpuMaterials[inst.materialIndex];
         if (gpuMat.emissionColorLum.w <= 0.0F) { // NOLINT(cppcoreguidelines-pro-type-union-access)
             continue;
