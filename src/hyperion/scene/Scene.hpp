@@ -22,13 +22,13 @@
 /// fetches triangles via an index buffer, so this carries indexOffset. Distinct from
 /// Theia's rasterizer layout, which carries meshletOffset/meshletCount instead.
 struct GpuInstance {
-    uint32_t meshIndex;
-    uint32_t materialIndex;
-    uint32_t vertexOffset;
-    uint32_t indexOffset;
-    uint32_t geometryKind;
-    float sphereRadius;
-    uint32_t _pad[2];
+    uint32_t meshIndex     = 0;
+    uint32_t materialIndex = 0;
+    uint32_t vertexOffset  = 0;
+    uint32_t indexOffset   = 0;
+    uint32_t geometryKind  = 0;
+    float    sphereRadius  = 0.0f;
+    uint32_t _pad[2]       = {};
 };
 static_assert(std::is_trivially_copyable_v<GpuInstance>);
 static_assert(sizeof(GpuInstance) == 32);

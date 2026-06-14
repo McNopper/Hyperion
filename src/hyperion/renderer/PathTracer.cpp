@@ -20,7 +20,7 @@ std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
                                                        const Pipeline& pipeline,
                                                        const ShaderBindingTable& sbt,
                                                        const Descriptors& descriptors,
-                                                       Config config) {
+                                                       const Config& config) {
     auto cameraBuffer = Buffer::create(ctx,
                                        sizeof(CameraData),
                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -181,7 +181,7 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
     return VK_SUCCESS;
 }
 
-void PathTracer::setConfig(Config config) noexcept {
+void PathTracer::setConfig(const Config& config) noexcept {
     m_config = config;
 }
 

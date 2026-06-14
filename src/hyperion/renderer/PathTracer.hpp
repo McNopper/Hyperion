@@ -36,7 +36,7 @@ class PathTracer {
                                                                     const Pipeline& pipeline,
                                                                     const ShaderBindingTable& sbt,
                                                                     const Descriptors& descriptors,
-                                                                    Config config);
+                                                                    const Config& config);
 
     [[nodiscard]] static std::expected<PathTracer, VkResult> create(const DeviceContext& ctx,
                                                                     VkExtent2D renderExtent,
@@ -52,7 +52,7 @@ class PathTracer {
                     const Image& gDepth,
                     uint32_t frameIndex) noexcept;
 
-    void setConfig(Config config) noexcept;
+    void setConfig(const Config& config) noexcept;
     void onResize(VkExtent2D newExtent) noexcept;
 
   private:
