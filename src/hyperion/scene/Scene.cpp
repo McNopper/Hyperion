@@ -16,6 +16,7 @@
 #include <vma/vk_mem_alloc.h>
 
 #include "harmonia/GpuTypes.hpp"
+#include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/Geometry.hpp"
 
 namespace {
@@ -319,6 +320,7 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
         }
     }
     m_emissiveTriangleCount = static_cast<uint32_t>(emissiveTriangles.size());
+    Logger::info("Scene: built {} emissive triangle(s) for NEE", m_emissiveTriangleCount);
     if (emissiveTriangles.empty()) {
         emissiveTriangles.push_back(GpuEmissiveTriangle{}); // sentinel — keeps the binding valid
     }
