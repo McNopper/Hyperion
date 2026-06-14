@@ -251,8 +251,12 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
             float solidPdf = areaPdf * dist * dist / cosLight;
 
             // Shadow ray stops just before the emitter surface to avoid self-intersection.
-            float  shadowTMax   = max(dist - kRayEpsilon, 0.0);
+            // Subtract dot(geoN,wi)*kRayEpsilon to account for the shadow origin being offset
+            // by geoN*kRayEpsilon — without this, surfaces whose geoN points toward the light
+            // (e.g. a floor below a ceiling light) have their shadow ray reach the emitter at
+            // exactly tMax, causing a false occlusion (floor always appears black).
             float3 shadowOrigin = hit.position + geoN * kRayEpsilon;
+            float  shadowTMax   = max(dist - kRayEpsilon * (1.0 + dot(geoN, wi)), 0.0);
             if (traceNEEShadowRay(shadowOrigin, wi, shadowTMax)) {
                 float3 bsdfVal = evalBSDF(mat, wo, wi, N, T, B, coatN, coatT, coatB);
                 payload.radiance += payload.throughput * bsdfVal * Le * cosI / solidPdf;
