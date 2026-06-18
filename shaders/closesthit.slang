@@ -214,6 +214,20 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         return;
     }
 
+    // ── A1: Stochastic opacity gate (OpenPBR delta pass-through) ──
+    // With probability (1-opacity), the ray passes straight through the surface with no 
+    // interaction (delta BTDF per OpenPBR: geometry_opacity is the outermost lerp gate, not 
+    // a per-lobe scale). Continue the ray in its original direction; otherwise shade normally.
+    float opacity = saturate(mat.opacityFlagsPad.x);
+    if (randFloat(payload.seed) < (1.0 - opacity)) {
+        // Pass-through: continue ray in original direction, throughput unchanged (delta).
+        payload.origin = hit.position + geoN * (dot(-normalize(WorldRayDirection()), geoN) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
+        payload.direction = -normalize(WorldRayDirection());
+        payload.lastBsdfPdf = 1.0e30; // delta (needed for MIS weighting)
+        payload.specularBounce = true;
+        return;
+    }
+
     uint seed = payload.seed;
 
     // --- Next Event Estimation: direct triangle area sampling ---

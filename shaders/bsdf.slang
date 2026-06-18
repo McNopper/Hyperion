@@ -53,7 +53,9 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     computeLobeWeights(mat, diffuseWeight, subsurfaceWeight, specularWeight, metalWeight, transmissionWeight, coatWeight, fuzzWeight, diffuseTransWeight, mirrorMode, glassMode);
 
     float ssAniso = clamp(mat.opacityFlagsPad.z, -1.0, 1.0);
-    float baseLayerScale = opacity * rcp(lerp(1.0, coatEta * coatEta, coatWeight * coatDark));
+    // Opacity now gates a stochastic delta pass-through in the integrator (A1), not a per-lobe
+    // scale. baseLayerScale only carries coat darkening and fuzz attenuation.
+    float baseLayerScale = rcp(lerp(1.0, coatEta * coatEta, coatWeight * coatDark));
     baseLayerScale *= 1.0 - 0.35 * fuzzWeight;
 
     float3 result = 0.0.xxx;
