@@ -100,7 +100,11 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     }
 
     if (transmissionWeight > 0.0) {
-        result += transmissionWeight * evalTransmissionApprox(transColor, mat.transmissionParams.x, eta, woL, wiL);
+        // A2: Use the OpenPBR-correct specular microfacet BTDF (GGX VNDF) instead of Lambertian approximation
+        // eta² lives in the PDF Jacobian, not in the eval
+        float transAlphaX = alphaX; // Use base layer roughness for transmission
+        float transAlphaY = alphaY;
+        result += transmissionWeight * evalTransmissionMicrofacet(transColor, mat.transmissionParams.x, eta, transAlphaX, transAlphaY, woL, wiL);
     }
 
     // Thin-walled diffuse transmission (subsurface sheet): Lambertian-ish lobe into the
@@ -164,7 +168,17 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
         pdf += (diffuseWeight + subsurfaceWeight + fuzzWeight) * cosinePdf;
         pdf += (specularWeight + metalWeight) * reflectionPdf(woL, wiL, alphaX, alphaY);
     } else {
-        pdf += transmissionWeight * abs(wiL.z) * kInvPi;
+        // A2: Use the OpenPBR-correct transmission PDF (includes eta² in Jacobian)
+        if (transmissionWeight > 0.0) {
+            float eta = mat.specularRoughAnisoIor.z;
+            float eta_ratio = woL.z > 0.0 ? (1.0 / eta) : eta;
+            float3 h = normalize(-woL * eta_ratio + wiL);
+            if (h.z < 0.0) h = -h;
+            float transAlphaX = alphaX;
+            float transAlphaY = alphaY;
+            pdf += transmissionWeight * transmissionPdf(eta, transAlphaX, transAlphaY, woL, wiL, h);
+        }
+        // Thin-walled diffuse transmission
         pdf += diffuseTransWeight * abs(wiL.z) * kInvPi;
     }
 
