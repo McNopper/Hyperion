@@ -356,6 +356,27 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             return sample;
         }
 
+        // Smooth dielectric: perfect specular refraction is a delta BTDF. computeAlpha
+        // floors roughness to alpha>=0.001, so routing roughness~0 glass through the
+        // microfacet path spreads a sharp refraction into visible frost. Per OpenPBR/PBRT,
+        // handle effectively-smooth roughness as an exact Snell-refraction delta lobe.
+        const float kSmoothDielectricRough = 0.05;
+        if (baseRough < kSmoothDielectricRough) {
+            float etaRatioD = woL.z > 0.0 ? (1.0 / eta) : eta;
+            float3 mD = float3(0.0, 0.0, woL.z > 0.0 ? 1.0 : -1.0);
+            float3 wiRefract = refract(-woL, mD, etaRatioD);
+            if (all(abs(wiRefract) < 1.0e-6.xxx)) {
+                // Total internal reflection -> specular reflect (still a delta event).
+                wiRefract = reflect(-woL, mD);
+            }
+            sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
+            float3 absorptionD = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - effectiveTransColor(mat)));
+            sample.weight = effectiveTransColor(mat) * absorptionD * invPLobe;
+            sample.pdf = 1.0;
+            sample.isDelta = true;
+            return sample;
+        }
+
         float etaRatio = woL.z > 0.0 ? (1.0 / eta) : eta;
         float3 m = sampleGGX_VNDF(float3(woL.x, woL.y, abs(woL.z)), alphaX, alphaY, randFloat2(seed));
         if (dot(woL, m) < 0.0) {
