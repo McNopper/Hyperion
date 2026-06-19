@@ -220,9 +220,12 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     // a per-lobe scale). Continue the ray in its original direction; otherwise shade normally.
     float opacity = saturate(mat.opacityFlagsPad.x);
     if (randFloat(payload.seed) < (1.0 - opacity)) {
-        // Pass-through: continue ray in original direction, throughput unchanged (delta).
-        payload.origin = hit.position + geoN * (dot(-normalize(WorldRayDirection()), geoN) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
-        payload.direction = -normalize(WorldRayDirection());
+        // Pass-through: continue ray in original (forward) direction, throughput unchanged (delta).
+        // Offset along the geometric normal toward the side the continuing ray travels (matches
+        // the regular-scatter convention at the BSDF sample below).
+        float3 fwd = normalize(WorldRayDirection());
+        payload.origin = hit.position + geoN * (dot(fwd, geoN) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
+        payload.direction = fwd;
         payload.lastBsdfPdf = 1.0e30; // delta (needed for MIS weighting)
         payload.specularBounce = true;
         return;
