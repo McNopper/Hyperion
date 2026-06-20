@@ -26,7 +26,7 @@ bool consumeValue(int& index, int argc, char* const argv[], std::string_view opt
 
 int main(int argc, char* const argv[]) {
     harmonia::App::Config config;
-    config.title = "Hyperion — Real-Time Path Tracer";
+    config.title = "Hyperion — Path Tracer";
     config.width = 1024;
     config.height = 768;
     config.assetsDir = HYPERION_ASSETS_DIR;
