@@ -37,6 +37,8 @@ class Application final : public harmonia::App, public harmonia::IRenderer {
     [[nodiscard]] VkPipelineStageFlags2 outputStageMask() const noexcept override {
         return VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
     }
+    [[nodiscard]] VkImageView gNormalView() const noexcept override { return m_gNormal.view(); }
+    [[nodiscard]] VkImageView gDepthView() const noexcept override { return m_gDepth.view(); }
     [[nodiscard]] const char* name() const noexcept override { return "Hyperion PathTracer"; }
 
   protected:
