@@ -2,6 +2,7 @@ import common;
 import math;
 import bsdf;
 import env;
+import path_integrator;
 
 HitInfo makeTriangleHit(BuiltInTriangleIntersectionAttributes attr)
 {
@@ -76,23 +77,24 @@ float4 sampleBindless(uint idx, float2 uv)
         .SampleLevel(bindlessSamplers[NonUniformResourceIndex(idx)], uv, 0.0);
 }
 
-/// Fire a shadow ray from `origin` in `direction` up to `tMax`.
-/// Returns true if the path is unoccluded (miss shader fired).
-/// All instances are visible (kInstanceMaskAll); tMax is set to stop just
-/// before the sampled light surface so the ray does not self-intersect it.
-bool traceNEEShadowRay(float3 origin, float3 direction, float tMax)
-{
-    ShadowPayload shadowPayload;
-    shadowPayload.inShadow = true;
-    RayDesc shadowRay;
-    shadowRay.Origin    = origin;
-    shadowRay.Direction = direction;
-    shadowRay.TMin      = 0.0;
-    shadowRay.TMax      = tMax;
-    TraceRay(tlas,
-             RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-             kInstanceMaskAll, 0, 2, 1, shadowRay, shadowPayload);
-    return !shadowPayload.inShadow;
+/// Shadow-ray tracer for the shared path integrator (ITracer).
+/// Returns true when origin→direction*tMax is unoccluded (the shadow miss shader fired).
+/// All instances are visible (kInstanceMaskAll); tMax stops just before the sampled light
+/// surface so the ray does not self-intersect it.
+struct HyperionTracer : ITracer {
+    bool traceOccluded(float3 origin, float3 direction, float tMax) {
+        ShadowPayload p;
+        p.inShadow = true;
+        RayDesc ray;
+        ray.Origin    = origin;
+        ray.Direction = direction;
+        ray.TMin      = 0.0;
+        ray.TMax      = tMax;
+        TraceRay(tlas,
+                 RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
+                 kInstanceMaskAll, 0, 2, 1, ray, p);
+        return !p.inShadow;
+    }
 }
 
 void shadeSurface(inout RayPayload payload, HitInfo hit)
@@ -201,125 +203,48 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         }
     }
 
-    float3 emission = max(mat.emissionColorLum.xyz, 0.0.xxx) * max(mat.emissionColorLum.w, 0.0);
-    if (max(emission.x, max(emission.y, emission.z)) > 0.0 && dot(wo, hit.geoNormal) > 0.0) {
-        // Add emissive contribution only for:
-        //   • primary camera ray (depth == 0) — camera directly sees the light
-        //   • after a specular/delta bounce — NEE cannot sample through perfect mirrors
-        // All other direct hits are handled by NEE below and must not be double-counted.
-        if (pushConst.emissiveTriangleCount == 0u || payload.depth == 0u || payload.specularBounce) {
-            payload.radiance += payload.throughput * emission;
-        }
-        payload.terminated = true;
-        return;
-    }
+    // ── Shared surface estimator ─────────────────────────────────────────────────
+    // Emission guard, stochastic opacity gate, emissive-triangle + environment NEE,
+    // BSDF continuation and Russian roulette all live in Harmonia's path_integrator
+    // module, parameterized over ITracer so Hyperion (TraceRay) and Theia (RayQuery)
+    // share the identical unidirectional Monte-Carlo estimator.
+    SurfaceHit surf;
+    surf.position  = hit.position;
+    surf.normal    = N;
+    surf.geoNormal = geoN;
+    surf.T = T; surf.B = B;
+    surf.coatN = coatN; surf.coatT = coatT; surf.coatB = coatB;
+    surf.mat = mat;
+    surf.wo  = wo;
 
-    // ── A1: Stochastic opacity gate (OpenPBR delta pass-through) ──
-    // With probability (1-opacity), the ray passes straight through the surface with no 
-    // interaction (delta BTDF per OpenPBR: geometry_opacity is the outermost lerp gate, not 
-    // a per-lobe scale). Continue the ray in its original direction; otherwise shade normally.
-    float opacity = saturate(mat.opacityFlagsPad.x);
-    if (randFloat(payload.seed) < (1.0 - opacity)) {
-        // Pass-through: continue ray in original (forward) direction, throughput unchanged (delta).
-        // Offset along the geometric normal toward the side the continuing ray travels (matches
-        // the regular-scatter convention at the BSDF sample below).
-        float3 fwd = normalize(WorldRayDirection());
-        payload.origin = hit.position + geoN * (dot(fwd, geoN) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
-        payload.direction = fwd;
-        payload.lastBsdfPdf = 1.0e30; // delta (needed for MIS weighting)
-        payload.specularBounce = true;
-        return;
-    }
+    PathState state;
+    state.radiance       = payload.radiance;
+    state.throughput     = payload.throughput;
+    state.depth          = payload.depth;
+    state.seed           = payload.seed;
+    state.terminated     = false;
+    state.specularBounce = payload.specularBounce;
+    state.lastBsdfPdf    = payload.lastBsdfPdf;
+    state.nextOrigin     = payload.origin;
+    state.nextDirection  = payload.direction;
 
-    uint seed = payload.seed;
+    HyperionTracer tracer;
+    integrateSurface(tracer, surf,
+        pushConst.emissiveTriangleCount, emissiveTriangles,
+        envMarginalCdf, envConditionalCdf,
+        pushConst.envImportanceWidth, pushConst.envImportanceHeight,
+        (pushConst.hasEnvMap != 0u), pushConst.envLuminanceScale,
+        envMap, envSampler,
+        state);
 
-    // --- Next Event Estimation: direct triangle area sampling ---
-    // Ref: Shirley et al. "Monte Carlo Techniques for Direct Lighting Calculations" (1996)
-    //      RTXPT — direct emissive triangle sampling with area-to-solid-angle PDF conversion
-    if (pushConst.emissiveTriangleCount > 0u) {
-        // Uniform triangle selection: pick index in [0, N).
-        uint triIdx = min(uint(randFloat(seed) * float(pushConst.emissiveTriangleCount)),
-                         pushConst.emissiveTriangleCount - 1u);
-        GpuEmissiveTriangle tri = emissiveTriangles[triIdx];
-
-        float3 v0     = tri.v0_area.xyz;
-        float  area   = tri.v0_area.w;
-        float3 edge1  = tri.edge1_emitR.xyz;
-        float3 edge2  = tri.edge2_emitG.xyz;
-        float3 lNorm  = tri.normal_emitB.xyz; // face normal (unit), outward from emitter
-        float3 Le     = float3(tri.edge1_emitR.w, tri.edge2_emitG.w, tri.normal_emitB.w);
-
-        // Uniform area sample via Shirley sqrt-folding.
-        float  sqrtU  = sqrt(randFloat(seed));
-        float  xi     = randFloat(seed);
-        float3 bary   = float3(1.0 - sqrtU, sqrtU * (1.0 - xi), sqrtU * xi);
-        float3 lPos   = v0 + edge1 * bary.y + edge2 * bary.z;
-
-        float3 toLight  = lPos - hit.position;
-        float  dist     = length(toLight);
-        float3 wi       = toLight / max(dist, 1.0e-6);
-
-        float cosLight = dot(-wi, lNorm); // positive when ray hits front face of emitter
-        float cosI     = dot(wi, N);      // cosine at shading surface
-
-        if (cosLight > 0.0 && cosI > 0.0) {
-            // Area PDF to solid-angle PDF: pdf_ω = (1 / (N_tri × area)) × dist² / cosLight
-            float areaPdf  = 1.0 / (float(pushConst.emissiveTriangleCount) * area);
-            float solidPdf = areaPdf * dist * dist / cosLight;
-
-            // Shadow ray stops just before the emitter surface to avoid self-intersection.
-            // Subtract dot(geoN,wi)*kRayEpsilon to account for the shadow origin being offset
-            // by geoN*kRayEpsilon — without this, surfaces whose geoN points toward the light
-            // (e.g. a floor below a ceiling light) have their shadow ray reach the emitter at
-            // exactly tMax, causing a false occlusion (floor always appears black).
-            float3 shadowOrigin = hit.position + geoN * kRayEpsilon;
-            float  shadowTMax   = max(dist - kRayEpsilon * (1.0 + dot(geoN, wi)), 0.0);
-            if (traceNEEShadowRay(shadowOrigin, wi, shadowTMax)) {
-                float3 bsdfVal = evalBSDF(mat, wo, wi, N, T, B, coatN, coatT, coatB);
-                payload.radiance += payload.throughput * bsdfVal * Le * cosI / solidPdf;
-            }
-        }
-    }
-
-    // --- Next Event Estimation: env map importance sampling ---
-    // Ref: PBR Book 4th ed §13.4.3 — MIS balance heuristic for env lights
-    //      Veach "Robust Monte Carlo Methods" §9.2 — balance heuristic w = p_A / (p_A + p_B)
-    if (pushConst.hasEnvMap != 0u && pushConst.envImportanceWidth > 0u) {
-        float envPdf;
-        float3 wi = sampleEnvImportance(seed, envPdf);
-        float cosI = dot(wi, N);
-        if (cosI > 0.0 && envPdf > 0.0) {
-            float3 shadowOrigin = hit.position + geoN * kRayEpsilon;
-            if (traceNEEShadowRay(shadowOrigin, wi, kInf)) {
-                float3 Le = sampleEnvMap(wi) * pushConst.envLuminanceScale;
-                float bsdfPdf = pdfBSDF(mat, wo, wi, N, T, B, coatN, coatT, coatB);
-                float misW = envPdf / (envPdf + bsdfPdf); // balance heuristic
-                payload.radiance += payload.throughput * evalBSDF(mat, wo, wi, N, T, B, coatN, coatT, coatB) * Le * cosI * misW / envPdf;
-            }
-        }
-    }
-
-    BSDFSample bsdfSample = sampleBSDF(mat, wo, N, T, B, coatN, coatT, coatB, seed);
-    payload.seed = seed;
-    if (bsdfSample.pdf <= 0.0 || max(bsdfSample.weight.x, max(bsdfSample.weight.y, bsdfSample.weight.z)) <= 0.0) {
-        payload.terminated = true;
-        return;
-    }
-
-    payload.specularBounce = bsdfSample.isDelta;
-    payload.lastBsdfPdf    = bsdfSample.isDelta ? 1.0e30 : bsdfSample.pdf;
-    payload.throughput *= bsdfSample.weight;
-    payload.origin = hit.position + geoN * (dot(bsdfSample.direction, geoN) >= 0.0 ? kRayEpsilon : -kRayEpsilon);
-    payload.direction = normalize(bsdfSample.direction);
-
-    if (payload.depth >= kRRMinDepth) {
-        float q = saturate(max(payload.throughput.x, max(payload.throughput.y, payload.throughput.z)));
-        if (randFloat(payload.seed) > q) {
-            payload.terminated = true;
-            return;
-        }
-        payload.throughput /= max(q, 1.0e-3);
-    }
+    payload.radiance       = state.radiance;
+    payload.throughput     = state.throughput;
+    payload.seed           = state.seed;
+    payload.terminated     = state.terminated;
+    payload.specularBounce = state.specularBounce;
+    payload.lastBsdfPdf    = state.lastBsdfPdf;
+    payload.origin         = state.nextOrigin;
+    payload.direction      = state.nextDirection;
 }
 
 [shader("closesthit")]
