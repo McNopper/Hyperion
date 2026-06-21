@@ -54,7 +54,10 @@ void pathTracingRaygen()
 
         // Firefly suppression: clamp per-sample radiance in display space (post-exposure).
         // Use channel average instead of luminance to avoid hue shift on saturated signals.
-        float3 sampleRadiance = max(payload.radiance * camera.exposure, 0.0.xxx); // guard NaN/negative
+        float3 sampleRadiance = max(payload.radiance * camera.exposure, 0.0.xxx);
+        if (!all(isfinite(sampleRadiance)) || any(isnan(sampleRadiance))) {
+            sampleRadiance = 0.0.xxx;
+        }
         const float sampleAvg = (sampleRadiance.x + sampleRadiance.y + sampleRadiance.z) * (1.0 / 3.0);
         if (sampleAvg > kFireflyClamp)
             sampleRadiance *= kFireflyClamp / sampleAvg;
