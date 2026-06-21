@@ -63,6 +63,15 @@ bool Application::onInitialize() {
     }
     m_sbt = std::move(*sbt);
 
+    // Progressive accumulation in the interactive window so the live preview
+    // converges to the SAME image the offscreen capture path produces. Without
+    // this the window shows raw single-frame path-tracer samples (and skips the
+    // denoiser temporal history), which would not match the accumulated, history-
+    // denoised offscreen render. The camera is static in the demo, so no
+    // resetAccumulation() wiring is required; the offscreen path accumulates
+    // regardless of this flag.
+    setInteractiveAccumulation(true);
+
     return createGBuffers(swapchain().extent());
 }
 
