@@ -135,7 +135,10 @@ HDR target, tonemapping/presentation, IBL probe and scene loading, while Hyperio
 its renderer through the `harmonia::IRenderer` seam (Theia does the same). Slang shaders
 are compiled at build time by Harmonia's shared `compile_slang_shaders` CMake rule
 (`shaders/*.slang` → `build/shaders/*.spv`) and loaded through Harmonia's SPIR-V loader.
-The **GPU scene layout is renderer-specific**: Hyperion owns its own `Scene` and
+The **unidirectional path-integrator estimator** (emissive/env NEE + MIS + Russian roulette)
+lives in Harmonia's shared `path_integrator.slang` and is reused **1:1** by both renderers
+through an `ITracer` seam — Hyperion drives it with its ray-tracing-pipeline tracer, Theia
+with inline `RayQuery`. The **GPU scene layout is renderer-specific**: Hyperion owns its own `Scene` and
 `GpuInstance` (`src/hyperion/scene/`) built around index buffers and the ray-tracing
 pipeline, distinct from Theia's meshlet layout. Only code shared 1:1 lives in Harmonia.
 
