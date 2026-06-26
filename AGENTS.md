@@ -8,6 +8,13 @@ Quick-start context for AI agents so basic facts don't have to be rediscovered e
 pipeline. It uses ray tracing (BLAS/TLAS), index buffers, NEE + MIS with environment
 importance sampling (CDF). Other renderers (Theia) are aligned to match Hyperion.
 
+**Material model = OpenPBR Surface** (Academy Software Foundation), whose canonical/reference
+implementation is **MaterialX** (`mx_*` genGLSL nodes). Hyperion's BSDF (the shared Harmonia
+`bsdf_shared.slang`) is the **conformance ground truth** for OpenPBR in this pipeline; when
+improving spec-correctness, fix it here first, regenerate references, then align Theia. It is
+structurally faithful but not yet 100% complete (e.g. sheen, GGX multi-scatter compensation,
+true volumetric SSS are approximations) — cross-check parameters/behaviour against MaterialX.
+
 Pipeline (dependency direction):
 
 ```
