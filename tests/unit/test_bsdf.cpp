@@ -224,13 +224,36 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
     return (lobeSingle + lobeMS) * Math::kInvPi;
 }
 
+[[nodiscard]] float ggxDirAlbedo(float nDotV, float alpha) noexcept {
+    const float x = std::clamp(nDotV, 0.0F, 1.0F);
+    const float y = std::clamp(alpha, 0.0F, 1.0F);
+    const float x2 = x * x;
+    const float y2 = y * y;
+    const glm::vec4 r = glm::vec4(0.1003F, 0.9345F, 1.0F, 1.0F) +
+                        glm::vec4(-0.6303F, -2.323F, -1.765F, 0.2281F) * x +
+                        glm::vec4(9.748F, 2.229F, 8.263F, 15.94F) * y +
+                        glm::vec4(-2.038F, -3.748F, 11.53F, -55.83F) * x * y +
+                        glm::vec4(29.34F, 1.424F, 28.96F, 13.08F) * x2 +
+                        glm::vec4(-8.245F, -0.7684F, -7.507F, 41.26F) * y2 +
+                        glm::vec4(-26.44F, 1.436F, -36.11F, 54.9F) * x2 * y +
+                        glm::vec4(19.99F, 0.2913F, 15.86F, 300.2F) * x * y2 +
+                        glm::vec4(-5.448F, 0.6286F, 33.37F, -285.1F) * x2 * y2;
+    const float a = std::clamp(r.x / r.z, 0.0F, 1.0F);
+    const float b = std::clamp(r.y / r.w, 0.0F, 1.0F);
+    return std::clamp(a + b, 0.0F, 1.0F);
+}
+
+[[nodiscard]] glm::vec3 ggxMultiScatterCompensation(const glm::vec3& F0, float nDotV, float alpha) noexcept {
+    const float Ess = ggxDirAlbedo(nDotV, alpha);
+    return glm::vec3(1.0F) + F0 * ((1.0F / std::max(Ess, 1.0e-3F)) - 1.0F);
+}
+
 [[nodiscard]] glm::vec3 evalReflectionMicrofacet(const glm::vec3& F0,
                                                  const glm::vec3& F82,
                                                  const glm::vec3& wo,
                                                  const glm::vec3& wi,
                                                  float alphaX,
                                                  float alphaY) noexcept {
-    (void)alphaY;
     if (wo.z <= 0.0F || wi.z <= 0.0F) {
         return glm::vec3(0.0F);
     }
@@ -248,7 +271,10 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
     const float G = smithG2(wi, wo, alphaX);
     const glm::vec3 F = glm::vec3(fresnelSchlick(F0.x, VoH));
     const glm::vec3 tint = glm::mix(F0, F82, glm::vec3(1.0F) - glm::clamp(F, glm::vec3(0.0F), glm::vec3(1.0F)));
-    return (D * G / std::max(4.0F * NoL * NoV, 1.0e-5F)) * tint;
+    const glm::vec3 single = (D * G / std::max(4.0F * NoL * NoV, 1.0e-5F)) * tint;
+    // GGX multiple-scattering energy compensation (matches Harmonia bsdf_shared.slang).
+    const float alpha = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
+    return single * ggxMultiScatterCompensation(F0, NoV, alpha);
 }
 
 [[nodiscard]] glm::vec3 evalTransmissionMicrofacet(const glm::vec3& color,
@@ -563,6 +589,54 @@ TEST(Bsdf, OpenPbrWhiteFurnaceRepresentativeConfigsStayBounded) {
         const double energy = estimateWhiteFurnaceEnergy(mat, wo, 12000);
         EXPECT_GE(energy, 0.0);
         EXPECT_LE(energy, 1.10);
+    }
+}
+
+TEST(Bsdf, GgxDirAlbedoLosesEnergyWithRoughness) {
+    // Single-scattering GGX directional albedo (F=1) must stay in [0,1] and decrease as
+    // roughness rises (more energy lost to inter-microfacet shadowing). This is the energy
+    // the multiple-scattering compensation recovers.
+    constexpr float kNoV = 0.8F;
+    const float smooth = ggxDirAlbedo(kNoV, 0.02F);
+    const float mid = ggxDirAlbedo(kNoV, 0.25F);
+    const float rough = ggxDirAlbedo(kNoV, 0.9F);
+
+    EXPECT_GE(smooth, 0.0F);
+    EXPECT_LE(smooth, 1.0F);
+    EXPECT_GT(smooth, mid);
+    EXPECT_GT(mid, rough);
+    EXPECT_LT(rough, 0.95F); // a rough surface loses noticeable single-scatter energy
+}
+
+TEST(Bsdf, GgxMultiScatterCompensationRecoversMetalEnergy) {
+    // A perfectly reflective (white) metal must conserve energy: with multiple-scattering
+    // compensation the white-furnace reflectance returns to ~1.0 across roughness. Without
+    // the compensation a rough metal would sit well below 1.0 (single-scatter energy loss),
+    // so this test specifically guards that the compensation is wired in and effective.
+    const glm::vec3 wo = glm::normalize(glm::vec3(0.25F, 0.15F, 0.955F));
+
+    for (const float roughness : {0.2F, 0.4F, 0.6F, 0.85F}) {
+        GpuMaterial metal = makeMaterial();
+        metal.baseColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+        metal.baseMetalnessDiffRough = glm::vec4(1.0F, 0.0F, 0.0F, 0.0F); // metalness = 1
+        metal.specularColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);    // F82 tint = 1 (mirror)
+        metal.specularRoughAnisoIor = glm::vec4(roughness, 0.0F, 1.5F, 0.0F);
+
+        const double energy = estimateWhiteFurnaceEnergy(metal, wo, 40000);
+        EXPECT_GE(energy, 0.93) << "roughness=" << roughness << " energy=" << energy;
+        EXPECT_LE(energy, 1.07) << "roughness=" << roughness << " energy=" << energy;
+    }
+}
+
+TEST(Bsdf, GgxMultiScatterCompensationIsNegligibleForDielectric) {
+    // For a low-F0 dielectric specular lobe the compensation must be a tiny correction
+    // (the thin specular layer barely multiple-scatters), so the multiplier stays ~1.
+    const glm::vec3 dielectricF0(0.04F);
+    for (const float roughness : {0.2F, 0.5F, 0.9F}) {
+        const float alpha = std::max(roughness * roughness, 0.001F);
+        const glm::vec3 comp = ggxMultiScatterCompensation(dielectricF0, 0.7F, alpha);
+        EXPECT_GE(comp.x, 1.0F);
+        EXPECT_LT(comp.x, 1.05F) << "roughness=" << roughness;
     }
 }
 
