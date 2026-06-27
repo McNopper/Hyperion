@@ -79,7 +79,7 @@ bool Application::createGBuffers(VkExtent2D extent) {
     auto gNormal = Image::create(deviceContext(),
                                  extent,
                                  VK_FORMAT_R16G16B16A16_SFLOAT,
-                                 VK_IMAGE_USAGE_STORAGE_BIT,
+                                 VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                  VK_IMAGE_ASPECT_COLOR_BIT,
                                  "demo.gNormal");
     if (!gNormal) {
@@ -91,7 +91,7 @@ bool Application::createGBuffers(VkExtent2D extent) {
     auto gDepth = Image::create(deviceContext(),
                                 extent,
                                 VK_FORMAT_R32_SFLOAT,
-                                VK_IMAGE_USAGE_STORAGE_BIT,
+                                VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                 VK_IMAGE_ASPECT_COLOR_BIT,
                                 "demo.gDepth");
     if (!gDepth) {
