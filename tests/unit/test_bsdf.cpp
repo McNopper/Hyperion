@@ -184,6 +184,69 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
     return glm::vec3(x * x);
 }
 
+// ─── Belcour-Barla thin-film iridescence (mirror of Harmonia bsdf_shared.slang) ───
+[[nodiscard]] glm::vec3 thinFilmEvalSensitivity(float opd, glm::vec3 shift) noexcept {
+    const float phase = 2.0F * Math::kPi * opd * 1.0e-9F;
+    const glm::vec3 val(5.4856e-13F, 4.4201e-13F, 5.2481e-13F);
+    const glm::vec3 pos(1.6810e+06F, 1.7953e+06F, 2.2084e+06F);
+    const glm::vec3 var(4.3278e+09F, 9.3046e+09F, 6.6121e+09F);
+    glm::vec3 xyz = val * glm::sqrt(2.0F * Math::kPi * var) * glm::cos(pos * phase + shift) *
+                    glm::exp(-var * phase * phase);
+    xyz.x += 9.7470e-14F * std::sqrt(2.0F * Math::kPi * 4.5282e+09F) *
+             std::cos(2.2399e+06F * phase + shift.x) * std::exp(-4.5282e+09F * phase * phase);
+    xyz /= 1.0685e-7F;
+    return glm::vec3(glm::dot(glm::vec3(3.2404542F, -1.5371385F, -0.4985314F), xyz),
+                     glm::dot(glm::vec3(-0.9692660F, 1.8760108F, 0.0415560F), xyz),
+                     glm::dot(glm::vec3(0.0556434F, -0.2040259F, 1.0572252F), xyz));
+}
+
+[[nodiscard]] glm::vec3 fresnel0ToIor(glm::vec3 f0) noexcept {
+    const glm::vec3 s = glm::sqrt(glm::clamp(f0, glm::vec3(0.0F), glm::vec3(0.9999F)));
+    return (glm::vec3(1.0F) + s) / glm::max(glm::vec3(1.0F) - s, glm::vec3(1.0e-4F));
+}
+
+[[nodiscard]] glm::vec3 thinFilmIridescentReflectance(glm::vec3 baseF0, float cosTheta1, float thicknessNm,
+                                                      float filmIor) noexcept {
+    const float outsideIor = 1.0F;
+    const float eta2 = std::max(filmIor, outsideIor);
+    cosTheta1 = std::clamp(cosTheta1, 0.0F, 1.0F);
+    auto schlick = [](float f0, float c) { return f0 + (1.0F - f0) * std::pow(std::clamp(1.0F - c, 0.0F, 1.0F), 5.0F); };
+    auto schlick3 = [](glm::vec3 f0, float c) { return f0 + (glm::vec3(1.0F) - f0) * std::pow(std::clamp(1.0F - c, 0.0F, 1.0F), 5.0F); };
+
+    const float sinTheta2Sq = (outsideIor / eta2) * (outsideIor / eta2) * std::max(0.0F, 1.0F - cosTheta1 * cosTheta1);
+    if (sinTheta2Sq >= 1.0F) {
+        return schlick3(baseF0, cosTheta1);
+    }
+    const float cosTheta2 = std::sqrt(1.0F - sinTheta2Sq);
+
+    const float R0 = ((outsideIor - eta2) / (outsideIor + eta2)) * ((outsideIor - eta2) / (outsideIor + eta2));
+    const float R12 = schlick(R0, cosTheta1);
+    const float T121 = 1.0F - R12;
+    const float phi21 = Math::kPi - ((eta2 < outsideIor) ? Math::kPi : 0.0F);
+
+    const glm::vec3 baseIor = fresnel0ToIor(baseF0);
+    const glm::vec3 d23 = (glm::vec3(eta2) - baseIor) / (glm::vec3(eta2) + baseIor);
+    const glm::vec3 R23 = schlick3(d23 * d23, cosTheta2);
+    const glm::vec3 phi23(baseIor.x < eta2 ? Math::kPi : 0.0F, baseIor.y < eta2 ? Math::kPi : 0.0F,
+                          baseIor.z < eta2 ? Math::kPi : 0.0F);
+
+    const float opd = 2.0F * eta2 * std::max(thicknessNm, 0.0F) * cosTheta2;
+    const glm::vec3 phi = glm::vec3(phi21) + phi23;
+
+    const glm::vec3 R123 = glm::clamp(R12 * R23, glm::vec3(1.0e-5F), glm::vec3(0.9999F));
+    const glm::vec3 r123 = glm::sqrt(R123);
+    const glm::vec3 Rs = (T121 * T121) * R23 / (glm::vec3(1.0F) - R123);
+
+    glm::vec3 I = glm::vec3(R12) + Rs;
+    glm::vec3 Cm = Rs - glm::vec3(T121);
+    for (int m = 1; m <= 2; ++m) {
+        Cm *= r123;
+        const glm::vec3 Sm = 2.0F * thinFilmEvalSensitivity(static_cast<float>(m) * opd, static_cast<float>(m) * phi);
+        I += Cm * Sm;
+    }
+    return glm::max(I, glm::vec3(0.0F));
+}
+
 [[nodiscard]] float diffuseDirAlbedoFujii(float cosTheta, float roughness) noexcept {
     constexpr float kFujiiC1 = 0.5F - 2.0F / (3.0F * Math::kPi);
     const float A = 1.0F / (1.0F + (kFujiiC1 * roughness));
@@ -638,6 +701,61 @@ TEST(Bsdf, GgxMultiScatterCompensationIsNegligibleForDielectric) {
         EXPECT_GE(comp.x, 1.0F);
         EXPECT_LT(comp.x, 1.05F) << "roughness=" << roughness;
     }
+}
+
+TEST(Bsdf, ThinFilmGuardReturnsBaseWhenInactive) {
+    // The eval path applies iridescence only when thin_film_weight>0 AND thickness>0;
+    // otherwise the base Schlick reflectance is used unchanged. Verify that contract
+    // (mirrors evalReflectionMicrofacetThinFilm / the thinFilmTint guard).
+    auto applyThinFilm = [](glm::vec3 baseF0, float cosT, float thickness, float ior, float weight) {
+        const glm::vec3 base = baseF0 + (glm::vec3(1.0F) - baseF0) * std::pow(std::clamp(1.0F - cosT, 0.0F, 1.0F), 5.0F);
+        if (weight <= 0.0F || thickness <= 0.0F) {
+            return base;
+        }
+        const glm::vec3 irid = thinFilmIridescentReflectance(baseF0, cosT, thickness, ior);
+        return glm::mix(base, irid, std::clamp(weight, 0.0F, 1.0F));
+    };
+    const glm::vec3 baseF0(0.95F, 0.78F, 0.40F);
+    for (const float cosT : {0.2F, 0.5F, 0.9F}) {
+        const glm::vec3 base = baseF0 + (glm::vec3(1.0F) - baseF0) * std::pow(1.0F - cosT, 5.0F);
+        const glm::vec3 offThickness = applyThinFilm(baseF0, cosT, 0.0F, 1.5F, 1.0F);
+        const glm::vec3 offWeight = applyThinFilm(baseF0, cosT, 500.0F, 1.5F, 0.0F);
+        for (int c = 0; c < 3; ++c) {
+            EXPECT_NEAR(offThickness[c], base[c], 1.0e-5F) << "cosT=" << cosT << " (thickness 0)";
+            EXPECT_NEAR(offWeight[c], base[c], 1.0e-5F) << "cosT=" << cosT << " (weight 0)";
+        }
+    }
+}
+
+TEST(Bsdf, ThinFilmStaysFiniteAndBounded) {
+    // Across a thickness/angle/IOR sweep the reflectance must remain finite and within a
+    // sane reflectance range (slight overshoot allowed from the Gaussian-fit sensitivity).
+    for (const float thickness : {100.0F, 350.0F, 550.0F, 800.0F, 1200.0F}) {
+        for (const float cosT : {0.05F, 0.4F, 0.8F, 1.0F}) {
+            for (const float filmIor : {1.2F, 1.5F, 2.0F}) {
+                const glm::vec3 r = thinFilmIridescentReflectance(glm::vec3(0.04F), cosT, thickness, filmIor);
+                ASSERT_TRUE(std::isfinite(r.x) && std::isfinite(r.y) && std::isfinite(r.z))
+                    << "t=" << thickness << " c=" << cosT << " ior=" << filmIor;
+                EXPECT_GE(std::min({r.x, r.y, r.z}), 0.0F);
+                EXPECT_LE(std::max({r.x, r.y, r.z}), 1.2F);
+            }
+        }
+    }
+}
+
+TEST(Bsdf, ThinFilmThicknessSweepShiftsHue) {
+    // The defining signature of iridescence: varying film thickness must shift the hue of
+    // the reflected colour. Compare normalized chromaticity across the documented sweep.
+    auto chroma = [](glm::vec3 c) {
+        const float s = c.x + c.y + c.z + 1.0e-6F;
+        return glm::vec2(c.x / s, c.y / s);
+    };
+    const glm::vec3 darkBase(0.04F); // dielectric base maximises interference contrast
+    const glm::vec2 a = chroma(thinFilmIridescentReflectance(darkBase, 0.7F, 300.0F, 1.4F));
+    const glm::vec2 b = chroma(thinFilmIridescentReflectance(darkBase, 0.7F, 550.0F, 1.4F));
+    const glm::vec2 c = chroma(thinFilmIridescentReflectance(darkBase, 0.7F, 800.0F, 1.4F));
+    EXPECT_GT(glm::length(a - b), 0.02F) << "300nm vs 550nm should differ in hue";
+    EXPECT_GT(glm::length(b - c), 0.02F) << "550nm vs 800nm should differ in hue";
 }
 
 // NOTE: GGX specular BRDF symmetry is tested at the shader level (shaders/bsdf.slang).
