@@ -184,9 +184,9 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
     return glm::vec3(x * x);
 }
 
-// ─── Belcour-Barla thin-film iridescence (mirror of Harmonia bsdf_shared.slang) ───
-[[nodiscard]] glm::vec3 thinFilmEvalSensitivity(float opd, glm::vec3 shift) noexcept {
-    const float phase = 2.0F * Math::kPi * opd * 1.0e-9F;
+// ─── OpenPBR thin-film Airy (mirror of Harmonia bsdf_shared.slang mx_fresnel_airy) ───
+[[nodiscard]] glm::vec3 thinFilmSensitivity(float opd, glm::vec3 shift) noexcept {
+    const float phase = 2.0F * Math::kPi * opd;
     const glm::vec3 val(5.4856e-13F, 4.4201e-13F, 5.2481e-13F);
     const glm::vec3 pos(1.6810e+06F, 1.7953e+06F, 2.2084e+06F);
     const glm::vec3 var(4.3278e+09F, 9.3046e+09F, 6.6121e+09F);
@@ -194,10 +194,13 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
                     glm::exp(-var * phase * phase);
     xyz.x += 9.7470e-14F * std::sqrt(2.0F * Math::kPi * 4.5282e+09F) *
              std::cos(2.2399e+06F * phase + shift.x) * std::exp(-4.5282e+09F * phase * phase);
-    xyz /= 1.0685e-7F;
-    return glm::vec3(glm::dot(glm::vec3(3.2404542F, -1.5371385F, -0.4985314F), xyz),
-                     glm::dot(glm::vec3(-0.9692660F, 1.8760108F, 0.0415560F), xyz),
-                     glm::dot(glm::vec3(0.0556434F, -0.2040259F, 1.0572252F), xyz));
+    return xyz / 1.0685e-7F;
+}
+
+[[nodiscard]] glm::vec3 thinFilmXyzToRgb(glm::vec3 v) noexcept {
+    return glm::vec3(glm::dot(glm::vec3(2.3706743F, -0.9000405F, -0.4706338F), v),
+                     glm::dot(glm::vec3(-0.5138850F, 1.4253036F, 0.0885814F), v),
+                     glm::dot(glm::vec3(0.0052982F, -0.0146949F, 1.0093968F), v));
 }
 
 [[nodiscard]] glm::vec3 fresnel0ToIor(glm::vec3 f0) noexcept {
@@ -205,46 +208,151 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
     return (glm::vec3(1.0F) + s) / glm::max(glm::vec3(1.0F) - s, glm::vec3(1.0e-4F));
 }
 
-[[nodiscard]] glm::vec3 thinFilmIridescentReflectance(glm::vec3 baseF0, float cosTheta1, float thicknessNm,
-                                                      float filmIor) noexcept {
-    const float outsideIor = 1.0F;
-    const float eta2 = std::max(filmIor, outsideIor);
-    cosTheta1 = std::clamp(cosTheta1, 0.0F, 1.0F);
-    auto schlick = [](float f0, float c) { return f0 + (1.0F - f0) * std::pow(std::clamp(1.0F - c, 0.0F, 1.0F), 5.0F); };
-    auto schlick3 = [](glm::vec3 f0, float c) { return f0 + (glm::vec3(1.0F) - f0) * std::pow(std::clamp(1.0F - c, 0.0F, 1.0F), 5.0F); };
+[[nodiscard]] glm::vec3 tfFresnelF82(glm::vec3 F0, glm::vec3 F82, float cosTheta) noexcept {
+    constexpr float muBar = 1.0F / 7.0F;
+    const float denom = muBar * std::pow(1.0F - muBar, 6.0F);
+    const float mu = std::clamp(cosTheta, 0.0F, 1.0F);
+    const glm::vec3 fSchlickBar = F0 + (glm::vec3(1.0F) - F0) * std::pow(1.0F - muBar, 5.0F);
+    const glm::vec3 a = fSchlickBar * (glm::vec3(1.0F) - F82) / denom;
+    const glm::vec3 fSchlick = F0 + (glm::vec3(1.0F) - F0) * std::pow(1.0F - mu, 5.0F);
+    return glm::clamp(fSchlick - a * mu * std::pow(1.0F - mu, 6.0F), glm::vec3(0.0F), glm::vec3(1.0F));
+}
 
-    const float sinTheta2Sq = (outsideIor / eta2) * (outsideIor / eta2) * std::max(0.0F, 1.0F - cosTheta1 * cosTheta1);
-    if (sinTheta2Sq >= 1.0F) {
-        return schlick3(baseF0, cosTheta1);
+void mxArtisticIor(glm::vec3 reflectivity, glm::vec3 edgeColor, glm::vec3& ior, glm::vec3& extinction) noexcept {
+    const glm::vec3 r = glm::clamp(reflectivity, glm::vec3(0.0F), glm::vec3(0.99F));
+    const glm::vec3 rSqrt = glm::sqrt(r);
+    const glm::vec3 nMin = (glm::vec3(1.0F) - r) / (glm::vec3(1.0F) + r);
+    const glm::vec3 nMax = (glm::vec3(1.0F) + rSqrt) / glm::max(glm::vec3(1.0F) - rSqrt, glm::vec3(1.0e-4F));
+    ior = glm::mix(nMax, nMin, glm::clamp(edgeColor, glm::vec3(0.0F), glm::vec3(1.0F)));
+    const glm::vec3 np1 = ior + 1.0F;
+    const glm::vec3 nm1 = ior - 1.0F;
+    const glm::vec3 k2 = (np1 * np1 * r - nm1 * nm1) / glm::max(glm::vec3(1.0F) - r, glm::vec3(1.0e-4F));
+    extinction = glm::sqrt(glm::max(k2, glm::vec3(0.0F)));
+}
+
+void tfDielectricPolarized(float cosTheta, float ior, float& Rp, float& Rs) noexcept {
+    const float c2 = std::clamp(cosTheta, 0.0F, 1.0F) * std::clamp(cosTheta, 0.0F, 1.0F);
+    const float s2 = 1.0F - c2;
+    const float t0 = std::max(ior * ior - s2, 0.0F);
+    const float t1 = t0 + c2;
+    const float t2 = 2.0F * std::sqrt(t0) * cosTheta;
+    Rs = (t1 - t2) / std::max(t1 + t2, 1.0e-6F);
+    const float t3 = c2 * t0 + s2 * s2;
+    const float t4 = t2 * s2;
+    Rp = Rs * (t3 - t4) / std::max(t3 + t4, 1.0e-6F);
+}
+
+void tfConductorPolarized(float cosTheta, glm::vec3 n, glm::vec3 k, glm::vec3& Rp, glm::vec3& Rs) noexcept {
+    const float c2 = std::clamp(cosTheta, 0.0F, 1.0F) * std::clamp(cosTheta, 0.0F, 1.0F);
+    const float s2 = 1.0F - c2;
+    const glm::vec3 n2 = n * n;
+    const glm::vec3 k2 = k * k;
+    const glm::vec3 t0 = n2 - k2 - glm::vec3(s2);
+    const glm::vec3 a2b2 = glm::sqrt(glm::max(t0 * t0 + 4.0F * n2 * k2, glm::vec3(0.0F)));
+    const glm::vec3 t1 = a2b2 + glm::vec3(c2);
+    const glm::vec3 a = glm::sqrt(glm::max(0.5F * (a2b2 + t0), glm::vec3(0.0F)));
+    const glm::vec3 t2 = 2.0F * a * cosTheta;
+    Rs = (t1 - t2) / glm::max(t1 + t2, glm::vec3(1.0e-6F));
+    const glm::vec3 t3 = c2 * a2b2 + glm::vec3(s2 * s2);
+    const glm::vec3 t4 = t2 * s2;
+    Rp = Rs * (t3 - t4) / glm::max(t3 + t4, glm::vec3(1.0e-6F));
+}
+
+void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::vec3 kappa2, glm::vec3& phiP,
+                               glm::vec3& phiS) noexcept {
+    const glm::vec3 k2 = kappa2 / eta2;
+    const float s2 = 1.0F - cosTheta * cosTheta;
+    const glm::vec3 A = eta2 * eta2 * (glm::vec3(1.0F) - k2 * k2) - (eta1 * eta1) * glm::vec3(s2);
+    const glm::vec3 twoE2k2 = 2.0F * eta2 * eta2 * k2;
+    const glm::vec3 B = glm::sqrt(glm::max(A * A + twoE2k2 * twoE2k2, glm::vec3(0.0F)));
+    const glm::vec3 U = glm::sqrt(glm::max(0.5F * (A + B), glm::vec3(0.0F)));
+    const glm::vec3 V = glm::max(glm::vec3(0.0F), glm::sqrt(glm::max(0.5F * (B - A), glm::vec3(0.0F))));
+    const float e1c = eta1 * cosTheta;
+    auto atan2v = [](glm::vec3 y, glm::vec3 x) {
+        return glm::vec3(std::atan2(y.x, x.x), std::atan2(y.y, x.y), std::atan2(y.z, x.z));
+    };
+    phiS = atan2v(2.0F * eta1 * V * cosTheta, U * U + V * V - glm::vec3(e1c * e1c));
+    const glm::vec3 e22c = eta2 * eta2 * cosTheta;
+    const glm::vec3 num = 2.0F * eta1 * e22c * (2.0F * k2 * U - (glm::vec3(1.0F) - k2 * k2) * V);
+    const glm::vec3 t = eta2 * eta2 * (glm::vec3(1.0F) + k2 * k2) * cosTheta;
+    const glm::vec3 den = t * t - (eta1 * eta1) * (U * U + V * V);
+    phiP = atan2v(num, den);
+}
+
+[[nodiscard]] glm::vec3 thinFilmAiry(float cosTheta, bool isConductor, glm::vec3 F0, glm::vec3 F82, glm::vec3 nCond,
+                                     glm::vec3 kCond, float tfThicknessNm, float tfIor) noexcept {
+    const float eta1 = 1.0F;
+    const float eta2 = std::max(tfIor, eta1);
+    const float ct = std::clamp(cosTheta, 0.0F, 1.0F);
+    const float cosTtSq = 1.0F - (1.0F - ct * ct) * (eta1 / eta2) * (eta1 / eta2);
+    const bool tir = (cosTtSq <= 0.0F);
+    const float cosTt = std::sqrt(std::max(cosTtSq, 0.0F));
+
+    float R12p = 0.0F;
+    float R12s = 0.0F;
+    tfDielectricPolarized(ct, eta2 / eta1, R12p, R12s);
+    if (tir) {
+        R12p = 1.0F;
+        R12s = 1.0F;
     }
-    const float cosTheta2 = std::sqrt(1.0F - sinTheta2Sq);
+    const float T121p = 1.0F - R12p;
+    const float T121s = 1.0F - R12s;
 
-    const float R0 = ((outsideIor - eta2) / (outsideIor + eta2)) * ((outsideIor - eta2) / (outsideIor + eta2));
-    const float R12 = schlick(R0, cosTheta1);
-    const float T121 = 1.0F - R12;
-    const float phi21 = Math::kPi - ((eta2 < outsideIor) ? Math::kPi : 0.0F);
+    glm::vec3 R23p, R23s, phi23p, phi23s;
+    if (isConductor) {
+        tfConductorPolarized(cosTt, nCond / eta2, kCond / eta2, R23p, R23s);
+        tfConductorPhasePolarized(cosTt, eta2, nCond, kCond, phi23p, phi23s);
+    } else {
+        const glm::vec3 f = 0.5F * tfFresnelF82(F0, F82, cosTt);
+        R23p = f;
+        R23s = f;
+        const glm::vec3 eta3 = fresnel0ToIor(F0);
+        phi23p = glm::vec3(eta3.x < eta2 ? Math::kPi : 0.0F, eta3.y < eta2 ? Math::kPi : 0.0F,
+                           eta3.z < eta2 ? Math::kPi : 0.0F);
+        phi23s = phi23p;
+    }
 
-    const glm::vec3 baseIor = fresnel0ToIor(baseF0);
-    const glm::vec3 d23 = (glm::vec3(eta2) - baseIor) / (glm::vec3(eta2) + baseIor);
-    const glm::vec3 R23 = schlick3(d23 * d23, cosTheta2);
-    const glm::vec3 phi23(baseIor.x < eta2 ? Math::kPi : 0.0F, baseIor.y < eta2 ? Math::kPi : 0.0F,
-                          baseIor.z < eta2 ? Math::kPi : 0.0F);
+    const float cosB = std::cos(std::atan(eta2 / eta1));
+    const float phi21p = (ct < cosB) ? 0.0F : Math::kPi;
+    const float phi21s = Math::kPi;
 
-    const float opd = 2.0F * eta2 * std::max(thicknessNm, 0.0F) * cosTheta2;
-    const glm::vec3 phi = glm::vec3(phi21) + phi23;
+    const glm::vec3 r123p = glm::sqrt(glm::max(glm::vec3(R12p) * R23p, glm::vec3(0.0F)));
+    const glm::vec3 r123s = glm::sqrt(glm::max(glm::vec3(R12s) * R23s, glm::vec3(0.0F)));
 
-    const glm::vec3 R123 = glm::clamp(R12 * R23, glm::vec3(1.0e-5F), glm::vec3(0.9999F));
-    const glm::vec3 r123 = glm::sqrt(R123);
-    const glm::vec3 Rs = (T121 * T121) * R23 / (glm::vec3(1.0F) - R123);
+    const float opd = 2.0F * eta2 * cosTt * std::max(tfThicknessNm, 0.0F) * 1.0e-9F;
 
-    glm::vec3 I = glm::vec3(R12) + Rs;
-    glm::vec3 Cm = Rs - glm::vec3(T121);
+    glm::vec3 I(0.0F);
+    glm::vec3 Cm, Sm;
+
+    glm::vec3 Rsp = (T121p * T121p * R23p) / glm::max(glm::vec3(1.0F) - glm::vec3(R12p) * R23p, glm::vec3(1.0e-4F));
+    I += glm::vec3(R12p) + Rsp;
+    Cm = Rsp - glm::vec3(T121p);
     for (int m = 1; m <= 2; ++m) {
-        Cm *= r123;
-        const glm::vec3 Sm = 2.0F * thinFilmEvalSensitivity(static_cast<float>(m) * opd, static_cast<float>(m) * phi);
+        Cm *= r123p;
+        Sm = 2.0F * thinFilmSensitivity(static_cast<float>(m) * opd,
+                                        static_cast<float>(m) * (phi23p + glm::vec3(phi21p)));
         I += Cm * Sm;
     }
-    return glm::max(I, glm::vec3(0.0F));
+
+    glm::vec3 Rss = (T121s * T121s * R23s) / glm::max(glm::vec3(1.0F) - glm::vec3(R12s) * R23s, glm::vec3(1.0e-4F));
+    I += glm::vec3(R12s) + Rss;
+    Cm = Rss - glm::vec3(T121s);
+    for (int m = 1; m <= 2; ++m) {
+        Cm *= r123s;
+        Sm = 2.0F * thinFilmSensitivity(static_cast<float>(m) * opd,
+                                        static_cast<float>(m) * (phi23s + glm::vec3(phi21s)));
+        I += Cm * Sm;
+    }
+
+    I *= 0.5F;
+    return glm::clamp(thinFilmXyzToRgb(I), glm::vec3(0.0F), glm::vec3(1.0F));
+}
+
+// Schlick-base wrapper used by the dielectric thin-film tests below.
+[[nodiscard]] glm::vec3 thinFilmIridescentReflectance(glm::vec3 baseF0, float cosTheta1, float thicknessNm,
+                                                      float filmIor) noexcept {
+    return thinFilmAiry(cosTheta1, false, baseF0, glm::vec3(1.0F), glm::vec3(0.0F), glm::vec3(0.0F), thicknessNm,
+                        std::max(filmIor, 1.0F));
 }
 
 [[nodiscard]] float diffuseDirAlbedoFujii(float cosTheta, float roughness) noexcept {
@@ -756,6 +864,49 @@ TEST(Bsdf, ThinFilmThicknessSweepShiftsHue) {
     const glm::vec2 c = chroma(thinFilmIridescentReflectance(darkBase, 0.7F, 800.0F, 1.4F));
     EXPECT_GT(glm::length(a - b), 0.02F) << "300nm vs 550nm should differ in hue";
     EXPECT_GT(glm::length(b - c), 0.02F) << "550nm vs 800nm should differ in hue";
+}
+
+TEST(Bsdf, ThinFilmConductorIsVividAndFinite) {
+    // The OpenPBR conductor thin-film (complex IOR via Gulbrandsen) must produce a STRONGER,
+    // hue-shifting iridescence on a metal base than the dielectric Schlick approximation —
+    // this is the anodized-metal vividness the real-IOR path could not reach.
+    auto chroma = [](glm::vec3 col) {
+        const float s = col.x + col.y + col.z + 1.0e-6F;
+        return glm::vec2(col.x / s, col.y / s);
+    };
+    auto saturation = [](glm::vec3 col) {
+        const float mx = std::max({col.x, col.y, col.z});
+        const float mn = std::min({col.x, col.y, col.z});
+        return (mx > 1.0e-5F) ? (mx - mn) / mx : 0.0F;
+    };
+    const glm::vec3 baseColor(0.55F, 0.56F, 0.58F); // neutral chromium-like metal
+    const glm::vec3 F82(1.0F);
+    glm::vec3 n, k;
+    mxArtisticIor(baseColor, F82, n, k);
+    ASSERT_TRUE(std::isfinite(n.x) && std::isfinite(k.x));
+    EXPECT_GT(glm::length(k), 0.0F) << "a reflective metal must have non-zero extinction";
+
+    float maxSat = 0.0F;
+    glm::vec2 prevChroma(0.0F);
+    float maxHueShift = 0.0F;
+    bool first = true;
+    for (const float thickness : {100.0F, 240.0F, 380.0F, 520.0F, 660.0F}) {
+        const glm::vec3 cond = thinFilmAiry(0.7F, true, baseColor, F82, n, k, thickness, 2.0F);
+        ASSERT_TRUE(std::isfinite(cond.x) && std::isfinite(cond.y) && std::isfinite(cond.z))
+            << "thickness=" << thickness;
+        EXPECT_GE(std::min({cond.x, cond.y, cond.z}), 0.0F);
+        EXPECT_LE(std::max({cond.x, cond.y, cond.z}), 1.2F);
+        maxSat = std::max(maxSat, saturation(cond));
+        const glm::vec2 ch = chroma(cond);
+        if (!first) {
+            maxHueShift = std::max(maxHueShift, glm::length(ch - prevChroma));
+        }
+        prevChroma = ch;
+        first = false;
+    }
+    // Vivid: the anodized sweep reaches a strongly saturated colour and shifts hue clearly.
+    EXPECT_GT(maxSat, 0.20F) << "conductor thin-film should be vividly coloured";
+    EXPECT_GT(maxHueShift, 0.03F) << "conductor thin-film hue should shift across the sweep";
 }
 
 // NOTE: GGX specular BRDF symmetry is tested at the shader level (shaders/bsdf.slang).
