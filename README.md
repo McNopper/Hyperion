@@ -51,7 +51,7 @@ It implements the [OpenPBR Surface v1.1](https://academysoftwarefoundation.githu
 - À trous wavelet denoiser pass
 - Headless render mode with PNG + EXR output
 
-### Material model — OpenPBR Surface v1.1
+### Material model — OpenPBR Surface v1.1.1
 All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.github.io/OpenPBR/) naming:
 
 | Layer | Parameters |
@@ -68,7 +68,15 @@ All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.githu
 
 Conductor reflectance uses the OpenPBR generalized-Schlick **F82-tint** model
 (`base_color` = F0, `specular_color` = the 82° tint); specular/coat microfacets
-use GGX with the spec's anisotropy remapping.
+use GGX with the spec's anisotropy remapping plus Turquin/Kulla-Conty multiple-scattering
+energy compensation.
+
+**Thin-film iridescence** is the spec model — a faithful port of MaterialX `mx_fresnel_airy`
+(Belcour & Barla 2017): a full s/p-polarized Airy summation with the spectral Gaussian
+sensitivity. For metals it uses the true **complex-IOR conductor phase** (with `(n,k)`
+recovered from `base_color` + `specular_color` via the Gulbrandsen 2014 artist-friendly
+mapping), so anodized metals show vivid, physically-correct interference colour; dielectric
+bases use the Schlick interface, and the two are blended by `base_metalness`.
 
 ### Color pipeline
 - Scene-referred rendering in a selectable **working color space**: linear **Rec.2020**
