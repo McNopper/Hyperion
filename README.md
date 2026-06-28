@@ -5,7 +5,7 @@ Vulkan path-tracer for OpenPBR.
 > *[Hyperion](https://en.wikipedia.org/wiki/Hyperion_(mythology)) — Titan of heavenly light, father of Helios, Selene and Eos.*
 
 Hyperion is a GPU path tracer built entirely on Vulkan 1.4 KHR ray tracing.  
-It implements the [OpenPBR Surface v1.1](https://academysoftwarefoundation.github.io/OpenPBR/) material model and outputs a physically correct, linearly encoded HDR frame every render call.
+It implements the [OpenPBR Surface v1.1.1](https://academysoftwarefoundation.github.io/OpenPBR/) material model and outputs a physically correct, linearly encoded HDR frame every render call.
 
 ---
 
