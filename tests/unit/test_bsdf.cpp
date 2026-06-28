@@ -48,7 +48,15 @@ constexpr float kMinSpecularF0 = 0.04F;
 }
 
 [[nodiscard]] float smithG2(glm::vec3 l, glm::vec3 v, float alpha) noexcept {
-    return smithG1(std::max(l.z, 0.0F), alpha) * smithG1(std::max(v.z, 0.0F), alpha);
+    // Height-correlated Smith masking-shadowing (Heitz 2014), matching the shader's
+    // GGX_G2 in Harmonia math.slang: 1 / (1 + Lambda(l) + Lambda(v)). This is the modern
+    // GGX form and is consistent with the MaterialX `mx_ggx_dir_albedo_analytic` fit used
+    // for multiple-scattering energy compensation. (Previously this oracle used the
+    // separable form G1(l)*G1(v), which diverged from the shader and from that fit at the
+    // grazing + high-roughness corner — surfaced by the V0 GGX-albedo conformance test.)
+    const float lambdaL = smithLambdaGgx(std::max(l.z, 0.0F), alpha);
+    const float lambdaV = smithLambdaGgx(std::max(v.z, 0.0F), alpha);
+    return 1.0F / (1.0F + lambdaL + lambdaV);
 }
 
 [[nodiscard]] float fresnelSchlick(float f0, float cosTheta) noexcept {
@@ -155,7 +163,10 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
     GpuMaterial mat{};
     mat.baseColorWeight = glm::vec4(1.0F);
     mat.baseMetalnessDiffRough = glm::vec4(0.0F);
-    mat.specularColorWeight = glm::vec4(0.04F);
+    // OpenPBR default specular: specular_color = (1,1,1), specular_weight = 1.0. NOTE: the 4th
+    // channel (.w) is specular_weight, NOT colour — it must be 1.0, not 0.04. (The dielectric F0
+    // ~0.04 comes from specular_ior=1.5 via iorToF0, multiplied by specular_color in evalBSDF.)
+    mat.specularColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
     mat.specularRoughAnisoIor = glm::vec4(0.2F, 0.0F, 1.5F, 0.0F);
     mat.transmissionColorWeight = glm::vec4(0.0F);
     mat.transmissionParams = glm::vec4(0.0F);
@@ -492,9 +503,12 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
 
     const float D = ggxD(NoH, alphaX);
     const float G = smithG2(wi, wo, alphaX);
-    const glm::vec3 F = glm::vec3(fresnelSchlick(F0.x, VoH));
-    const glm::vec3 tint = glm::mix(F0, F82, glm::vec3(1.0F) - glm::clamp(F, glm::vec3(0.0F), glm::vec3(1.0F)));
-    const glm::vec3 single = (D * G / std::max(4.0F * NoL * NoV, 1.0e-5F)) * tint;
+    // Generalized-Schlick F82 reflectance (matches the shader's fresnelF82). The earlier inline
+    // `mix(F0, F82, 1-F)` was a WRONG mirror: with specular_color (F82) = 1.0 it returned ~0.96
+    // reflectance even at normal incidence, turning every full-specular dielectric into a near
+    // mirror. (Masked until now because makeMaterial defaulted specular_weight to 0.04.)
+    const glm::vec3 F = tfFresnelF82(F0, F82, VoH);
+    const glm::vec3 single = (D * G / std::max(4.0F * NoL * NoV, 1.0e-5F)) * F;
     // GGX multiple-scattering energy compensation (matches Harmonia bsdf_shared.slang).
     const float alpha = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
     return single * ggxMultiScatterCompensation(F0, NoV, alpha);
@@ -663,6 +677,47 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     const float tanBeta =
         incidentIsSteeper ? (sinThetaI / std::max(wi.z, kEpsilon)) : (sinThetaO / std::max(wo.z, kEpsilon));
     return (albedo * Math::kInvPi) * (a + (b * maxCos * sinAlpha * tanBeta));
+}
+
+// ── V0 OpenPBR numeric-conformance helpers ───────────────────────────────────────────────
+// Hyperion's BSDF is the assumed ground truth; OpenPBR's reference implementation is MaterialX
+// (`mx_*` genGLSL). These helpers let us validate the analytic MaterialX fits we ported (e.g.
+// `ggxDirAlbedo` = `mx_ggx_dir_albedo_analytic`) against ground-truth Monte-Carlo integration
+// of the actual BRDFs, and to check physical properties (reciprocity, energy normalization).
+
+// Heitz 2018 "Sampling the GGX Distribution of Visible Normals" (isotropic).
+[[nodiscard]] glm::vec3 sampleGgxVndf(const glm::vec3& Ve, float alpha, float u1, float u2) noexcept {
+    const glm::vec3 Vh = glm::normalize(glm::vec3(alpha * Ve.x, alpha * Ve.y, Ve.z));
+    const float lensq = (Vh.x * Vh.x) + (Vh.y * Vh.y);
+    const glm::vec3 T1 = (lensq > 0.0F) ? (glm::vec3(-Vh.y, Vh.x, 0.0F) / std::sqrt(lensq))
+                                        : glm::vec3(1.0F, 0.0F, 0.0F);
+    const glm::vec3 T2 = glm::cross(Vh, T1);
+    const float r = std::sqrt(u1);
+    const float phi = Math::k2Pi * u2;
+    const float t1 = r * std::cos(phi);
+    float t2 = r * std::sin(phi);
+    const float s = 0.5F * (1.0F + Vh.z);
+    t2 = ((1.0F - s) * std::sqrt(std::max(0.0F, 1.0F - (t1 * t1)))) + (s * t2);
+    const glm::vec3 Nh = (t1 * T1) + (t2 * T2) + (std::sqrt(std::max(0.0F, 1.0F - (t1 * t1) - (t2 * t2))) * Vh);
+    return glm::normalize(glm::vec3(alpha * Nh.x, alpha * Nh.y, std::max(0.0F, Nh.z)));
+}
+
+// Single-scatter GGX microfacet reflection term (no MS compensation), scalar F0 — used to verify
+// Helmholtz reciprocity of the underlying physical lobe.
+[[nodiscard]] float singleScatterMicrofacet(float f0, const glm::vec3& wo, const glm::vec3& wi, float alpha) noexcept {
+    if (wo.z <= 0.0F || wi.z <= 0.0F) {
+        return 0.0F;
+    }
+    const glm::vec3 h = glm::normalize(wo + wi);
+    const float NoH = std::max(h.z, 0.0F);
+    const float VoH = std::max(glm::dot(wo, h), 0.0F);
+    if (NoH <= 0.0F || VoH <= 0.0F) {
+        return 0.0F;
+    }
+    const float D = ggxD(NoH, alpha);
+    const float G = smithG2(wi, wo, alpha);
+    const float F = fresnelSchlick(f0, VoH);
+    return (D * G * F) / std::max(4.0F * wi.z * wo.z, 1.0e-5F);
 }
 
 // NOTE: ggxSpecularBrdf (and tests for GGX BRDF symmetry / reciprocity) live in
@@ -994,3 +1049,227 @@ TEST(Bsdf, ThinFilmConductorIsVividAndFinite) {
 
 // NOTE: GGX specular BRDF symmetry is tested at the shader level (shaders/bsdf.slang).
 // A C++ version will be added when Slang → C++ codegen is wired into the build.
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// V0 — OpenPBR numeric-conformance suite.
+//
+// Hyperion's BSDF is the assumed ground truth that Theia is aligned to; OpenPBR's canonical
+// reference implementation is MaterialX (`mx_*` genGLSL). These tests make "OpenPBR-compliant"
+// measurable: they validate the analytic MaterialX fits we ported against ground-truth
+// Monte-Carlo integration of the actual BRDFs, and assert physical-correctness properties
+// (Helmholtz reciprocity, LTC energy normalization, hemispherical energy conservation) that
+// the white-furnace-only checks cannot prove on their own.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+TEST(Bsdf, OpenPbrV0_GgxDirAlbedoFitMatchesVndfIntegration) {
+    // `ggxDirAlbedo` is a verbatim port of MaterialX `mx_ggx_dir_albedo_analytic` (F0=F90=1).
+    // Validate that fit against the directional albedo obtained by Monte-Carlo integrating the
+    // single-scatter GGX BRDF (F=1) with VNDF sampling, whose estimator is mean(G2/G1). This is
+    // exactly the energy the H2 multiple-scattering compensation recovers, so the fit must track
+    // the true integral across the (NdotV, roughness) domain.
+    std::mt19937 rng(0xC0FFEEU);
+    std::uniform_real_distribution<float> dist(0.0F, 1.0F);
+    constexpr int kSamples = 200000;
+    for (const float nDotV : {0.2F, 0.5F, 0.85F}) {
+        const glm::vec3 V(std::sqrt(std::max(0.0F, 1.0F - (nDotV * nDotV))), 0.0F, nDotV);
+        for (const float alpha : {0.3F, 0.6F, 1.0F}) {
+            const float g1v = smithG1(V.z, alpha);
+            double sum = 0.0;
+            for (int i = 0; i < kSamples; ++i) {
+                const glm::vec3 H = sampleGgxVndf(V, alpha, dist(rng), dist(rng));
+                const glm::vec3 L = glm::normalize((2.0F * glm::dot(V, H) * H) - V);
+                if (L.z <= 0.0F || g1v <= 0.0F) {
+                    continue; // shadowed sample contributes zero to the albedo
+                }
+                sum += static_cast<double>(smithG2(L, V, alpha) / g1v);
+            }
+            const double integrated = sum / static_cast<double>(kSamples);
+            const double fit = static_cast<double>(ggxDirAlbedo(nDotV, alpha));
+            EXPECT_NEAR(fit, integrated, 0.03) << "NdotV=" << nDotV << " alpha=" << alpha;
+        }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_GeneralizedSchlickF82IsF0AtNormalAndRisesToGrazing) {
+    // Anchor the OpenPBR generalized-Schlick F82 conductor Fresnel (tfFresnelF82, mirroring the
+    // shader's fresnelF82). Physical anchors that must hold:
+    //  * at normal incidence reflectance == F0 (a dielectric with F0=0.04 reflects ~4%, NOT ~96%);
+    //  * it rises monotonically toward ~1 at grazing;
+    //  * with an F82 tint < 1 it dips below plain Schlick near the 82-degree peak.
+    // (Regression guard for the fixed oracle Fresnel, which previously used mix(F0,F82,1-F) and
+    // returned ~0.96 at normal for F82=1, turning full-specular dielectrics into mirrors.)
+    const glm::vec3 f0(0.04F);
+    const glm::vec3 whiteTint(1.0F);
+    const glm::vec3 atNormal = tfFresnelF82(f0, whiteTint, 1.0F);
+    EXPECT_NEAR(atNormal.x, 0.04F, 2.0e-3F);
+    const glm::vec3 atGrazing = tfFresnelF82(f0, whiteTint, 0.02F);
+    EXPECT_GT(atGrazing.x, 0.8F);
+    // Monotonic rise from normal to grazing.
+    float prev = -1.0F;
+    for (const float mu : {1.0F, 0.8F, 0.6F, 0.4F, 0.2F, 0.05F}) {
+        const float v = tfFresnelF82(f0, whiteTint, mu).x;
+        EXPECT_GE(v, prev - 1.0e-3F) << "mu=" << mu;
+        prev = v;
+    }
+    // F82 tint < 1 must reduce reflectance near the 82-degree peak (mu = cos(82deg) ~ 0.1392)
+    // relative to a pure-white (F82=1) edge.
+    const float muPeak = std::cos(82.0F * Math::kPi / 180.0F);
+    const glm::vec3 tinted = tfFresnelF82(f0, glm::vec3(0.5F), muPeak);
+    const glm::vec3 untinted = tfFresnelF82(f0, whiteTint, muPeak);
+    EXPECT_LT(tinted.x, untinted.x);
+}
+
+TEST(Bsdf, OpenPbrV0_ZeltnerSheenLtcIsEnergyNormalized) {
+    // The Zeltner LTC sheen lobe (`zeltnerSheenBrdfCos`, a faithful port of MaterialX
+    // `mx_zeltner_sheen_brdf`) is a linear-cosine transform that must integrate to 1 over the
+    // hemisphere. That normalization is precisely what makes evalSheen's directional albedo
+    // equal `sheenDirAlbedo` — the value used for the view-dependent base-layer attenuation. If
+    // the LTC coefficient fits (aInv/bInv) were wrong, this integral would drift from 1.
+    std::mt19937 rng(0x5EED01U);
+    std::uniform_real_distribution<float> dist(0.0F, 1.0F);
+    constexpr int kSamples = 400000;
+    for (const float nDotV : {0.15F, 0.5F, 0.9F}) {
+        const glm::vec3 V(std::sqrt(std::max(0.0F, 1.0F - (nDotV * nDotV))), 0.0F, nDotV);
+        for (const float rough : {0.2F, 0.5F, 0.9F}) {
+            double sum = 0.0;
+            for (int i = 0; i < kSamples; ++i) {
+                const glm::vec3 L = sampleUniformHemisphere(dist(rng), dist(rng));
+                // zeltnerSheenBrdfCos already includes the cosine; uniform-hemisphere pdf = 1/2pi.
+                sum += static_cast<double>(zeltnerSheenBrdfCos(V, L, rough)) * (2.0 * Math::kPi);
+            }
+            const double integral = sum / static_cast<double>(kSamples);
+            EXPECT_NEAR(integral, 1.0, 0.04) << "NdotV=" << nDotV << " rough=" << rough;
+        }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_EonDiffuseIsReciprocal) {
+    // Helmholtz reciprocity: the OpenPBR base diffuse (EON/Fujii) BRDF must satisfy
+    // f(wo,wi) == f(wi,wo) for all directions and roughnesses.
+    const glm::vec3 color(0.82F, 0.51F, 0.33F);
+    const std::array<glm::vec3, 4> dirs = {
+        glm::normalize(glm::vec3(0.30F, 0.10F, 0.95F)),
+        glm::normalize(glm::vec3(-0.55F, 0.40F, 0.73F)),
+        glm::normalize(glm::vec3(0.12F, -0.62F, 0.78F)),
+        glm::normalize(glm::vec3(0.70F, 0.20F, 0.68F)),
+    };
+    for (const float rough : {0.0F, 0.4F, 1.0F}) {
+        for (const glm::vec3& wo : dirs) {
+            for (const glm::vec3& wi : dirs) {
+                const glm::vec3 a = evalDiffuse(color, rough, wo, wi);
+                const glm::vec3 b = evalDiffuse(color, rough, wi, wo);
+                EXPECT_NEAR(a.x, b.x, 1.0e-4F) << "rough=" << rough;
+                EXPECT_NEAR(a.y, b.y, 1.0e-4F) << "rough=" << rough;
+                EXPECT_NEAR(a.z, b.z, 1.0e-4F) << "rough=" << rough;
+            }
+        }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_SingleScatterMicrofacetIsReciprocal) {
+    // Helmholtz reciprocity of the single-scatter GGX specular lobe: D and the NoL*NoV
+    // denominator are symmetric, Smith G2 is symmetric, and V·H == L·H for the half-vector, so
+    // f(wo,wi) == f(wi,wo). (The Kulla-Conty/Turquin MS compensation is intentionally applied
+    // per-view and is excluded here; that single-sided form is the MaterialX/Filament approach.)
+    const std::array<glm::vec3, 4> dirs = {
+        glm::normalize(glm::vec3(0.25F, 0.15F, 0.96F)),
+        glm::normalize(glm::vec3(-0.50F, 0.35F, 0.79F)),
+        glm::normalize(glm::vec3(0.40F, -0.45F, 0.80F)),
+        glm::normalize(glm::vec3(0.62F, 0.10F, 0.78F)),
+    };
+    for (const float f0 : {0.04F, 0.5F, 0.95F}) {
+        for (const float alpha : {0.05F, 0.3F, 0.8F}) {
+            for (const glm::vec3& wo : dirs) {
+                for (const glm::vec3& wi : dirs) {
+                    const float a = singleScatterMicrofacet(f0, wo, wi, alpha);
+                    const float b = singleScatterMicrofacet(f0, wi, wo, alpha);
+                    EXPECT_NEAR(a, b, std::max(1.0e-4F, 1.0e-3F * std::abs(a)))
+                        << "f0=" << f0 << " alpha=" << alpha;
+                }
+            }
+        }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_SingleLobeMaterialsConserveEnergy) {
+    // OpenPBR energy conservation for single-dominant-lobe materials — the regimes the current
+    // additive lobe composition handles correctly: a pure conductor (metalness=1, with H2
+    // multiple-scattering compensation), a pure dielectric diffuse base (specular off), and a
+    // pure fuzz/sheen surface. White-furnace reflectance must stay within [0, ~1]. NOTE: the
+    // per-view Turquin/Kulla-Conty MS compensation can overshoot ~15% at grazing on a smooth
+    // high-albedo conductor (it conserves on the hemispherical average, not per-view), so the
+    // bound is 1.20 rather than 1.0.
+    const std::array<glm::vec3, 3> views = {
+        glm::normalize(glm::vec3(0.0F, 0.0F, 1.0F)),
+        glm::normalize(glm::vec3(0.45F, 0.0F, 0.89F)),
+        glm::normalize(glm::vec3(0.70F, 0.20F, 0.68F)),
+    };
+    std::vector<GpuMaterial> mats;
+    for (const float rough : {0.1F, 0.5F, 0.9F}) {
+        GpuMaterial metal = makeMaterial();          // pure conductor
+        metal.baseColorWeight = glm::vec4(0.9F, 0.85F, 0.8F, 1.0F);
+        metal.baseMetalnessDiffRough = glm::vec4(1.0F, 0.4F, 0.0F, 0.0F);
+        metal.specularColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+        metal.specularRoughAnisoIor = glm::vec4(rough, 0.0F, 1.5F, 0.0F);
+        mats.push_back(metal);
+
+        GpuMaterial diff = makeMaterial();           // pure diffuse dielectric (specular off)
+        diff.baseColorWeight = glm::vec4(0.9F, 0.85F, 0.8F, 1.0F);
+        diff.baseMetalnessDiffRough = glm::vec4(0.0F, rough, 0.0F, 0.0F);
+        diff.specularColorWeight = glm::vec4(0.0F, 0.0F, 0.0F, 0.0F);
+        mats.push_back(diff);
+    }
+    GpuMaterial fuzz = makeMaterial();               // pure fuzz/sheen
+    fuzz.baseColorWeight = glm::vec4(0.0F, 0.0F, 0.0F, 0.0F);
+    fuzz.specularColorWeight = glm::vec4(0.0F);
+    fuzz.fuzzColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+    fuzz.fuzzRoughPad = glm::vec4(0.4F, 0.0F, 0.0F, 0.0F);
+    mats.push_back(fuzz);
+
+    for (size_t i = 0; i < mats.size(); ++i) {
+        for (const glm::vec3& wo : views) {
+            const double energy = estimateWhiteFurnaceEnergy(mats[i], wo, 20000);
+            ASSERT_TRUE(std::isfinite(energy)) << "material " << i;
+            EXPECT_GE(energy, 0.0) << "material " << i;
+            EXPECT_LE(energy, 1.20) << "material " << i;
+        }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_LayeredMaterialsConserveEnergy) {
+    // OpenPBR energy conservation for LAYERED materials: a full-weight dielectric specular over
+    // the diffuse base, and a clear-coat over a dielectric or metal base. With the correct
+    // generalized-Schlick F82 Fresnel (the lobes are Fresnel-weighted), the additive composition
+    // stays close to energy-conserving — the gross over-reflection previously observed was an
+    // artifact of a wrong oracle Fresnel, not the real BSDF. White-furnace reflectance must stay
+    // within [0, 1.25] (per-view MS-compensation headroom). When proper statistical layering (H4)
+    // lands, tighten this toward 1.0.
+    const std::array<glm::vec3, 3> views = {
+        glm::normalize(glm::vec3(0.0F, 0.0F, 1.0F)),
+        glm::normalize(glm::vec3(0.45F, 0.0F, 0.89F)),
+        glm::normalize(glm::vec3(0.70F, 0.20F, 0.68F)),
+    };
+    for (const float metalness : {0.0F, 1.0F}) {
+        for (const float rough : {0.1F, 0.5F, 0.9F}) {
+            for (const bool coated : {false, true}) {
+                GpuMaterial mat = makeMaterial();
+                mat.baseColorWeight = glm::vec4(0.9F, 0.85F, 0.8F, 1.0F);
+                mat.baseMetalnessDiffRough = glm::vec4(metalness, 0.4F, 0.0F, 0.0F);
+                mat.specularColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F); // full dielectric specular
+                mat.specularRoughAnisoIor = glm::vec4(rough, 0.0F, 1.5F, 0.0F);
+                if (coated) {
+                    mat.coatColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+                    mat.coatRoughAnisoIorDark = glm::vec4(0.1F, 0.0F, 1.5F, 0.25F);
+                }
+                for (const glm::vec3& wo : views) {
+                    const double energy = estimateWhiteFurnaceEnergy(mat, wo, 20000);
+                    ASSERT_TRUE(std::isfinite(energy)) << "metalness=" << metalness << " rough="
+                                                       << rough << " coated=" << coated;
+                    EXPECT_GE(energy, 0.0);
+                    EXPECT_LE(energy, 1.25) << "metalness=" << metalness << " rough=" << rough
+                                            << " coated=" << coated;
+                }
+            }
+        }
+    }
+}
