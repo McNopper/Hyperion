@@ -414,6 +414,58 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     return std::clamp(a + b, 0.0F, 1.0F);
 }
 
+// OpenPBR sheen oracle — Zeltner et al. 2022 LTC sheen, mirroring Harmonia bsdf_shared.slang
+// (which is a faithful port of MaterialX mx_microfacet_sheen.glsl; analytic fits, no LUT).
+[[nodiscard]] float sheenDirAlbedo(float cosTheta, float roughness) noexcept {
+    const float x = std::clamp(cosTheta, 0.0F, 1.0F);
+    const float y = std::clamp(roughness, 0.01F, 1.0F);
+    const float s = y * (0.0206607F + 1.58491F * y) / (0.0379424F + y * (1.32227F + y));
+    const float m = y * (-0.193854F + y * (-1.14885F + y * (1.7932F - 0.95943F * y * y))) / (0.046391F + y);
+    const float o = y * (0.000654023F + (-0.0207818F + 0.119681F * y) * y) / (1.26264F + y * (-1.92021F + y));
+    const float g = std::exp(-0.5F * ((x - m) / s) * ((x - m) / s)) / (s * std::sqrt(2.0F * Math::kPi)) + o;
+    return std::clamp(g, 0.0F, 1.0F);
+}
+
+[[nodiscard]] float sheenLtcAInv(float x, float y) noexcept {
+    return (2.58126F * x + 0.813703F * y) * y / (1.0F + 0.310327F * x * x + 2.60994F * x * y);
+}
+
+[[nodiscard]] float sheenLtcBInv(float x, float y) noexcept {
+    return std::sqrt(std::max(0.0F, 1.0F - x)) * (y - 1.0F) * y * y * y
+         / (0.0000254053F + 1.71228F * x - 1.71506F * x * y + 1.34174F * y * y);
+}
+
+[[nodiscard]] float zeltnerSheenBrdfCos(const glm::vec3& wo, const glm::vec3& wi, float roughness) noexcept {
+    const float nDotV = std::clamp(wo.z, 1.0e-4F, 1.0F);
+    glm::vec3 w;
+    glm::vec3 xAxis(wo.x, wo.y, 0.0F);
+    const float lenSq = glm::dot(xAxis, xAxis);
+    if (lenSq > 1.0e-8F) {
+        xAxis *= (1.0F / std::sqrt(lenSq));
+        const glm::vec3 yAxis(-xAxis.y, xAxis.x, 0.0F);
+        w = glm::vec3(glm::dot(xAxis, wi), glm::dot(yAxis, wi), wi.z);
+    } else {
+        w = wi;
+    }
+    const float aInv = sheenLtcAInv(nDotV, roughness);
+    const float bInv = sheenLtcBInv(nDotV, roughness);
+    const glm::vec3 wo2(aInv * w.x + bInv * w.z, aInv * w.y, w.z);
+    const float l2 = glm::dot(wo2, wo2);
+    const float dO = std::max(wo2.z, 0.0F) * Math::kInvPi;
+    const float k = aInv / std::max(l2, 1.0e-8F);
+    return dO * k * k;
+}
+
+[[nodiscard]] glm::vec3 evalSheen(const glm::vec3& color, float roughness, const glm::vec3& wo, const glm::vec3& wi) noexcept {
+    if (wo.z <= 0.0F || wi.z <= 0.0F) {
+        return glm::vec3(0.0F);
+    }
+    const float r = std::clamp(roughness, 0.01F, 1.0F);
+    const float dirAlbedo = sheenDirAlbedo(wo.z, r);
+    const float brdfCos = zeltnerSheenBrdfCos(wo, wi, r);
+    return color * (dirAlbedo * brdfCos / std::max(wi.z, 1.0e-4F));
+}
+
 [[nodiscard]] glm::vec3 ggxMultiScatterCompensation(const glm::vec3& F0, float nDotV, float alpha) noexcept {
     const float Ess = ggxDirAlbedo(nDotV, alpha);
     return glm::vec3(1.0F) + F0 * ((1.0F / std::max(Ess, 1.0e-3F)) - 1.0F);
@@ -515,7 +567,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
 
     LobeWeights weights = computeLobeWeights(mat);
     const float baseLayerScale = (1.0F / std::max(1.0F, coatEta * coatEta * weights.coatWeight * coatDark)) *
-                                 (1.0F - 0.35F * weights.fuzzWeight);
+                                 (1.0F - sheenDirAlbedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight);
 
     glm::vec3 result(0.0F);
     if (wiL.z > 0.0F && woL.z > 0.0F) {
@@ -539,7 +591,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
                       evalReflectionMicrofacet(glossyF0, glossyF82, woL, wiL, alphaX, alphaY);
         }
         if (weights.fuzzWeight > 0.0F) {
-            result += weights.fuzzWeight * (fuzzColor * Math::kInvPi);
+            result += weights.fuzzWeight * evalSheen(fuzzColor, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F), woL, wiL);
         }
     }
 
@@ -761,6 +813,37 @@ TEST(Bsdf, OpenPbrWhiteFurnaceRepresentativeConfigsStayBounded) {
         EXPECT_GE(energy, 0.0);
         EXPECT_LE(energy, 1.10);
     }
+}
+
+TEST(Bsdf, ZeltnerSheenIsEnergyConservingAndGrazingPeaked) {
+    // OpenPBR sheen = Zeltner 2022 LTC. Two spec-faithful properties must hold:
+    // (1) the directional albedo (energy reflected by the fuzz layer) stays within [0,1] for
+    //     all view angles / roughnesses, so it can validly attenuate the layers beneath it;
+    // (2) sheen is a grazing-angle (retroreflective) effect: directional albedo at a grazing
+    //     view must exceed that at normal incidence for a typical fuzz roughness.
+    for (float r : {0.1F, 0.4F, 0.7F, 1.0F}) {
+        for (float c : {0.05F, 0.3F, 0.6F, 0.95F}) {
+            const float a = sheenDirAlbedo(c, r);
+            EXPECT_GE(a, 0.0F);
+            EXPECT_LE(a, 1.0F);
+        }
+    }
+    const float grazing = sheenDirAlbedo(0.05F, 0.4F);
+    const float normalInc = sheenDirAlbedo(0.98F, 0.4F);
+    EXPECT_GT(grazing, normalInc);
+
+    // The sheen lobe itself must be finite, non-negative, and brighter at a grazing exit than
+    // at a near-normal exit for a fixed grazing view (the velvet rim-light signature).
+    const glm::vec3 wo = glm::normalize(glm::vec3(0.9F, 0.0F, 0.2F));
+    const glm::vec3 wiGrazing = glm::normalize(glm::vec3(-0.9F, 0.0F, 0.15F));
+    const glm::vec3 wiNormal = glm::normalize(glm::vec3(0.0F, 0.0F, 1.0F));
+    const glm::vec3 white(1.0F);
+    const glm::vec3 sGrazing = evalSheen(white, 0.4F, wo, wiGrazing);
+    const glm::vec3 sNormal = evalSheen(white, 0.4F, wo, wiNormal);
+    EXPECT_TRUE(std::isfinite(sGrazing.x) && std::isfinite(sGrazing.y) && std::isfinite(sGrazing.z));
+    EXPECT_GE(sGrazing.x, 0.0F);
+    EXPECT_GE(sNormal.x, 0.0F);
+    EXPECT_GT(sGrazing.x, sNormal.x);
 }
 
 TEST(Bsdf, GgxDirAlbedoLosesEnergyWithRoughness) {

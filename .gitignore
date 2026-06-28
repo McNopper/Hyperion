@@ -77,3 +77,7 @@ shaders/math_gen.cpp
 shaders/math_gen.hpp
 shaders/math_export_test.cpp
 shaders/math_export_test.slang
+
+# Local scratch render dirs (never commit)
+parity_check/
+sheen_check/

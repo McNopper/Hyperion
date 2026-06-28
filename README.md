@@ -78,6 +78,12 @@ recovered from `base_color` + `specular_color` via the Gulbrandsen 2014 artist-f
 mapping), so anodized metals show vivid, physically-correct interference colour; dielectric
 bases use the Schlick interface, and the two are blended by `base_metalness`.
 
+**Fuzz/sheen** is the OpenPBR spec model — a faithful port of MaterialX's Zeltner et al. 2022
+"Practical Multiple-Scattering Sheen Using Linearly Transformed Cosines". The LTC coefficients
+and the sheen directional albedo are closed-form analytic fits (no lookup table), and that
+directional albedo also drives the physically-correct, view-dependent darkening of the layers
+beneath the fuzz.
+
 ### Color pipeline
 - Scene-referred rendering in a selectable **working color space**: linear **Rec.2020**
   (default) or linear **Rec.709**, chosen per scene via `working_color_space` in the
