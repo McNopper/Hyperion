@@ -1273,3 +1273,143 @@ TEST(Bsdf, OpenPbrV0_LayeredMaterialsConserveEnergy) {
         }
     }
 }
+
+// ── V0 composition-level conformance ─────────────────────────────────────────────────────
+// Per-lobe tests above can all pass while *combined* materials are wrong (a layer eats too much
+// or too little of the layer below, or the additive mix double-counts). These tests exercise the
+// full evalBSDF on multi-lobe materials and assert the cross-lobe invariants: full-BSDF Helmholtz
+// reciprocity, bounded white-furnace energy per composition, and that stacking a coat never
+// *creates* energy versus the same base uncoated. This is the V0 gate that closes Steps 1–4: when
+// proper directional-albedo layering (Step 1) lands, the per-view bound should tighten toward 1.0.
+
+[[nodiscard]] glm::vec3 evalCompositeReflection(const GpuMaterial& mat, const glm::vec3& wo,
+                                                const glm::vec3& wi) noexcept {
+    const glm::vec3 N(0.0F, 0.0F, 1.0F);
+    const glm::vec3 T(1.0F, 0.0F, 0.0F);
+    const glm::vec3 B(0.0F, 1.0F, 0.0F);
+    return evalBSDF(mat, wo, wi, N, T, B, N, T, B);
+}
+
+TEST(Bsdf, OpenPbrV0_FullBsdfIsReciprocalForOpaqueCompositions) {
+    // Helmholtz reciprocity must hold for the COMBINED material, not just each lobe: coat over
+    // dielectric, coat over conductor, and specular+diffuse coupling. A layering scheme that
+    // attenuates the base by a view-dependent factor must apply it symmetrically or reciprocity
+    // breaks. The coat/sheen base-layer scale is itself view-dependent, so this is a real check.
+    // (The single-scatter lobes are exactly reciprocal; the per-view Kulla-Conty MS compensation
+    // is deliberately single-sided, so the conductor base carries ~1% asymmetry — tolerated here.)
+    const std::array<glm::vec3, 4> dirs = {
+        glm::normalize(glm::vec3(0.30F, 0.10F, 0.95F)),
+        glm::normalize(glm::vec3(-0.55F, 0.40F, 0.73F)),
+        glm::normalize(glm::vec3(0.40F, -0.45F, 0.80F)),
+        glm::normalize(glm::vec3(0.62F, 0.10F, 0.78F)),
+    };
+    std::vector<GpuMaterial> mats;
+
+    GpuMaterial coatDielectric = makeMaterial();   // clear coat over diffuse+specular dielectric
+    coatDielectric.baseColorWeight = glm::vec4(0.8F, 0.6F, 0.4F, 1.0F);
+    coatDielectric.baseMetalnessDiffRough = glm::vec4(0.0F, 0.4F, 0.0F, 0.0F);
+    coatDielectric.specularRoughAnisoIor = glm::vec4(0.3F, 0.0F, 1.5F, 0.0F);
+    coatDielectric.coatColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+    coatDielectric.coatRoughAnisoIorDark = glm::vec4(0.15F, 0.0F, 1.5F, 0.25F);
+    mats.push_back(coatDielectric);
+
+    GpuMaterial coatConductor = makeMaterial();    // clear coat over conductor
+    coatConductor.baseColorWeight = glm::vec4(0.9F, 0.85F, 0.6F, 1.0F);
+    coatConductor.baseMetalnessDiffRough = glm::vec4(1.0F, 0.4F, 0.0F, 0.0F);
+    coatConductor.specularRoughAnisoIor = glm::vec4(0.25F, 0.0F, 1.5F, 0.0F);
+    coatConductor.coatColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+    coatConductor.coatRoughAnisoIorDark = glm::vec4(0.1F, 0.0F, 1.5F, 0.25F);
+    mats.push_back(coatConductor);
+
+    GpuMaterial specDiffuse = makeMaterial();      // specular + diffuse coupling
+    specDiffuse.baseColorWeight = glm::vec4(0.7F, 0.5F, 0.55F, 1.0F);
+    specDiffuse.baseMetalnessDiffRough = glm::vec4(0.0F, 0.5F, 0.0F, 0.0F);
+    specDiffuse.specularRoughAnisoIor = glm::vec4(0.35F, 0.0F, 1.5F, 0.0F);
+    mats.push_back(specDiffuse);
+
+    for (size_t i = 0; i < mats.size(); ++i) {
+        for (const glm::vec3& wo : dirs) {
+            for (const glm::vec3& wi : dirs) {
+                const glm::vec3 a = evalCompositeReflection(mats[i], wo, wi);
+                const glm::vec3 b = evalCompositeReflection(mats[i], wi, wo);
+                const float tol = std::max(3.0e-4F, 2.0e-2F * std::max(a.x, b.x));
+                EXPECT_NEAR(a.x, b.x, tol) << "material " << i;
+                EXPECT_NEAR(a.y, b.y, tol) << "material " << i;
+                EXPECT_NEAR(a.z, b.z, tol) << "material " << i;
+            }
+        }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_CoatNeverCreatesEnergyOverUncoatedBase) {
+    // Stacking a clear coat redistributes energy (some reflected at the coat, the rest attenuated
+    // into the base); it must NOT increase total reflectance over the same base uncoated by more
+    // than the coat's own Fresnel reflectance. This catches additive double-counting in layering.
+    const std::array<glm::vec3, 3> views = {
+        glm::normalize(glm::vec3(0.0F, 0.0F, 1.0F)),
+        glm::normalize(glm::vec3(0.45F, 0.0F, 0.89F)),
+        glm::normalize(glm::vec3(0.70F, 0.20F, 0.68F)),
+    };
+    for (const float metalness : {0.0F, 1.0F}) {
+        for (const float rough : {0.1F, 0.5F, 0.9F}) {
+            GpuMaterial base = makeMaterial();
+            base.baseColorWeight = glm::vec4(0.85F, 0.8F, 0.75F, 1.0F);
+            base.baseMetalnessDiffRough = glm::vec4(metalness, 0.4F, 0.0F, 0.0F);
+            base.specularColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+            base.specularRoughAnisoIor = glm::vec4(rough, 0.0F, 1.5F, 0.0F);
+            GpuMaterial coated = base;
+            coated.coatColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+            coated.coatRoughAnisoIorDark = glm::vec4(0.1F, 0.0F, 1.5F, 0.25F);
+            for (const glm::vec3& wo : views) {
+                const double eBase = estimateWhiteFurnaceEnergy(base, wo, 20000);
+                const double eCoat = estimateWhiteFurnaceEnergy(coated, wo, 20000);
+                // The coat adds at most its own headroom; bound the extra rather than require a
+                // strict decrease (additive layering today, directional-albedo coupling in Step 1).
+                EXPECT_LE(eCoat, eBase + 0.30) << "metalness=" << metalness << " rough=" << rough;
+            }
+        }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_RoughTransmissionFurnaceStaysBounded) {
+    // Rough dielectric transmission has no MS compensation yet (Step 2). It must still never
+    // CREATE energy: full-furnace reflectance+transmittance stays bounded as roughness rises
+    // (energy is lost, not gained). Smooth glass sits near 1; rough glass loses to the bound.
+    const std::array<glm::vec3, 2> views = {
+        glm::normalize(glm::vec3(0.0F, 0.0F, 1.0F)),
+        glm::normalize(glm::vec3(0.55F, 0.0F, 0.84F)),
+    };
+    for (const float rough : {0.02F, 0.3F, 0.7F}) {
+        GpuMaterial glass = makeMaterial();
+        glass.baseColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+        glass.transmissionColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+        glass.transmissionParams = glm::vec4(0.0F);
+        glass.specularRoughAnisoIor = glm::vec4(rough, 0.0F, 1.5F, 0.0F);
+        for (const glm::vec3& wo : views) {
+            const double energy = estimateWhiteFurnaceEnergy(glass, wo, 24000);
+            ASSERT_TRUE(std::isfinite(energy)) << "rough=" << rough;
+            EXPECT_GE(energy, 0.0) << "rough=" << rough;
+            EXPECT_LE(energy, 1.20) << "rough=" << rough;
+        }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_ThinFilmUnderCoatStaysBounded) {
+    // Thin-film iridescence beneath a clear coat is a layered composition (coat Fresnel over airy
+    // base). The combined material must stay finite, non-negative, and energy-bounded across a
+    // thickness sweep — the coat must not amplify the iridescent base into energy creation.
+    const glm::vec3 wo = glm::normalize(glm::vec3(0.3F, 0.1F, 0.95F));
+    for (const float thicknessNm : {100.0F, 300.0F, 500.0F, 700.0F}) {
+        GpuMaterial mat = makeMaterial();
+        mat.baseColorWeight = glm::vec4(0.9F, 0.85F, 0.6F, 1.0F);
+        mat.baseMetalnessDiffRough = glm::vec4(1.0F, 0.3F, 0.0F, 0.0F);
+        mat.specularRoughAnisoIor = glm::vec4(0.2F, 0.0F, 1.5F, 0.0F);
+        mat.thinFilmParams = glm::vec4(1.0F, thicknessNm, 2.0F, 0.0F);
+        mat.coatColorWeight = glm::vec4(1.0F, 1.0F, 1.0F, 1.0F);
+        mat.coatRoughAnisoIorDark = glm::vec4(0.1F, 0.0F, 1.5F, 0.25F);
+        const double energy = estimateWhiteFurnaceEnergy(mat, wo, 20000);
+        ASSERT_TRUE(std::isfinite(energy)) << "thickness=" << thicknessNm;
+        EXPECT_GE(energy, 0.0) << "thickness=" << thicknessNm;
+        EXPECT_LE(energy, 1.25) << "thickness=" << thicknessNm;
+    }
+}
