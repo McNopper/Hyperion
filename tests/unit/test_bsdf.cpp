@@ -580,7 +580,16 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     const float alphaY = std::sqrt((alpha.y * alpha.y) + (coatAlpha.y * coatAlpha.y * std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F)));
 
     LobeWeights weights = computeLobeWeights(mat);
-    const float baseLayerScale = (1.0F / std::max(1.0F, coatEta * coatEta * weights.coatWeight * coatDark)) *
+    // OpenPBR layer stacking: substrate transmittance through coat = (1 - coat·E_coat(NoV));
+    // dielectric diffuse/subsurface sit under the specular layer (1 - E_spec). Mirrors
+    // bsdf_shared.slang coatBaseTransmittance + fresnelGgxDirAlbedo.
+    const float coatAlphaAvg = std::sqrt(std::max(coatAlpha.x * coatAlpha.y, 1.0e-8F));
+    const float coatF0v = std::pow((coatEta - 1.0F) / (coatEta + 1.0F), 2.0F);
+    auto coatTrans = [&](float nDotV) {
+        const float E = std::clamp(coatF0v + (1.0F - coatF0v) * mx_ggx_dir_albedo(nDotV, coatAlphaAvg), 0.0F, 1.0F);
+        return std::clamp(1.0F - weights.coatWeight * coatDark * E, 0.0F, 1.0F);
+    };
+    const float baseLayerScale = std::sqrt(coatTrans(woL.z) * coatTrans(wiL.z)) *
                                  (1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight);
 
     glm::vec3 result(0.0F);
@@ -588,9 +597,13 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
         const glm::vec3 dielectricF0 = iorToF0(eta);
         glm::vec3 glossyF0 = glm::mix(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
         const glm::vec3 glossyF82 = specColor;
+        const float specF0 = Math::luminance(dielectricF0 * specColor);
+        const float specAlphaAvg = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
+        auto underSpec = [&](float c) { return std::clamp(1.0F - std::clamp(specF0 + (1.0F - specF0) * mx_ggx_dir_albedo(c, specAlphaAvg), 0.0F, 1.0F), 0.0F, 1.0F); };
+        const float diffuseUnderSpec = underSpec(woL.z) * underSpec(wiL.z);
 
         if (weights.diffuseWeight > 0.0F) {
-            result += baseLayerScale * weights.diffuseWeight * evalDiffuse(baseColor, diffuseRough, woL, wiL);
+            result += baseLayerScale * diffuseUnderSpec * weights.diffuseWeight * evalDiffuse(baseColor, diffuseRough, woL, wiL);
         }
         if (weights.subsurfaceWeight > 0.0F) {
             const float ssScale = std::max(mat.subsurfaceRadiusScale.w, 0.001F);
@@ -598,7 +611,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
                                                                                  mat.subsurfaceRadiusScale.y +
                                                                                  mat.subsurfaceRadiusScale.z)));
             const float ssReflScale = (mat.opacityFlagsPad.w > 0.5F) ? 1.0F : std::clamp(1.0F - ssAniso, 0.0F, 1.0F);
-            result += baseLayerScale * weights.subsurfaceWeight * ssReflScale * evalDiffuse(ssTint, std::clamp(0.25F + 0.5F * diffuseRough, 0.0F, 1.0F), woL, wiL);
+            result += baseLayerScale * diffuseUnderSpec * weights.subsurfaceWeight * ssReflScale * evalDiffuse(ssTint, std::clamp(0.25F + 0.5F * diffuseRough, 0.0F, 1.0F), woL, wiL);
         }
         if (weights.specularWeight > 0.0F || weights.metalWeight > 0.0F) {
             result += baseLayerScale * (weights.specularWeight + weights.metalWeight) *
@@ -1238,12 +1251,10 @@ TEST(Bsdf, OpenPbrV0_SingleLobeMaterialsConserveEnergy) {
 
 TEST(Bsdf, OpenPbrV0_LayeredMaterialsConserveEnergy) {
     // OpenPBR energy conservation for LAYERED materials: a full-weight dielectric specular over
-    // the diffuse base, and a clear-coat over a dielectric or metal base. With the correct
-    // generalized-Schlick F82 Fresnel (the lobes are Fresnel-weighted), the additive composition
-    // stays close to energy-conserving — the gross over-reflection previously observed was an
-    // artifact of a wrong oracle Fresnel, not the real BSDF. White-furnace reflectance must stay
-    // within [0, 1.25] (per-view MS-compensation headroom). When proper statistical layering (H4)
-    // lands, tighten this toward 1.0.
+    // the diffuse base, and a clear-coat over a dielectric or metal base. With Step 1's
+    // directional-albedo layer coupling (substrate attenuated by 1 - E_above, symmetric in
+    // NoV/NoL), the stack conserves: white-furnace reflectance stays within [0, 1.20] (per-view
+    // conductor MS-compensation headroom only). Tighter than the additive ~1.25 of v0.5.0.
     const std::array<glm::vec3, 3> views = {
         glm::normalize(glm::vec3(0.0F, 0.0F, 1.0F)),
         glm::normalize(glm::vec3(0.45F, 0.0F, 0.89F)),
@@ -1266,7 +1277,7 @@ TEST(Bsdf, OpenPbrV0_LayeredMaterialsConserveEnergy) {
                     ASSERT_TRUE(std::isfinite(energy)) << "metalness=" << metalness << " rough="
                                                        << rough << " coated=" << coated;
                     EXPECT_GE(energy, 0.0);
-                    EXPECT_LE(energy, 1.25) << "metalness=" << metalness << " rough=" << rough
+                    EXPECT_LE(energy, 1.20) << "metalness=" << metalness << " rough=" << rough
                                             << " coated=" << coated;
                 }
             }
@@ -1363,9 +1374,9 @@ TEST(Bsdf, OpenPbrV0_CoatNeverCreatesEnergyOverUncoatedBase) {
             for (const glm::vec3& wo : views) {
                 const double eBase = estimateWhiteFurnaceEnergy(base, wo, 20000);
                 const double eCoat = estimateWhiteFurnaceEnergy(coated, wo, 20000);
-                // The coat adds at most its own headroom; bound the extra rather than require a
-                // strict decrease (additive layering today, directional-albedo coupling in Step 1).
-                EXPECT_LE(eCoat, eBase + 0.30) << "metalness=" << metalness << " rough=" << rough;
+                // The coat replaces base energy (symmetric transmittance) instead of adding it,
+                // so coated must not exceed uncoated by more than the coat's own reflectance.
+                EXPECT_LE(eCoat, eBase + 0.15) << "metalness=" << metalness << " rough=" << rough;
             }
         }
     }
