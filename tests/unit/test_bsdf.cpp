@@ -196,7 +196,7 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
 }
 
 // ─── OpenPBR thin-film Airy (mirror of Harmonia bsdf_shared.slang mx_fresnel_airy) ───
-[[nodiscard]] glm::vec3 thinFilmSensitivity(float opd, glm::vec3 shift) noexcept {
+[[nodiscard]] glm::vec3 mx_eval_sensitivity(float opd, glm::vec3 shift) noexcept {
     const float phase = 2.0F * Math::kPi * opd;
     const glm::vec3 val(5.4856e-13F, 4.4201e-13F, 5.2481e-13F);
     const glm::vec3 pos(1.6810e+06F, 1.7953e+06F, 2.2084e+06F);
@@ -208,18 +208,18 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
     return xyz / 1.0685e-7F;
 }
 
-[[nodiscard]] glm::vec3 thinFilmXyzToRgb(glm::vec3 v) noexcept {
+[[nodiscard]] glm::vec3 mx_xyz_to_rgb(glm::vec3 v) noexcept {
     return glm::vec3(glm::dot(glm::vec3(2.3706743F, -0.9000405F, -0.4706338F), v),
                      glm::dot(glm::vec3(-0.5138850F, 1.4253036F, 0.0885814F), v),
                      glm::dot(glm::vec3(0.0052982F, -0.0146949F, 1.0093968F), v));
 }
 
-[[nodiscard]] glm::vec3 fresnel0ToIor(glm::vec3 f0) noexcept {
+[[nodiscard]] glm::vec3 mx_f0_to_ior(glm::vec3 f0) noexcept {
     const glm::vec3 s = glm::sqrt(glm::clamp(f0, glm::vec3(0.0F), glm::vec3(0.9999F)));
     return (glm::vec3(1.0F) + s) / glm::max(glm::vec3(1.0F) - s, glm::vec3(1.0e-4F));
 }
 
-[[nodiscard]] glm::vec3 tfFresnelF82(glm::vec3 F0, glm::vec3 F82, float cosTheta) noexcept {
+[[nodiscard]] glm::vec3 mx_fresnel_F82(glm::vec3 F0, glm::vec3 F82, float cosTheta) noexcept {
     constexpr float muBar = 1.0F / 7.0F;
     const float denom = muBar * std::pow(1.0F - muBar, 6.0F);
     const float mu = std::clamp(cosTheta, 0.0F, 1.0F);
@@ -229,7 +229,7 @@ void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, co
     return glm::clamp(fSchlick - a * mu * std::pow(1.0F - mu, 6.0F), glm::vec3(0.0F), glm::vec3(1.0F));
 }
 
-void mxArtisticIor(glm::vec3 reflectivity, glm::vec3 edgeColor, glm::vec3& ior, glm::vec3& extinction) noexcept {
+void mx_artistic_ior(glm::vec3 reflectivity, glm::vec3 edgeColor, glm::vec3& ior, glm::vec3& extinction) noexcept {
     const glm::vec3 r = glm::clamp(reflectivity, glm::vec3(0.0F), glm::vec3(0.99F));
     const glm::vec3 rSqrt = glm::sqrt(r);
     const glm::vec3 nMin = (glm::vec3(1.0F) - r) / (glm::vec3(1.0F) + r);
@@ -290,7 +290,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     phiP = atan2v(num, den);
 }
 
-[[nodiscard]] glm::vec3 thinFilmAiry(float cosTheta, bool isConductor, glm::vec3 F0, glm::vec3 F82, glm::vec3 nCond,
+[[nodiscard]] glm::vec3 mx_fresnel_airy(float cosTheta, bool isConductor, glm::vec3 F0, glm::vec3 F82, glm::vec3 nCond,
                                      glm::vec3 kCond, float tfThicknessNm, float tfIor) noexcept {
     const float eta1 = 1.0F;
     const float eta2 = std::max(tfIor, eta1);
@@ -314,10 +314,10 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
         tfConductorPolarized(cosTt, nCond / eta2, kCond / eta2, R23p, R23s);
         tfConductorPhasePolarized(cosTt, eta2, nCond, kCond, phi23p, phi23s);
     } else {
-        const glm::vec3 f = 0.5F * tfFresnelF82(F0, F82, cosTt);
+        const glm::vec3 f = 0.5F * mx_fresnel_F82(F0, F82, cosTt);
         R23p = f;
         R23s = f;
-        const glm::vec3 eta3 = fresnel0ToIor(F0);
+        const glm::vec3 eta3 = mx_f0_to_ior(F0);
         phi23p = glm::vec3(eta3.x < eta2 ? Math::kPi : 0.0F, eta3.y < eta2 ? Math::kPi : 0.0F,
                            eta3.z < eta2 ? Math::kPi : 0.0F);
         phi23s = phi23p;
@@ -340,7 +340,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     Cm = Rsp - glm::vec3(T121p);
     for (int m = 1; m <= 2; ++m) {
         Cm *= r123p;
-        Sm = 2.0F * thinFilmSensitivity(static_cast<float>(m) * opd,
+        Sm = 2.0F * mx_eval_sensitivity(static_cast<float>(m) * opd,
                                         static_cast<float>(m) * (phi23p + glm::vec3(phi21p)));
         I += Cm * Sm;
     }
@@ -350,19 +350,19 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     Cm = Rss - glm::vec3(T121s);
     for (int m = 1; m <= 2; ++m) {
         Cm *= r123s;
-        Sm = 2.0F * thinFilmSensitivity(static_cast<float>(m) * opd,
+        Sm = 2.0F * mx_eval_sensitivity(static_cast<float>(m) * opd,
                                         static_cast<float>(m) * (phi23s + glm::vec3(phi21s)));
         I += Cm * Sm;
     }
 
     I *= 0.5F;
-    return glm::clamp(thinFilmXyzToRgb(I), glm::vec3(0.0F), glm::vec3(1.0F));
+    return glm::clamp(mx_xyz_to_rgb(I), glm::vec3(0.0F), glm::vec3(1.0F));
 }
 
 // Schlick-base wrapper used by the dielectric thin-film tests below.
 [[nodiscard]] glm::vec3 thinFilmIridescentReflectance(glm::vec3 baseF0, float cosTheta1, float thicknessNm,
                                                       float filmIor) noexcept {
-    return thinFilmAiry(cosTheta1, false, baseF0, glm::vec3(1.0F), glm::vec3(0.0F), glm::vec3(0.0F), thicknessNm,
+    return mx_fresnel_airy(cosTheta1, false, baseF0, glm::vec3(1.0F), glm::vec3(0.0F), glm::vec3(0.0F), thicknessNm,
                         std::max(filmIor, 1.0F));
 }
 
@@ -406,7 +406,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     return (lobeSingle + lobeMS) * Math::kInvPi;
 }
 
-[[nodiscard]] float ggxDirAlbedo(float nDotV, float alpha) noexcept {
+[[nodiscard]] float mx_ggx_dir_albedo(float nDotV, float alpha) noexcept {
     const float x = std::clamp(nDotV, 0.0F, 1.0F);
     const float y = std::clamp(alpha, 0.0F, 1.0F);
     const float x2 = x * x;
@@ -427,7 +427,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
 
 // OpenPBR sheen oracle — Zeltner et al. 2022 LTC sheen, mirroring Harmonia bsdf_shared.slang
 // (which is a faithful port of MaterialX mx_microfacet_sheen.glsl; analytic fits, no LUT).
-[[nodiscard]] float sheenDirAlbedo(float cosTheta, float roughness) noexcept {
+[[nodiscard]] float mx_zeltner_sheen_dir_albedo(float cosTheta, float roughness) noexcept {
     const float x = std::clamp(cosTheta, 0.0F, 1.0F);
     const float y = std::clamp(roughness, 0.01F, 1.0F);
     const float s = y * (0.0206607F + 1.58491F * y) / (0.0379424F + y * (1.32227F + y));
@@ -437,16 +437,16 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     return std::clamp(g, 0.0F, 1.0F);
 }
 
-[[nodiscard]] float sheenLtcAInv(float x, float y) noexcept {
+[[nodiscard]] float mx_zeltner_sheen_ltc_aInv(float x, float y) noexcept {
     return (2.58126F * x + 0.813703F * y) * y / (1.0F + 0.310327F * x * x + 2.60994F * x * y);
 }
 
-[[nodiscard]] float sheenLtcBInv(float x, float y) noexcept {
+[[nodiscard]] float mx_zeltner_sheen_ltc_bInv(float x, float y) noexcept {
     return std::sqrt(std::max(0.0F, 1.0F - x)) * (y - 1.0F) * y * y * y
          / (0.0000254053F + 1.71228F * x - 1.71506F * x * y + 1.34174F * y * y);
 }
 
-[[nodiscard]] float zeltnerSheenBrdfCos(const glm::vec3& wo, const glm::vec3& wi, float roughness) noexcept {
+[[nodiscard]] float mx_zeltner_sheen_brdf(const glm::vec3& wo, const glm::vec3& wi, float roughness) noexcept {
     const float nDotV = std::clamp(wo.z, 1.0e-4F, 1.0F);
     glm::vec3 w;
     glm::vec3 xAxis(wo.x, wo.y, 0.0F);
@@ -458,8 +458,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     } else {
         w = wi;
     }
-    const float aInv = sheenLtcAInv(nDotV, roughness);
-    const float bInv = sheenLtcBInv(nDotV, roughness);
+    const float aInv = mx_zeltner_sheen_ltc_aInv(nDotV, roughness);
+    const float bInv = mx_zeltner_sheen_ltc_bInv(nDotV, roughness);
     const glm::vec3 wo2(aInv * w.x + bInv * w.z, aInv * w.y, w.z);
     const float l2 = glm::dot(wo2, wo2);
     const float dO = std::max(wo2.z, 0.0F) * Math::kInvPi;
@@ -472,13 +472,13 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
         return glm::vec3(0.0F);
     }
     const float r = std::clamp(roughness, 0.01F, 1.0F);
-    const float dirAlbedo = sheenDirAlbedo(wo.z, r);
-    const float brdfCos = zeltnerSheenBrdfCos(wo, wi, r);
+    const float dirAlbedo = mx_zeltner_sheen_dir_albedo(wo.z, r);
+    const float brdfCos = mx_zeltner_sheen_brdf(wo, wi, r);
     return color * (dirAlbedo * brdfCos / std::max(wi.z, 1.0e-4F));
 }
 
 [[nodiscard]] glm::vec3 ggxMultiScatterCompensation(const glm::vec3& F0, float nDotV, float alpha) noexcept {
-    const float Ess = ggxDirAlbedo(nDotV, alpha);
+    const float Ess = mx_ggx_dir_albedo(nDotV, alpha);
     return glm::vec3(1.0F) + F0 * ((1.0F / std::max(Ess, 1.0e-3F)) - 1.0F);
 }
 
@@ -503,11 +503,11 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
 
     const float D = ggxD(NoH, alphaX);
     const float G = smithG2(wi, wo, alphaX);
-    // Generalized-Schlick F82 reflectance (matches the shader's fresnelF82). The earlier inline
+    // Generalized-Schlick F82 reflectance (matches the shader's mx_fresnel_F82). The earlier inline
     // `mix(F0, F82, 1-F)` was a WRONG mirror: with specular_color (F82) = 1.0 it returned ~0.96
     // reflectance even at normal incidence, turning every full-specular dielectric into a near
     // mirror. (Masked until now because makeMaterial defaulted specular_weight to 0.04.)
-    const glm::vec3 F = tfFresnelF82(F0, F82, VoH);
+    const glm::vec3 F = mx_fresnel_F82(F0, F82, VoH);
     const glm::vec3 single = (D * G / std::max(4.0F * NoL * NoV, 1.0e-5F)) * F;
     // GGX multiple-scattering energy compensation (matches Harmonia bsdf_shared.slang).
     const float alpha = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
@@ -581,7 +581,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
 
     LobeWeights weights = computeLobeWeights(mat);
     const float baseLayerScale = (1.0F / std::max(1.0F, coatEta * coatEta * weights.coatWeight * coatDark)) *
-                                 (1.0F - sheenDirAlbedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight);
+                                 (1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight);
 
     glm::vec3 result(0.0F);
     if (wiL.z > 0.0F && woL.z > 0.0F) {
@@ -682,7 +682,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
 // ── V0 OpenPBR numeric-conformance helpers ───────────────────────────────────────────────
 // Hyperion's BSDF is the assumed ground truth; OpenPBR's reference implementation is MaterialX
 // (`mx_*` genGLSL). These helpers let us validate the analytic MaterialX fits we ported (e.g.
-// `ggxDirAlbedo` = `mx_ggx_dir_albedo_analytic`) against ground-truth Monte-Carlo integration
+// `mx_ggx_dir_albedo` = `mx_ggx_dir_albedo_analytic`) against ground-truth Monte-Carlo integration
 // of the actual BRDFs, and to check physical properties (reciprocity, energy normalization).
 
 // Heitz 2018 "Sampling the GGX Distribution of Visible Normals" (isotropic).
@@ -878,13 +878,13 @@ TEST(Bsdf, ZeltnerSheenIsEnergyConservingAndGrazingPeaked) {
     //     view must exceed that at normal incidence for a typical fuzz roughness.
     for (float r : {0.1F, 0.4F, 0.7F, 1.0F}) {
         for (float c : {0.05F, 0.3F, 0.6F, 0.95F}) {
-            const float a = sheenDirAlbedo(c, r);
+            const float a = mx_zeltner_sheen_dir_albedo(c, r);
             EXPECT_GE(a, 0.0F);
             EXPECT_LE(a, 1.0F);
         }
     }
-    const float grazing = sheenDirAlbedo(0.05F, 0.4F);
-    const float normalInc = sheenDirAlbedo(0.98F, 0.4F);
+    const float grazing = mx_zeltner_sheen_dir_albedo(0.05F, 0.4F);
+    const float normalInc = mx_zeltner_sheen_dir_albedo(0.98F, 0.4F);
     EXPECT_GT(grazing, normalInc);
 
     // The sheen lobe itself must be finite, non-negative, and brighter at a grazing exit than
@@ -906,9 +906,9 @@ TEST(Bsdf, GgxDirAlbedoLosesEnergyWithRoughness) {
     // roughness rises (more energy lost to inter-microfacet shadowing). This is the energy
     // the multiple-scattering compensation recovers.
     constexpr float kNoV = 0.8F;
-    const float smooth = ggxDirAlbedo(kNoV, 0.02F);
-    const float mid = ggxDirAlbedo(kNoV, 0.25F);
-    const float rough = ggxDirAlbedo(kNoV, 0.9F);
+    const float smooth = mx_ggx_dir_albedo(kNoV, 0.02F);
+    const float mid = mx_ggx_dir_albedo(kNoV, 0.25F);
+    const float rough = mx_ggx_dir_albedo(kNoV, 0.9F);
 
     EXPECT_GE(smooth, 0.0F);
     EXPECT_LE(smooth, 1.0F);
@@ -1020,7 +1020,7 @@ TEST(Bsdf, ThinFilmConductorIsVividAndFinite) {
     const glm::vec3 baseColor(0.55F, 0.56F, 0.58F); // neutral chromium-like metal
     const glm::vec3 F82(1.0F);
     glm::vec3 n, k;
-    mxArtisticIor(baseColor, F82, n, k);
+    mx_artistic_ior(baseColor, F82, n, k);
     ASSERT_TRUE(std::isfinite(n.x) && std::isfinite(k.x));
     EXPECT_GT(glm::length(k), 0.0F) << "a reflective metal must have non-zero extinction";
 
@@ -1029,7 +1029,7 @@ TEST(Bsdf, ThinFilmConductorIsVividAndFinite) {
     float maxHueShift = 0.0F;
     bool first = true;
     for (const float thickness : {100.0F, 240.0F, 380.0F, 520.0F, 660.0F}) {
-        const glm::vec3 cond = thinFilmAiry(0.7F, true, baseColor, F82, n, k, thickness, 2.0F);
+        const glm::vec3 cond = mx_fresnel_airy(0.7F, true, baseColor, F82, n, k, thickness, 2.0F);
         ASSERT_TRUE(std::isfinite(cond.x) && std::isfinite(cond.y) && std::isfinite(cond.z))
             << "thickness=" << thickness;
         EXPECT_GE(std::min({cond.x, cond.y, cond.z}), 0.0F);
@@ -1062,7 +1062,7 @@ TEST(Bsdf, ThinFilmConductorIsVividAndFinite) {
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
 TEST(Bsdf, OpenPbrV0_GgxDirAlbedoFitMatchesVndfIntegration) {
-    // `ggxDirAlbedo` is a verbatim port of MaterialX `mx_ggx_dir_albedo_analytic` (F0=F90=1).
+    // `mx_ggx_dir_albedo` is a verbatim port of MaterialX `mx_ggx_dir_albedo_analytic` (F0=F90=1).
     // Validate that fit against the directional albedo obtained by Monte-Carlo integrating the
     // single-scatter GGX BRDF (F=1) with VNDF sampling, whose estimator is mean(G2/G1). This is
     // exactly the energy the H2 multiple-scattering compensation recovers, so the fit must track
@@ -1084,15 +1084,15 @@ TEST(Bsdf, OpenPbrV0_GgxDirAlbedoFitMatchesVndfIntegration) {
                 sum += static_cast<double>(smithG2(L, V, alpha) / g1v);
             }
             const double integrated = sum / static_cast<double>(kSamples);
-            const double fit = static_cast<double>(ggxDirAlbedo(nDotV, alpha));
+            const double fit = static_cast<double>(mx_ggx_dir_albedo(nDotV, alpha));
             EXPECT_NEAR(fit, integrated, 0.03) << "NdotV=" << nDotV << " alpha=" << alpha;
         }
     }
 }
 
 TEST(Bsdf, OpenPbrV0_GeneralizedSchlickF82IsF0AtNormalAndRisesToGrazing) {
-    // Anchor the OpenPBR generalized-Schlick F82 conductor Fresnel (tfFresnelF82, mirroring the
-    // shader's fresnelF82). Physical anchors that must hold:
+    // Anchor the OpenPBR generalized-Schlick F82 conductor Fresnel (mx_fresnel_F82, mirroring the
+    // shader's mx_fresnel_F82). Physical anchors that must hold:
     //  * at normal incidence reflectance == F0 (a dielectric with F0=0.04 reflects ~4%, NOT ~96%);
     //  * it rises monotonically toward ~1 at grazing;
     //  * with an F82 tint < 1 it dips below plain Schlick near the 82-degree peak.
@@ -1100,30 +1100,30 @@ TEST(Bsdf, OpenPbrV0_GeneralizedSchlickF82IsF0AtNormalAndRisesToGrazing) {
     // returned ~0.96 at normal for F82=1, turning full-specular dielectrics into mirrors.)
     const glm::vec3 f0(0.04F);
     const glm::vec3 whiteTint(1.0F);
-    const glm::vec3 atNormal = tfFresnelF82(f0, whiteTint, 1.0F);
+    const glm::vec3 atNormal = mx_fresnel_F82(f0, whiteTint, 1.0F);
     EXPECT_NEAR(atNormal.x, 0.04F, 2.0e-3F);
-    const glm::vec3 atGrazing = tfFresnelF82(f0, whiteTint, 0.02F);
+    const glm::vec3 atGrazing = mx_fresnel_F82(f0, whiteTint, 0.02F);
     EXPECT_GT(atGrazing.x, 0.8F);
     // Monotonic rise from normal to grazing.
     float prev = -1.0F;
     for (const float mu : {1.0F, 0.8F, 0.6F, 0.4F, 0.2F, 0.05F}) {
-        const float v = tfFresnelF82(f0, whiteTint, mu).x;
+        const float v = mx_fresnel_F82(f0, whiteTint, mu).x;
         EXPECT_GE(v, prev - 1.0e-3F) << "mu=" << mu;
         prev = v;
     }
     // F82 tint < 1 must reduce reflectance near the 82-degree peak (mu = cos(82deg) ~ 0.1392)
     // relative to a pure-white (F82=1) edge.
     const float muPeak = std::cos(82.0F * Math::kPi / 180.0F);
-    const glm::vec3 tinted = tfFresnelF82(f0, glm::vec3(0.5F), muPeak);
-    const glm::vec3 untinted = tfFresnelF82(f0, whiteTint, muPeak);
+    const glm::vec3 tinted = mx_fresnel_F82(f0, glm::vec3(0.5F), muPeak);
+    const glm::vec3 untinted = mx_fresnel_F82(f0, whiteTint, muPeak);
     EXPECT_LT(tinted.x, untinted.x);
 }
 
 TEST(Bsdf, OpenPbrV0_ZeltnerSheenLtcIsEnergyNormalized) {
-    // The Zeltner LTC sheen lobe (`zeltnerSheenBrdfCos`, a faithful port of MaterialX
+    // The Zeltner LTC sheen lobe (`mx_zeltner_sheen_brdf`, a faithful port of MaterialX
     // `mx_zeltner_sheen_brdf`) is a linear-cosine transform that must integrate to 1 over the
     // hemisphere. That normalization is precisely what makes evalSheen's directional albedo
-    // equal `sheenDirAlbedo` — the value used for the view-dependent base-layer attenuation. If
+    // equal `mx_zeltner_sheen_dir_albedo` — the value used for the view-dependent base-layer attenuation. If
     // the LTC coefficient fits (aInv/bInv) were wrong, this integral would drift from 1.
     std::mt19937 rng(0x5EED01U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
@@ -1134,8 +1134,8 @@ TEST(Bsdf, OpenPbrV0_ZeltnerSheenLtcIsEnergyNormalized) {
             double sum = 0.0;
             for (int i = 0; i < kSamples; ++i) {
                 const glm::vec3 L = sampleUniformHemisphere(dist(rng), dist(rng));
-                // zeltnerSheenBrdfCos already includes the cosine; uniform-hemisphere pdf = 1/2pi.
-                sum += static_cast<double>(zeltnerSheenBrdfCos(V, L, rough)) * (2.0 * Math::kPi);
+                // mx_zeltner_sheen_brdf already includes the cosine; uniform-hemisphere pdf = 1/2pi.
+                sum += static_cast<double>(mx_zeltner_sheen_brdf(V, L, rough)) * (2.0 * Math::kPi);
             }
             const double integral = sum / static_cast<double>(kSamples);
             EXPECT_NEAR(integral, 1.0, 0.04) << "NdotV=" << nDotV << " rough=" << rough;
