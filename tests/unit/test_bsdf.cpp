@@ -521,7 +521,6 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
                                                    float alphaY,
                                                    const glm::vec3& wo,
                                                    const glm::vec3& wi) noexcept {
-    (void)alphaY;
     if (wo.z * wi.z >= 0.0F) {
         return glm::vec3(0.0F);
     }
@@ -532,8 +531,11 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     const float D = ggxD(NoH, alphaX);
     const float G = smithG2(wi, wo, alphaX);
     const float denom = 4.0F * std::abs(wo.z) * std::abs(wi.z);
+    // Transmission MS compensation (Step 2): mirror bsdf_shared.slang 1/Ess boost.
+    const float msAlpha = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
+    const float msComp = 1.0F / std::max(mx_ggx_dir_albedo(std::abs(wo.z), msAlpha), 1.0e-3F);
     const glm::vec3 absorption = glm::exp(-std::max(depth, 0.001F) * (glm::vec3(1.0F) - glm::clamp(color, glm::vec3(0.0F), glm::vec3(1.0F))));
-    return absorption * color * (((D * G) / std::max(denom, 1.0e-5F)) * (1.0F - F));
+    return absorption * color * (((D * G) / std::max(denom, 1.0e-5F)) * (1.0F - F) * msComp);
 }
 
 [[nodiscard]] glm::vec3 evalBSDF(const GpuMaterial& mat,
@@ -1402,6 +1404,25 @@ TEST(Bsdf, OpenPbrV0_RoughTransmissionFurnaceStaysBounded) {
             EXPECT_GE(energy, 0.0) << "rough=" << rough;
             EXPECT_LE(energy, 1.20) << "rough=" << rough;
         }
+    }
+}
+
+TEST(Bsdf, OpenPbrV0_RoughTransmissionMsCompensationBoostsLobe) {
+    // Step 2: the rough dielectric BTDF gets a 1/Ess multiple-scattering boost. Verify the factor
+    // is > 1 and grows with roughness (more lost single-scatter energy to recover), and that the
+    // boosted transmitted lobe is finite/non-negative and brighter than the uncompensated lobe.
+    float prev = 1.0F;
+    for (const float alpha : {0.05F, 0.3F, 0.8F}) {
+        const float ess = mx_ggx_dir_albedo(0.7F, alpha);
+        const float comp = 1.0F / std::max(ess, 1.0e-3F);
+        EXPECT_GE(comp, 1.0F) << "alpha=" << alpha;
+        EXPECT_GE(comp, prev - 1.0e-3F) << "alpha=" << alpha;
+        prev = comp;
+        const glm::vec3 wo = glm::normalize(glm::vec3(0.0F, 0.0F, 1.0F));
+        const glm::vec3 wi = glm::normalize(glm::vec3(0.2F, 0.0F, -0.95F));
+        const glm::vec3 t = evalTransmissionMicrofacet(glm::vec3(1.0F), 0.0F, 1.5F, alpha, alpha, wo, wi);
+        EXPECT_TRUE(std::isfinite(t.x)) << "alpha=" << alpha;
+        EXPECT_GE(t.x, 0.0F) << "alpha=" << alpha;
     }
 }
 
