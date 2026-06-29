@@ -585,10 +585,9 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     // OpenPBR layer stacking: substrate transmittance through coat = (1 - coat·E_coat(NoV));
     // dielectric diffuse/subsurface sit under the specular layer (1 - E_spec). Mirrors
     // bsdf_shared.slang coatBaseTransmittance + fresnelGgxDirAlbedo.
-    const float coatAlphaAvg = std::sqrt(std::max(coatAlpha.x * coatAlpha.y, 1.0e-8F));
     const float coatF0v = std::pow((coatEta - 1.0F) / (coatEta + 1.0F), 2.0F);
     auto coatTrans = [&](float nDotV) {
-        const float E = std::clamp(coatF0v + (1.0F - coatF0v) * mx_ggx_dir_albedo(nDotV, coatAlphaAvg), 0.0F, 1.0F);
+        const float E = std::clamp(coatF0v + (1.0F - coatF0v) * std::pow(1.0F - std::clamp(nDotV, 0.0F, 1.0F), 5.0F), 0.0F, 1.0F);
         return std::clamp(1.0F - weights.coatWeight * coatDark * E, 0.0F, 1.0F);
     };
     const float baseLayerScale = std::sqrt(coatTrans(woL.z) * coatTrans(wiL.z)) *
@@ -600,8 +599,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
         glm::vec3 glossyF0 = glm::mix(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
         const glm::vec3 glossyF82 = specColor;
         const float specF0 = Math::luminance(dielectricF0 * specColor);
-        const float specAlphaAvg = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
-        auto underSpec = [&](float c) { return std::clamp(1.0F - std::clamp(specF0 + (1.0F - specF0) * mx_ggx_dir_albedo(c, specAlphaAvg), 0.0F, 1.0F), 0.0F, 1.0F); };
+        auto underSpec = [&](float c) { return std::clamp(1.0F - std::clamp(specF0 + (1.0F - specF0) * std::pow(1.0F - std::clamp(c, 0.0F, 1.0F), 5.0F), 0.0F, 1.0F), 0.0F, 1.0F); };
         const float diffuseUnderSpec = underSpec(woL.z) * underSpec(wiL.z);
 
         if (weights.diffuseWeight > 0.0F) {
