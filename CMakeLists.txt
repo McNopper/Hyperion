@@ -25,7 +25,7 @@ add_compile_definitions(VK_NO_PROTOTYPES)
 # development against working copies, override FETCHCONTENT_SOURCE_DIR_AETHER /
 # FETCHCONTENT_SOURCE_DIR_HARMONIA.
 # Aether is declared first so Harmonia reuses this same declaration (dedup by
-# name); both pin v0.1.0.
+# name). Aether is pinned v0.5.0; Harmonia is pinned v0.6.0.
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
