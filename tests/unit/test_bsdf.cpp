@@ -587,15 +587,19 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     const float alphaY = alpha.y;
 
     LobeWeights weights = computeLobeWeights(mat);
-    // OpenPBR layer stacking: substrate transmittance through coat = (1 - coat·E_coat(NoV));
-    // dielectric diffuse/subsurface sit under the specular layer (1 - E_spec). Mirrors
-    // bsdf_shared.slang coatBaseTransmittance + fresnelGgxDirAlbedo.
+    // G1 coat darkening (spec base_darkening) + G2 coat_color absorption — per-channel,
+    // view-independent multiply. Mirrors bsdf_shared.slang openpbrCoatDarkening +
+    // openpbrCoatColorAttenuation.
     const float coatF0v = std::pow((coatEta - 1.0F) / (coatEta + 1.0F), 2.0F);
-    auto coatTrans = [&](float nDotV) {
-        const float E = std::clamp(coatF0v + (1.0F - coatF0v) * std::pow(1.0F - std::clamp(nDotV, 0.0F, 1.0F), 5.0F), 0.0F, 1.0F);
-        return std::clamp(1.0F - weights.coatWeight * coatDark * E, 0.0F, 1.0F);
-    };
-    const float baseLayerScale = std::sqrt(coatTrans(woL.z) * coatTrans(wiL.z)) *
+    const float Kcoat = 1.0F - (1.0F - coatF0v) / std::max(coatEta * coatEta, 1.0e-4F);
+    const glm::vec3 Emetal = baseColor * std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F);
+    const glm::vec3 Edielectric = glm::mix(baseColor, subsurfaceColor, std::clamp(mat.subsurfaceColorWeight.w, 0.0F, 1.0F));
+    const glm::vec3 Ebase = glm::clamp(glm::mix(Edielectric, Emetal, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F)), glm::vec3(0.0F), glm::vec3(1.0F));
+    const glm::vec3 darkening = glm::mix(glm::vec3(1.0F),
+        glm::vec3(1.0F - Kcoat) / glm::max(glm::vec3(1.0F) - Ebase * Kcoat, glm::vec3(1.0e-4F)),
+        std::clamp(weights.coatWeight * coatDark, 0.0F, 1.0F));
+    const glm::vec3 coatAtten = glm::mix(glm::vec3(1.0F), coatColor, std::clamp(weights.coatWeight, 0.0F, 1.0F));
+    const glm::vec3 baseLayerScale = darkening * coatAtten *
                                  (1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight);
 
     glm::vec3 result(0.0F);

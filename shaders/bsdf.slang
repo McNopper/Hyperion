@@ -51,12 +51,16 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     bool glassMode;
     computeLobeWeights(mat, diffuseWeight, subsurfaceWeight, specularWeight, metalWeight, transmissionWeight, coatWeight, fuzzWeight, diffuseTransWeight, mirrorMode, glassMode);
 
-    // OpenPBR layer stacking: substrate transmittance through coat = (1 - coat·E_coat); applied
-    // symmetrically on entry (NoV) and exit (NoL) so the coupling stays reciprocal. Sheen
-    // attenuates beneath it by its own directional albedo.
-    float coatAlphaAvg = safeSqrt(coatAlphaX * coatAlphaY);
-    float baseLayerScale = safeSqrt(coatBaseTransmittance(woL.z, coatWeight * coatDark, coatEta, coatAlphaAvg) *
-                                    coatBaseTransmittance(wiL.z, coatWeight * coatDark, coatEta, coatAlphaAvg));
+    // OpenPBR coat darkening (G1, spec `base_darkening`) + coat_color absorption (G2,
+    // `coat_attenuation`) applied to the whole base substrate — both are per-channel MULTIPLIES
+    // (view-independent → inherently reciprocal), replacing the old view-dependent
+    // coatBaseTransmittance. Ebase is the spec base-albedo estimate. Fuzz (topmost) then
+    // attenuates the base by its directional albedo.
+    float3 Emetal = baseColor * saturate(mat.specularColorWeight.w);
+    float3 Edielectric = lerp(baseColor, subsurfaceColor, saturate(mat.subsurfaceColorWeight.w));
+    float3 Ebase = lerp(Edielectric, Emetal, saturate(mat.baseMetalnessDiffRough.x));
+    float3 baseLayerScale = openpbrCoatDarkening(Ebase, coatEta, coatWeight, coatDark)
+                          * openpbrCoatColorAttenuation(coatColor, coatWeight);
     baseLayerScale *= 1.0 - mx_zeltner_sheen_dir_albedo(woL.z, saturate(mat.fuzzRoughPad.x)) * fuzzWeight;
 
     float3 result = 0.0.xxx;
