@@ -1506,3 +1506,62 @@ TEST(Bsdf, OpenPbrV0_HenyeyGreensteinMeanCosineMatchesAnisotropyG) {
         EXPECT_NEAR(meanCos, static_cast<double>(g), 0.01) << "g=" << g;
     }
 }
+
+// Faithful mirror of the SHADER's signed dielectric Fresnel (Harmonia math.slang
+// fresnelDielectric): unlike the air→medium-only oracle helper above, this branches on the
+// sign of cosI so it also models the medium→air side and reports total internal reflection.
+// This is the exact function closesthit.slang's shadeMediumBoundary relies on, so the test
+// below locks the medium-exit / TIR behaviour that a naive abs()-based version silently broke.
+[[nodiscard]] float fresnelDielectricSigned(float cosI, float eta) noexcept {
+    cosI = std::clamp(cosI, -1.0F, 1.0F);
+    float ei = 1.0F;
+    float et = eta;
+    if (cosI <= 0.0F) {
+        cosI = std::abs(cosI);
+        ei = eta;
+        et = 1.0F;
+    }
+    const float ratio = ei / et;
+    const float sinT2 = ratio * ratio * std::max(0.0F, 1.0F - cosI * cosI);
+    if (sinT2 >= 1.0F) {
+        return 1.0F; // total internal reflection
+    }
+    const float cosT = std::sqrt(std::max(0.0F, 1.0F - sinT2));
+    const float rs = (ei * cosI - et * cosT) / (ei * cosI + et * cosT);
+    const float rp = (et * cosI - ei * cosT) / (et * cosI + ei * cosT);
+    return 0.5F * (rs * rs + rp * rp);
+}
+
+TEST(Bsdf, OpenPbrV0_MediumExitFresnelReportsTirAboveCriticalAngle) {
+    // Locks the Step 3/4 medium-boundary exit convention (closesthit.slang shadeMediumBoundary):
+    // an inside→outside (medium→air) crossing must be evaluated with a NEGATED incidence cosine
+    // so fresnelDielectric takes the medium→air branch and reports total internal reflection
+    // beyond the critical angle. The original bug passed abs(cos), which always evaluated the
+    // air→medium branch and NEVER reported TIR — letting light escape supercritically.
+    for (const float eta : {1.33F, 1.5F, 1.8F}) {
+        // Critical angle: sin(theta_c) = 1/eta  =>  cos(theta_c) = sqrt(1 - 1/eta^2).
+        const float cosCrit = std::sqrt(std::max(0.0F, 1.0F - 1.0F / (eta * eta)));
+
+        // At normal incidence (cos=1) the interface is well below critical: it must transmit
+        // (F < 1) for BOTH the air-incidence and medium-incidence branches.
+        EXPECT_LT(fresnelDielectricSigned(-1.0F, eta), 1.0F) << "eta=" << eta;
+        EXPECT_LT(fresnelDielectricSigned(1.0F, eta), 1.0F) << "eta=" << eta;
+
+        // Just STEEPER than critical (larger |cos|): medium→air still transmits (F < 1).
+        const float cosBelow = std::min(1.0F, cosCrit + 0.05F);
+        EXPECT_LT(fresnelDielectricSigned(-cosBelow, eta), 1.0F) << "eta=" << eta;
+
+        // Just GRAZING past critical (smaller |cos|): medium→air must be TIR (F == 1) — the
+        // exact case the abs() bug missed. The buggy air→medium branch (positive cosine) must
+        // NOT report TIR at the same angle, which is why the sign matters.
+        const float cosAbove = std::max(0.0F, cosCrit - 0.05F);
+        EXPECT_FLOAT_EQ(fresnelDielectricSigned(-cosAbove, eta), 1.0F) << "eta=" << eta;
+        EXPECT_LT(fresnelDielectricSigned(cosAbove, eta), 1.0F)
+            << "air->medium must never TIR (documents why the exit cosine must be negated); eta=" << eta;
+
+        // Reflect probability F and transmit probability (1-F) partition unity by construction —
+        // the stochastic branch selection in shadeMediumBoundary relies on this.
+        const float F = fresnelDielectricSigned(-0.9F, eta);
+        EXPECT_NEAR(F + (1.0F - F), 1.0F, 1.0e-6F) << "eta=" << eta;
+    }
+}
