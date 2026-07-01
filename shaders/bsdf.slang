@@ -430,12 +430,39 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             if (all(abs(wiRefract) < 1.0e-6.xxx)) {
                 // Total internal reflection -> specular reflect (still a delta event).
                 wiRefract = reflect(-woL, mD);
+                sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
+                float3 absorptionR = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - effectiveTransColor(mat)));
+                sample.weight = effectiveTransColor(mat) * absorptionR * invPLobe;
+                sample.pdf = 1.0;
+                sample.isDelta = true;
+                return sample;
             }
             sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
-            float3 absorptionD = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - effectiveTransColor(mat)));
-            sample.weight = effectiveTransColor(mat) * absorptionD * invPLobe;
             sample.pdf = 1.0;
             sample.isDelta = true;
+            // Step 4 (bounded slice): when transmission_scatter is significant, replace the
+            // local-tint approximation (effectiveTransColor) with a REAL volumetric random
+            // walk, reusing Step 3's medium-walk infrastructure. The EXISTING
+            // transmission_color/transmission_depth absorption is applied ONCE at entry,
+            // unchanged; transmission_scatter/anisotropy then drive genuine in-medium
+            // scattering events instead of a fixed local tint. Nested-dielectric IOR
+            // stacking and a fully distance-dependent absorption model remain future work
+            // (documented gap, not silently dropped) — this material's absorption is still
+            // a single per-entry Beer-Lambert evaluation, not integrated over the actual
+            // path length inside the medium.
+            float scatterLum = luminance(saturate3(mat.transmissionScatter.xyz));
+            if (scatterLum > 1.0e-3) {
+                float3 absorptionS = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - saturate3(mat.transmissionColorWeight.xyz)));
+                sample.weight = saturate3(mat.transmissionColorWeight.xyz) * absorptionS * invPLobe;
+                sample.entersMedium = true;
+                sample.mediumSigmaT = 1.0 / max(mat.transmissionParams.x, 0.001);
+                sample.mediumAlbedo = saturate3(mat.transmissionScatter.xyz);
+                sample.mediumG = clamp(mat.transmissionScatter.w, -0.95, 0.95);
+                sample.mediumEta = eta;
+                return sample;
+            }
+            float3 absorptionD = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - effectiveTransColor(mat)));
+            sample.weight = effectiveTransColor(mat) * absorptionD * invPLobe;
             return sample;
         }
 
