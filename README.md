@@ -63,13 +63,20 @@ All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.githu
 | Emission | `emission_luminance`, `emission_color` |
 | Thin-film | `thin_film_weight`, `thin_film_thickness`, `thin_film_ior` |
 | Transmission | `transmission_weight`, `transmission_color`, `transmission_depth` |
-| Subsurface | `subsurface_weight`, `subsurface_color`, `subsurface_radius`, `subsurface_scale` |
+| Subsurface | `subsurface_weight`, `subsurface_color`, `subsurface_radius`, `subsurface_radius_scale`, `subsurface_scatter_anisotropy` |
 | Geometry | `geometry_opacity` |
 
 Conductor reflectance uses the OpenPBR generalized-Schlick **F82-tint** model
 (`base_color` = F0, `specular_color` = the 82° tint); specular/coat microfacets
 use GGX with the spec's anisotropy remapping plus Turquin/Kulla-Conty multiple-scattering
-energy compensation.
+energy compensation on both the reflection **and** the rough-transmission lobes (so rough
+glass does not lose energy).
+
+**Layer stacking** follows OpenPBR's directional-albedo coupling rather than a linear blend:
+each lower layer is attenuated by the directional albedo of the layer above it
+(`R_out = R_top + (1 − E_top)·R_base`). The coat darkens the substrate by `1 − coat·E_coat`
+and the dielectric diffuse/subsurface base sits under the specular layer (`1 − E_spec`); both
+are applied symmetrically in view/light so the stack stays reciprocal and energy-conserving.
 
 **Thin-film iridescence** is the spec model — a faithful port of MaterialX `mx_fresnel_airy`
 (Belcour & Barla 2017): a full s/p-polarized Airy summation with the spectral Gaussian
@@ -83,6 +90,20 @@ bases use the Schlick interface, and the two are blended by `base_metalness`.
 and the sheen directional albedo are closed-form analytic fits (no lookup table), and that
 directional albedo also drives the physically-correct, view-dependent darkening of the layers
 beneath the fuzz.
+
+**Subsurface** (bulk, non-thin-walled) is a **real volumetric random walk**, not a diffusion
+or tinted-diffuse approximation: light refracts through the dielectric interface (Fresnel-gated),
+takes an exponential free-flight walk with Henyey-Greenstein phase scattering
+(`subsurface_scatter_anisotropy` = the phase mean cosine), and exits through the interface with
+Fresnel-gated transmission / total internal reflection. Extinction is derived from
+`subsurface_radius` × `subsurface_radius_scale`; the single-scatter albedo is `subsurface_color`.
+The walk runs on its own bounce budget (it does not starve surface transport). Thin-walled
+subsurface keeps a diffuse reflection/transmission sheet.
+
+**Transmission scattering** reuses the same volumetric walk: when `transmission_scatter` is set,
+the smooth dielectric interior becomes a genuine scattering medium (milky/cloudy liquids) rather
+than a fixed tint, while `transmission_color` / `transmission_depth` provide the Beer–Lambert
+absorption.
 
 ### Color pipeline
 - Scene-referred rendering in a selectable **working color space**: linear **Rec.2020**
