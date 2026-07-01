@@ -13,7 +13,6 @@
 
 namespace {
 constexpr float kEpsilon = 1.0e-5F;
-constexpr float kMinSpecularF0 = 0.04F;
 
 [[nodiscard]] glm::vec3 sampleUniformHemisphere(float u1, float u2) noexcept {
     const float z = u1;
@@ -108,9 +107,15 @@ struct LobeWeights {
     weights.subsurfaceWeight = std::clamp(mat.subsurfaceColorWeight.w, 0.0F, 1.0F) * (1.0F - transmission);
     const float opaqueBase = baseWeight * (1.0F - transmission);
     weights.diffuseWeight = opaqueBase * (1.0F - metalness) * (1.0F - weights.subsurfaceWeight);
-    weights.specularWeight =
-        opaqueBase * (1.0F - metalness) * std::max(std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F), kMinSpecularF0);
-    weights.metalWeight = baseWeight * metalness;
+    // G3 (spec): specular_weight modulates the dielectric F0/eta (see the modulated eta below), NOT
+    // the dielectric lobe weight; for the metal base it is applied directly as the metal BSDF weight.
+    // At specular_weight=0 the modulated eta→1 (no interface, zero reflection at all angles); the
+    // generalized-Schlick Fresnel keeps a grazing term at F0=0, so gate the dielectric lobe to vanish
+    // as specular_weight→0 (a no-op at the default specular_weight=1).
+    const float specularParam = std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F);
+    const float dielectricPresence = glm::smoothstep(0.0F, 0.03F, specularParam);
+    weights.specularWeight = opaqueBase * (1.0F - metalness) * dielectricPresence;
+    weights.metalWeight = baseWeight * metalness * specularParam;
     weights.transmissionWeight = baseWeight * transmission;
 
     weights.diffuseTransWeight = 0.0F;
@@ -571,14 +576,19 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     const float baseRough = mat.specularRoughAnisoIor.x;
     const float coatRough = mat.coatRoughAnisoIorDark.x;
     const float coatEta = std::max(mat.coatRoughAnisoIorDark.z, 1.01F);
-    // G3 coat relative-IOR (mirror of openpbrModulatedEta with specular_weight=1): when coated,
-    // the base sees specular_ior/coat_ior (TIR-safe inverted); uncoated → specular_ior unchanged.
+    // G3 (mirror of openpbrModulatedEta): the base sees specular_ior/coat_ior (TIR-safe inverted)
+    // through the coat, then specular_weight scales F0 (scaled_F0 = specular_weight·F0) and the
+    // modulated eta is re-derived from the sign-preserving sqrt of the clamped scaled F0.
     const float specIorRaw = std::max(mat.specularRoughAnisoIor.z, 1.01F);
     float etaRatioG3 = specIorRaw / std::max(coatEta, 1.0e-4F);
     if (etaRatioG3 < 1.0F) {
         etaRatioG3 = coatEta / std::max(specIorRaw, 1.0e-4F);
     }
-    const float eta = std::lerp(specIorRaw, etaRatioG3, std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F));
+    const float etaS = std::lerp(specIorRaw, etaRatioG3, std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F));
+    const float f0sqrtG3 = (etaS - 1.0F) / (etaS + 1.0F);
+    const float scaledF0G3 = std::clamp(std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F) * f0sqrtG3 * f0sqrtG3, 0.0F, 0.99999F);
+    const float epsG3 = (etaS >= 1.0F ? 1.0F : -1.0F) * std::sqrt(scaledF0G3);
+    const float eta = (1.0F + epsG3) / std::max(1.0F - epsG3, 1.0e-4F);
     const float diffuseRough = std::clamp(mat.baseMetalnessDiffRough.y, 0.0F, 1.0F);
     const float coatDark = std::clamp(mat.coatRoughAnisoIorDark.w, 0.0F, 1.0F);
 
