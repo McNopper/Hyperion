@@ -219,6 +219,11 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     sample.weight = 0.0.xxx;
     sample.pdf = 0.0;
     sample.isDelta = false;
+    sample.entersMedium = false;
+    sample.mediumSigmaT = 0.0;
+    sample.mediumAlbedo = 0.0.xxx;
+    sample.mediumG = 0.0;
+    sample.mediumEta = 1.0;
 
     if (abs(woL.z) <= 1.0e-5) {
         return sample;
@@ -278,8 +283,57 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
 
     float3 wiLocal = 0.0.xxx;
     bool haveCoatDir = false;
-    if (lobe == 0u || lobe == 1u || lobe == 5u) {
+    if (lobe == 0u || lobe == 5u) {
         wiLocal = sampleCosineHemisphere(randFloat2(seed));
+    } else if (lobe == 1u) {
+        bool thinWalledSSS = mat.opacityFlagsPad.w > 0.5;
+        if (thinWalledSSS) {
+            // Thin sheet: no interior volume to walk through — keep the existing tinted
+            // diffuse-reflection approximation (matches evalBSDF's thin-walled SSS lobe).
+            wiLocal = sampleCosineHemisphere(randFloat2(seed));
+        } else {
+            // Step 3: bulk subsurface. Enter through the SAME dielectric interface as the
+            // specular/transmission lobes (Fresnel-gated refraction) and hand off to the
+            // renderer's volumetric random walk via BSDFSample.entersMedium. The entry
+            // interface is treated as smooth (delta), matching the existing smooth-dielectric
+            // transmission convention; a rough-entry variant is a possible future refinement.
+            float invPLobeSS = total / max(subsurfaceWeight, 1.0e-6);
+            float Fss = fresnelDielectric(abs(woL.z), eta);
+            if (randFloat(seed) < Fss) {
+                // Entry-interface Fresnel reflection (e.g. the specular highlight on skin/wax):
+                // chosen with probability F, so the carried weight cancels to invPLobeSS.
+                float3 wiReflectSS = reflect(-woL, float3(0.0, 0.0, 1.0));
+                sample.direction = toWorld(wiReflectSS, Ts, Bs, Ns);
+                sample.weight = invPLobeSS.xxx;
+                sample.pdf = 1.0;
+                sample.isDelta = true;
+                return sample;
+            }
+            float etaRatioSS = woL.z > 0.0 ? (1.0 / eta) : eta;
+            float3 mSS = float3(0.0, 0.0, woL.z > 0.0 ? 1.0 : -1.0);
+            float3 wiEnter = refract(-woL, mSS, etaRatioSS);
+            if (all(abs(wiEnter) < 1.0e-6.xxx)) {
+                // Degenerate/TIR at entry (should not occur once Fss==1 is already routed
+                // above, kept as a defensive fallback): reflect instead of entering.
+                wiEnter = reflect(-woL, mSS);
+                sample.direction = normalize(toWorld(wiEnter, Ts, Bs, Ns));
+                sample.weight = invPLobeSS.xxx;
+                sample.pdf = 1.0;
+                sample.isDelta = true;
+                return sample;
+            }
+            sample.direction = normalize(toWorld(wiEnter, Ts, Bs, Ns));
+            sample.weight = invPLobeSS.xxx;
+            sample.pdf = 1.0;
+            sample.isDelta = true;
+            sample.entersMedium = true;
+            float radius = max(mat.subsurfaceRadiusScale.w, 1.0e-4);
+            sample.mediumSigmaT = sssExtinction(radius, saturate3(mat.subsurfaceRadiusScale.xyz));
+            sample.mediumAlbedo = saturate3(mat.subsurfaceColorWeight.xyz);
+            sample.mediumG = clamp(mat.opacityFlagsPad.z, -0.95, 0.95);
+            sample.mediumEta = eta;
+            return sample;
+        }
     } else if (lobe == 6u) {
         // Thin-walled diffuse transmission into the back hemisphere.
         float3 wh = sampleCosineHemisphere(randFloat2(seed));

@@ -1443,3 +1443,65 @@ TEST(Bsdf, OpenPbrV0_ThinFilmUnderCoatStaysBounded) {
         EXPECT_LE(energy, 1.25) << "thickness=" << thicknessNm;
     }
 }
+
+// ── Step 3: bulk subsurface random-walk primitives (mirror of Harmonia bsdf_shared.slang) ──
+
+[[nodiscard]] float sssExtinction(float radius, const glm::vec3& radiusScale) noexcept {
+    const float mfp = std::max(radius, 1.0e-4F) *
+                      std::max(Math::luminance(glm::clamp(radiusScale, glm::vec3(0.0F), glm::vec3(1.0F))), 1.0e-4F);
+    return 1.0F / std::max(mfp, 1.0e-4F);
+}
+
+[[nodiscard]] glm::vec3 sampleHenyeyGreenstein(const glm::vec3& wi, float g, glm::vec2 xi) noexcept {
+    float cosTheta;
+    if (std::abs(g) < 1.0e-3F) {
+        cosTheta = 1.0F - 2.0F * xi.x;
+    } else {
+        const float sqrTerm = (1.0F - g * g) / (1.0F + g - 2.0F * g * xi.x);
+        cosTheta = -(1.0F + g * g - sqrTerm * sqrTerm) / (2.0F * g);
+    }
+    const float sinTheta = std::sqrt(std::max(0.0F, 1.0F - cosTheta * cosTheta));
+    const float phi = 2.0F * Math::kPi * xi.y;
+    glm::vec3 a = std::abs(wi.x) > 0.9F ? glm::vec3(0.0F, 1.0F, 0.0F) : glm::vec3(1.0F, 0.0F, 0.0F);
+    const glm::vec3 t = glm::normalize(glm::cross(a, wi));
+    const glm::vec3 b = glm::cross(wi, t);
+    // Z-component negated to match the forward-continuation mean-cosine convention (see
+    // bsdf_shared.slang's mirror of this function for the derivation).
+    const glm::vec3 localDir(sinTheta * std::cos(phi), sinTheta * std::sin(phi), -cosTheta);
+    return glm::normalize(t * localDir.x + b * localDir.y + wi * localDir.z);
+}
+
+TEST(Bsdf, OpenPbrV0_SssExtinctionIsPositiveAndDecreasesWithRadius) {
+    // Larger mean-free-path (radius × radius_scale) -> smaller extinction (less dense medium).
+    const float e1 = sssExtinction(0.1F, glm::vec3(1.0F));
+    const float e2 = sssExtinction(1.0F, glm::vec3(1.0F));
+    const float e3 = sssExtinction(10.0F, glm::vec3(1.0F));
+    EXPECT_GT(e1, e2);
+    EXPECT_GT(e2, e3);
+    EXPECT_GT(e3, 0.0F);
+    // A brighter (higher-luminance) radius_scale widens the mean free path -> lower extinction.
+    const float eDim = sssExtinction(1.0F, glm::vec3(0.2F));
+    const float eBright = sssExtinction(1.0F, glm::vec3(1.0F));
+    EXPECT_GT(eDim, eBright);
+}
+
+TEST(Bsdf, OpenPbrV0_HenyeyGreensteinMeanCosineMatchesAnisotropyG) {
+    // The Henyey-Greenstein phase function's defining property: the mean cosine of the
+    // scattered direction (relative to the incoming travel direction continuing forward)
+    // equals the anisotropy parameter g. This is exactly what OpenPBR's
+    // subsurface_scatter_anisotropy is specified to control, so it anchors the mapping.
+    std::mt19937 rng(0xA55A5EEDU);
+    std::uniform_real_distribution<float> dist(0.0F, 1.0F);
+    const glm::vec3 wi = glm::normalize(glm::vec3(0.3F, -0.6F, 0.74F));
+    constexpr int kSamples = 200000;
+    for (const float g : {-0.7F, -0.2F, 0.0F, 0.3F, 0.8F}) {
+        double sum = 0.0;
+        for (int i = 0; i < kSamples; ++i) {
+            const glm::vec3 wo = sampleHenyeyGreenstein(wi, g, glm::vec2(dist(rng), dist(rng)));
+            ASSERT_TRUE(std::isfinite(wo.x) && std::isfinite(wo.y) && std::isfinite(wo.z)) << "g=" << g;
+            sum += static_cast<double>(glm::dot(wo, wi));
+        }
+        const double meanCos = sum / static_cast<double>(kSamples);
+        EXPECT_NEAR(meanCos, static_cast<double>(g), 0.01) << "g=" << g;
+    }
+}

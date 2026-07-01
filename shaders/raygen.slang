@@ -41,13 +41,29 @@ void pathTracingRaygen()
         payload.terminated     = false;
         payload.specularBounce = false;
         payload.lastBsdfPdf    = 0.0;
+        payload.insideMedium   = false;
+        payload.mediumSigmaT   = 0.0;
+        payload.mediumAlbedo   = 0.0.xxx;
+        payload.mediumG        = 0.0;
+        payload.mediumEta      = 1.0;
+        payload.mediumFreeDist = 0.0;
 
         for (uint depth = 0; depth < pushConst.maxDepth && !payload.terminated; ++depth) {
             RayDesc ray;
             ray.Origin = payload.origin;
             ray.Direction = payload.direction;
             ray.TMin = kRayEpsilon;
-            ray.TMax = kInf;
+            if (payload.insideMedium) {
+                // Step 3: sample a fresh free-flight distance for this segment of the
+                // volumetric random walk (memoryless exponential; resampled every segment).
+                // A miss within this distance is a scattering event (miss.slang); a hit is a
+                // medium-boundary crossing (closesthit.slang's shadeMediumBoundary).
+                float u = randFloat(payload.seed);
+                payload.mediumFreeDist = -log(max(1.0 - u, 1.0e-6)) / max(payload.mediumSigmaT, 1.0e-6);
+                ray.TMax = payload.mediumFreeDist;
+            } else {
+                ray.TMax = kInf;
+            }
             TraceRay(tlas, RAY_FLAG_NONE, kInstanceMaskAll, 0, 2, 0, ray, payload);
             payload.depth++;
         }

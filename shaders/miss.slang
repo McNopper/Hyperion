@@ -1,9 +1,35 @@
 import common;
+import math;
+import bsdf_shared;
 import env;
 
 [shader("miss")]
 void backgroundMiss(inout RayPayload payload)
 {
+    // Step 3: no boundary was hit within the sampled free-flight distance inside a bulk
+    // subsurface medium — a real scattering event occurs at the sampled point. This is NOT
+    // an environment miss (the ray never left the object), so skip env lookup entirely.
+    if (payload.insideMedium) {
+        float3 scatterPos = WorldRayOrigin() + WorldRayDirection() * payload.mediumFreeDist;
+        float3 newDir = sampleHenyeyGreenstein(WorldRayDirection(), payload.mediumG, randFloat2(payload.seed));
+        payload.throughput *= payload.mediumAlbedo;
+
+        // Russian roulette on the walk's own throughput, matching the shared path
+        // integrator's termination policy for ordinary surface bounces.
+        if (payload.depth >= kRRMinDepth) {
+            float q = saturate(max(payload.throughput.x, max(payload.throughput.y, payload.throughput.z)));
+            if (randFloat(payload.seed) > q) {
+                payload.terminated = true;
+                return;
+            }
+            payload.throughput /= max(q, 1.0e-3);
+        }
+
+        payload.origin = scatterPos + newDir * kRayEpsilon;
+        payload.direction = newDir;
+        return;
+    }
+
     // Write G-buffer sky sentinel for primary rays.
     if (payload.depth == 0u) {
         const uint2 pix = DispatchRaysIndex().xy;

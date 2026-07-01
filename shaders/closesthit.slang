@@ -97,6 +97,38 @@ struct HyperionTracer : ITracer {
     }
 }
 
+/// Step 3 (bulk subsurface random walk): handle a ray that struck geometry while inside the
+/// medium — a boundary crossing. Stochastically exits (Fresnel transmittance) or totally
+/// internally reflects (continues the walk), using the SAME dielectric-interface convention
+/// as the specular/transmission lobes (bsdf_shared `fresnelDielectric`, the material's
+/// `specular_ior` carried in `payload.mediumEta`). hit.normal/hit.geoNormal already point
+/// OUTWARD (derived from OBJ winding, independent of which side the ray struck from — see
+/// makeTriangleHit/makeSphereHit), which is exactly what an exit computation needs.
+void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
+{
+    float3 rayDir = normalize(WorldRayDirection());
+    float3 outwardN = hit.normal;
+    float cosTheta = abs(dot(rayDir, outwardN));
+    float F = fresnelDielectric(cosTheta, payload.mediumEta);
+
+    if (randFloat(payload.seed) < F) {
+        // Total internal reflection (stochastically chosen with probability F, matching the
+        // existing glassMode/entry convention where the Fresnel probability cancels the
+        // carried weight): reflect and continue the walk from the boundary, still inside.
+        payload.direction = reflect(rayDir, outwardN);
+        payload.origin = hit.position - outwardN * kRayEpsilon;
+        return;
+    }
+
+    // Exit: refract into the exterior medium (air, eta=1) and resume ordinary shading on the
+    // next bounce. The (1-F) transmittance is already accounted for by the stochastic branch
+    // (no further throughput scaling needed here), mirroring the transmission lobe's pattern.
+    float3 refracted = refract(rayDir, -outwardN, payload.mediumEta);
+    payload.direction = (dot(refracted, refracted) < 1.0e-9) ? reflect(rayDir, outwardN) : normalize(refracted);
+    payload.insideMedium = false;
+    payload.origin = hit.position + outwardN * kRayEpsilon;
+}
+
 void shadeSurface(inout RayPayload payload, HitInfo hit)
 {
     // Write G-buffer for primary rays before any early returns.
@@ -227,6 +259,11 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     state.lastBsdfPdf    = payload.lastBsdfPdf;
     state.nextOrigin     = payload.origin;
     state.nextDirection  = payload.direction;
+    state.insideMedium   = payload.insideMedium;
+    state.mediumSigmaT   = payload.mediumSigmaT;
+    state.mediumAlbedo   = payload.mediumAlbedo;
+    state.mediumG        = payload.mediumG;
+    state.mediumEta      = payload.mediumEta;
 
     HyperionTracer tracer;
     integrateSurface(tracer, surf,
@@ -245,16 +282,31 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     payload.lastBsdfPdf    = state.lastBsdfPdf;
     payload.origin         = state.nextOrigin;
     payload.direction      = state.nextDirection;
+    payload.insideMedium   = state.insideMedium;
+    payload.mediumSigmaT   = state.mediumSigmaT;
+    payload.mediumAlbedo   = state.mediumAlbedo;
+    payload.mediumG        = state.mediumG;
+    payload.mediumEta      = state.mediumEta;
 }
 
 [shader("closesthit")]
 void triangleClosestHit(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
-    shadeSurface(payload, makeTriangleHit(attr));
+    HitInfo hit = makeTriangleHit(attr);
+    if (payload.insideMedium) {
+        shadeMediumBoundary(payload, hit);
+        return;
+    }
+    shadeSurface(payload, hit);
 }
 
 [shader("closesthit")]
 void sphereClosestHit(inout RayPayload payload, in SphereIntersectionAttributes attr)
 {
-    shadeSurface(payload, makeSphereHit(attr));
+    HitInfo hit = makeSphereHit(attr);
+    if (payload.insideMedium) {
+        shadeMediumBoundary(payload, hit);
+        return;
+    }
+    shadeSurface(payload, hit);
 }
