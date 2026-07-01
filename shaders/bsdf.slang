@@ -52,7 +52,6 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     bool glassMode;
     computeLobeWeights(mat, diffuseWeight, subsurfaceWeight, specularWeight, metalWeight, transmissionWeight, coatWeight, fuzzWeight, diffuseTransWeight, mirrorMode, glassMode);
 
-    float ssAniso = clamp(mat.opacityFlagsPad.z, -1.0, 1.0);
     // OpenPBR layer stacking: substrate transmittance through coat = (1 - coat·E_coat); applied
     // symmetrically on entry (NoV) and exit (NoL) so the coupling stays reciprocal. Sheen
     // attenuates beneath it by its own directional albedo.
@@ -76,13 +75,16 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
         if (diffuseWeight > 0.0) {
             result += baseLayerScale * diffuseUnderSpec * diffuseWeight * evalDiffuse(baseColor, diffuseRough, woL, wiL);
         }
-        if (subsurfaceWeight > 0.0) {
+        if (subsurfaceWeight > 0.0 && mat.opacityFlagsPad.w > 0.5) {
+            // Thin-walled subsurface only: a local diffuse reflection approximation (the sheet
+            // has no interior volume to walk). BULK (non-thin-walled) subsurface is handled by
+            // the volumetric random walk on the BSDF-sample side — its entry is a delta
+            // refractive event, so like the transmission lobe it has NO local BRDF value here
+            // and contributes nothing to eval/NEE (evaluating the old tinted-diffuse term for it
+            // would double-count and bias direct lighting against the sampled walk).
             float ssScale = max(mat.subsurfaceRadiusScale.w, 0.001);
             float3 ssTint = subsurfaceColor * (1.0 / (1.0 + ssScale * (mat.subsurfaceRadiusScale.x + mat.subsurfaceRadiusScale.y + mat.subsurfaceRadiusScale.z)));
-            // Bulk subsurface: forward scattering (g>0) reduces back-reflected energy.
-            // (In thin-walled mode the split is already baked into the lobe weights.)
-            float ssReflScale = (mat.opacityFlagsPad.w > 0.5) ? 1.0 : saturate(1.0 - ssAniso);
-            result += baseLayerScale * diffuseUnderSpec * subsurfaceWeight * ssReflScale * evalDiffuse(ssTint, saturate(0.25 + 0.5 * diffuseRough), woL, wiL);
+            result += baseLayerScale * diffuseUnderSpec * subsurfaceWeight * evalDiffuse(ssTint, saturate(0.25 + 0.5 * diffuseRough), woL, wiL);
         }
         if (specularWeight > 0.0 || metalWeight > 0.0) {
             result += baseLayerScale * (specularWeight + metalWeight) * evalReflectionMicrofacetThinFilm(dielectricF0 * specColor, baseColor, glossyF82, mat.baseMetalnessDiffRough.x, woL, wiL, alphaX, alphaY, mat.thinFilmParams.x, max(mat.thinFilmParams.y, 1.0), mat.thinFilmParams.z);
@@ -173,7 +175,11 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
     float pdf = 0.0;
     if (wiL.z > 0.0) {
         float cosinePdf = wiL.z * kInvPi;
-        pdf += (diffuseWeight + subsurfaceWeight + fuzzWeight) * cosinePdf;
+        // Bulk (non-thin-walled) subsurface is a delta medium-entry on the sample side, so it
+        // contributes NO continuous cosine pdf here (mirrors the transmission lobe); only
+        // thin-walled subsurface keeps its diffuse cosine pdf.
+        float ssCosineWeight = (mat.opacityFlagsPad.w > 0.5) ? subsurfaceWeight : 0.0;
+        pdf += (diffuseWeight + ssCosineWeight + fuzzWeight) * cosinePdf;
         pdf += (specularWeight + metalWeight) * reflectionPdf(woL, wiL, alphaX, alphaY);
     } else {
         // A2: Use the OpenPBR-correct transmission PDF (includes eta² in Jacobian)

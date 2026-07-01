@@ -48,12 +48,24 @@ void pathTracingRaygen()
         payload.mediumEta      = 1.0;
         payload.mediumFreeDist = 0.0;
 
-        for (uint depth = 0; depth < pushConst.maxDepth && !payload.terminated; ++depth) {
+        // Surface-bounce budget vs volumetric-walk budget are SEPARATE. A dense subsurface/
+        // transmission medium has a tiny mean free path, so a single surface bounce can expand
+        // into hundreds of internal scatter/boundary segments; charging each against maxDepth
+        // would starve the surrounding light transport (paths die inside the medium → the object
+        // goes dark). Instead, medium segments consume their own large budget (kMaxMediumWalk)
+        // and do NOT advance payload.depth, so only genuine SURFACE interactions count toward
+        // maxDepth. A global iteration cap guarantees termination.
+        const uint kMaxMediumWalk = 256u;
+        uint surfaceBounces = 0u;
+        uint totalIters = 0u;
+        const uint maxIters = pushConst.maxDepth + kMaxMediumWalk;
+        while (surfaceBounces < pushConst.maxDepth && !payload.terminated && totalIters < maxIters) {
+            bool wasInMedium = payload.insideMedium;
             RayDesc ray;
             ray.Origin = payload.origin;
             ray.Direction = payload.direction;
-            ray.TMin = kRayEpsilon;
-            if (payload.insideMedium) {
+            ray.TMin = wasInMedium ? kMediumEpsilon : kRayEpsilon;
+            if (wasInMedium) {
                 // Step 3: sample a fresh free-flight distance for this segment of the
                 // volumetric random walk (memoryless exponential; resampled every segment).
                 // A miss within this distance is a scattering event (miss.slang); a hit is a
@@ -65,7 +77,12 @@ void pathTracingRaygen()
                 ray.TMax = kInf;
             }
             TraceRay(tlas, RAY_FLAG_NONE, kInstanceMaskAll, 0, 2, 0, ray, payload);
-            payload.depth++;
+            totalIters++;
+            // Only an ordinary (non-medium) segment counts as a surface bounce toward maxDepth.
+            if (!wasInMedium) {
+                surfaceBounces++;
+                payload.depth++;
+            }
         }
 
         // Firefly suppression: clamp per-sample radiance in display space (post-exposure).

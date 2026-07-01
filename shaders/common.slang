@@ -122,6 +122,10 @@ static const float kPi = 3.14159265359;
 static const float kInvPi = 0.31830988618;
 static const float kHalfPi = 1.57079632679; ///< π/2
 static const float kRayEpsilon = 0.001;
+/// Self-intersection offset for volumetric random-walk segments (Step 3/4). Much smaller than
+/// kRayEpsilon because a dense medium's mean free path can be far below 0.001, where the
+/// surface-scale epsilon would overshoot the next scatter distance and leak through boundaries.
+static const float kMediumEpsilon = 1.0e-5;
 static const float kInf = 1.0e30;
 
 /// Rec.2020 luminance coefficients (ITU-R BT.2020).

@@ -14,18 +14,19 @@ void backgroundMiss(inout RayPayload payload)
         float3 newDir = sampleHenyeyGreenstein(WorldRayDirection(), payload.mediumG, randFloat2(payload.seed));
         payload.throughput *= payload.mediumAlbedo;
 
-        // Russian roulette on the walk's own throughput, matching the shared path
-        // integrator's termination policy for ordinary surface bounces.
-        if (payload.depth >= kRRMinDepth) {
-            float q = saturate(max(payload.throughput.x, max(payload.throughput.y, payload.throughput.z)));
-            if (randFloat(payload.seed) > q) {
-                payload.terminated = true;
-                return;
-            }
-            payload.throughput /= max(q, 1.0e-3);
+        // Russian roulette on the walk's own throughput. Unlike surface bounces this is NOT
+        // gated on payload.depth (which is deliberately frozen during a volumetric walk so the
+        // walk doesn't consume the surface bounce budget — see raygen.slang); instead it applies
+        // every scatter event, which keeps the estimator unbiased and bounds the walk cost for
+        // absorbing (albedo<1) media. Near-white media rely on the raygen kMaxMediumWalk cap.
+        float q = saturate(max(payload.throughput.x, max(payload.throughput.y, payload.throughput.z)));
+        if (randFloat(payload.seed) > q) {
+            payload.terminated = true;
+            return;
         }
+        payload.throughput /= max(q, 1.0e-3);
 
-        payload.origin = scatterPos + newDir * kRayEpsilon;
+        payload.origin = scatterPos + newDir * kMediumEpsilon;
         payload.direction = newDir;
         return;
     }

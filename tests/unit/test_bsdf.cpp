@@ -574,7 +574,6 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     const float coatEta = std::max(mat.coatRoughAnisoIorDark.z, 1.01F);
     const float diffuseRough = std::clamp(mat.baseMetalnessDiffRough.y, 0.0F, 1.0F);
     const float coatDark = std::clamp(mat.coatRoughAnisoIorDark.w, 0.0F, 1.0F);
-    const float ssAniso = std::clamp(mat.opacityFlagsPad.z, -1.0F, 1.0F);
 
     const glm::vec2 alpha = computeAlpha(baseRough, 0.0F);
     const glm::vec2 coatAlpha = computeAlpha(coatRough, 0.0F);
@@ -605,13 +604,15 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
         if (weights.diffuseWeight > 0.0F) {
             result += baseLayerScale * diffuseUnderSpec * weights.diffuseWeight * evalDiffuse(baseColor, diffuseRough, woL, wiL);
         }
-        if (weights.subsurfaceWeight > 0.0F) {
+        if (weights.subsurfaceWeight > 0.0F && mat.opacityFlagsPad.w > 0.5F) {
+            // Thin-walled subsurface only (mirror of bsdf.slang): bulk subsurface is a delta
+            // medium-entry handled by the volumetric random walk on the sample side, with no
+            // local BRDF value here.
             const float ssScale = std::max(mat.subsurfaceRadiusScale.w, 0.001F);
             const glm::vec3 ssTint = subsurfaceColor * (1.0F / (1.0F + ssScale * (mat.subsurfaceRadiusScale.x +
                                                                                  mat.subsurfaceRadiusScale.y +
                                                                                  mat.subsurfaceRadiusScale.z)));
-            const float ssReflScale = (mat.opacityFlagsPad.w > 0.5F) ? 1.0F : std::clamp(1.0F - ssAniso, 0.0F, 1.0F);
-            result += baseLayerScale * diffuseUnderSpec * weights.subsurfaceWeight * ssReflScale * evalDiffuse(ssTint, std::clamp(0.25F + 0.5F * diffuseRough, 0.0F, 1.0F), woL, wiL);
+            result += baseLayerScale * diffuseUnderSpec * weights.subsurfaceWeight * evalDiffuse(ssTint, std::clamp(0.25F + 0.5F * diffuseRough, 0.0F, 1.0F), woL, wiL);
         }
         if (weights.specularWeight > 0.0F || weights.metalWeight > 0.0F) {
             result += baseLayerScale * (weights.specularWeight + weights.metalWeight) *
