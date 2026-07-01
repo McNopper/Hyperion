@@ -42,7 +42,7 @@ void pathTracingRaygen()
         payload.specularBounce = false;
         payload.lastBsdfPdf    = 0.0;
         payload.insideMedium   = false;
-        payload.mediumSigmaT   = 0.0;
+        payload.mediumSigmaT   = 0.0.xxx;
         payload.mediumAlbedo   = 0.0.xxx;
         payload.mediumG        = 0.0;
         payload.mediumEta      = 1.0;
@@ -66,12 +66,16 @@ void pathTracingRaygen()
             ray.Direction = payload.direction;
             ray.TMin = wasInMedium ? kMediumEpsilon : kRayEpsilon;
             if (wasInMedium) {
-                // Step 3: sample a fresh free-flight distance for this segment of the
-                // volumetric random walk (memoryless exponential; resampled every segment).
-                // A miss within this distance is a scattering event (miss.slang); a hit is a
-                // medium-boundary crossing (closesthit.slang's shadeMediumBoundary).
+                // G5/G6 hero-wavelength free-flight sampling: pick one RGB channel uniformly and
+                // sample the flight distance from THAT channel's σ_t. A miss within this distance
+                // is a scattering event (miss.slang); a hit is a medium-boundary crossing
+                // (closesthit.slang's shadeMediumBoundary). The per-channel throughput correction
+                // (spectral MIS) is applied in miss/closesthit, not here.
+                float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
+                float chSel = randFloat(payload.seed);
+                float sigmaHero = chSel < (1.0 / 3.0) ? st.x : (chSel < (2.0 / 3.0) ? st.y : st.z);
                 float u = randFloat(payload.seed);
-                payload.mediumFreeDist = -log(max(1.0 - u, 1.0e-6)) / max(payload.mediumSigmaT, 1.0e-6);
+                payload.mediumFreeDist = -log(max(1.0 - u, 1.0e-6)) / max(sigmaHero, 1.0e-6);
                 ray.TMax = payload.mediumFreeDist;
             } else {
                 ray.TMax = kInf;

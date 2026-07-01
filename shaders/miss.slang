@@ -12,13 +12,20 @@ void backgroundMiss(inout RayPayload payload)
     if (payload.insideMedium) {
         float3 scatterPos = WorldRayOrigin() + WorldRayDirection() * payload.mediumFreeDist;
         float3 newDir = sampleHenyeyGreenstein(WorldRayDirection(), payload.mediumG, randFloat2(payload.seed));
-        payload.throughput *= payload.mediumAlbedo;
 
-        // Russian roulette on the walk's own throughput. Unlike surface bounces this is NOT
-        // gated on payload.depth (which is deliberately frozen during a volumetric walk so the
-        // walk doesn't consume the surface bounce budget — see raygen.slang); instead it applies
-        // every scatter event, which keeps the estimator unbiased and bounds the walk cost for
-        // absorbing (albedo<1) media. Near-white media rely on the raygen kMaxMediumWalk cap.
+        // G5/G6 spectral scatter factor. A real scatter occurred at the sampled distance t. With
+        // per-channel σ_t and hero-wavelength distance sampling, the throughput update is
+        //   σ_s · T / pdf_coll,  T = exp(-σ_t·t),  σ_s = albedo·σ_t,
+        //   pdf_coll = (1/3)·Σ_c σ_t_c·exp(-σ_t_c·t)   (balance heuristic over the 3 channels).
+        // For achromatic σ_t this reduces EXACTLY to `throughput *= albedo` (the old scalar walk).
+        float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
+        float3 T = exp(-st * payload.mediumFreeDist);
+        float3 sigmaS = payload.mediumAlbedo * st;
+        float pdfColl = (st.x * T.x + st.y * T.y + st.z * T.z) * (1.0 / 3.0);
+        payload.throughput *= (sigmaS * T) / max(pdfColl, 1.0e-8);
+
+        // Russian roulette on the walk's own throughput (depth-independent; the walk does not
+        // consume the surface bounce budget — see raygen.slang), bounding cost for absorbing media.
         float q = saturate(max(payload.throughput.x, max(payload.throughput.y, payload.throughput.z)));
         if (randFloat(payload.seed) > q) {
             payload.terminated = true;

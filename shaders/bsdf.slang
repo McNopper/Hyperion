@@ -237,7 +237,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     sample.pdf = 0.0;
     sample.isDelta = false;
     sample.entersMedium = false;
-    sample.mediumSigmaT = 0.0;
+    sample.mediumSigmaT = 0.0.xxx;
     sample.mediumAlbedo = 0.0.xxx;
     sample.mediumG = 0.0;
     sample.mediumEta = 1.0;
@@ -458,23 +458,22 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
             sample.direction = normalize(toWorld(wiRefract, Ts, Bs, Ns));
             sample.pdf = 1.0;
             sample.isDelta = true;
-            // Step 4 (bounded slice): when transmission_scatter is significant, replace the
-            // local-tint approximation (effectiveTransColor) with a REAL volumetric random
-            // walk, reusing Step 3's medium-walk infrastructure. The EXISTING
-            // transmission_color/transmission_depth absorption is applied ONCE at entry,
-            // unchanged; transmission_scatter/anisotropy then drive genuine in-medium
-            // scattering events instead of a fixed local tint. Nested-dielectric IOR
-            // stacking and a fully distance-dependent absorption model remain future work
-            // (documented gap, not silently dropped) — this material's absorption is still
-            // a single per-entry Beer-Lambert evaluation, not integrated over the actual
-            // path length inside the medium.
+            // G6: when transmission_scatter is significant AND transmission_depth>0, enter a REAL
+            // chromatic volumetric medium using the spec `dielectric_volume` VDF coefficients
+            // (σ_t = -ln(transmission_color)/depth, σ_s = transmission_scatter/depth). The walk's
+            // hero-wavelength estimator now applies per-channel Beer-Lambert absorption over the
+            // ACTUAL path length, so we no longer pre-apply a fixed per-entry tint (that was a
+            // double-count). Weight is just the lobe-selection reciprocal.
             float scatterLum = luminance(saturate3(mat.transmissionScatter.xyz));
-            if (scatterLum > 1.0e-3) {
-                float3 absorptionS = exp(-max(mat.transmissionParams.x, 0.001) * (1.0.xxx - saturate3(mat.transmissionColorWeight.xyz)));
-                sample.weight = saturate3(mat.transmissionColorWeight.xyz) * absorptionS * invPLobe;
+            if (scatterLum > 1.0e-3 && mat.transmissionParams.x > 1.0e-4) {
+                float3 volSigmaT;
+                float3 volAlbedo;
+                transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz, mat.transmissionScatter.xyz,
+                                         mat.transmissionParams.x, volSigmaT, volAlbedo);
+                sample.weight = invPLobe.xxx;
                 sample.entersMedium = true;
-                sample.mediumSigmaT = 1.0 / max(mat.transmissionParams.x, 0.001);
-                sample.mediumAlbedo = saturate3(mat.transmissionScatter.xyz);
+                sample.mediumSigmaT = volSigmaT;
+                sample.mediumAlbedo = volAlbedo;
                 sample.mediumG = clamp(mat.transmissionScatter.w, -0.95, 0.95);
                 sample.mediumEta = eta;
                 return sample;

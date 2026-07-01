@@ -91,7 +91,7 @@ struct RayPayload {
     // a freshly-sampled free-flight distance, a miss is a scattering event (miss.slang), and
     // a hit is a medium-boundary crossing (closesthit.slang's shadeMediumBoundary).
     bool   insideMedium   : read(caller, closesthit, miss) : write(caller, closesthit, miss);
-    float  mediumSigmaT   : read(caller, closesthit, miss) : write(caller, closesthit, miss);
+    float3 mediumSigmaT   : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     float3 mediumAlbedo   : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     float  mediumG        : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     float  mediumEta      : read(caller, closesthit, miss) : write(caller, closesthit, miss);

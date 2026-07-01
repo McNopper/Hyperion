@@ -108,6 +108,19 @@ void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
 {
     float3 rayDir = normalize(WorldRayDirection());
     float3 outwardN = hit.geoNormal;
+
+    // G5/G6 spectral boundary factor: the ray reached the boundary at t_hit before the sampled
+    // flight distance. Apply the per-channel transmittance to the boundary divided by the
+    // hero-wavelength "reach the boundary" pdf (balance heuristic):
+    //   T_b = exp(-σ_t·t_hit),  pdf_surf = (1/3)·Σ_c T_b_c.
+    // For achromatic σ_t this is exactly 1 (the old scalar walk applied no boundary factor).
+    {
+        float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
+        float3 Tb = exp(-st * RayTCurrent());
+        float pdfSurf = (Tb.x + Tb.y + Tb.z) * (1.0 / 3.0);
+        payload.throughput *= Tb / max(pdfSurf, 1.0e-8);
+    }
+
     // The ray is INSIDE the medium travelling toward the boundary, so this is a medium→air
     // crossing. fresnelDielectric selects the medium→air branch (ei=eta, et=1, and reports
     // TIR when the angle exceeds the critical angle) only for a NEGATIVE cosine, so pass the
