@@ -26,8 +26,12 @@ float3 evalBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float
     float baseAniso = mat.specularRoughAnisoIor.y;
     float coatRough = mat.coatRoughAnisoIorDark.x;
     float coatAniso = mat.coatRoughAnisoIorDark.y;
-    float eta = max(mat.specularRoughAnisoIor.z, 1.01);
     float coatEta = max(mat.coatRoughAnisoIorDark.z, 1.01);
+    // G3 (coat relative-IOR part): when coated, the base sees the IOR ratio through the coat
+    // medium (specular_ior/coat_ior, TIR-safe). specular_weight's F0 modulation is intentionally
+    // NOT applied here — our architecture already carries it as the specular lobe weight (applying
+    // it again would double-count). Uncoated (coat_weight=0) → eta = specular_ior unchanged.
+    float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), 1.0, coatEta, saturate(mat.coatColorWeight.w));
     float diffuseRough = saturate(mat.baseMetalnessDiffRough.y);
     float coatDark = saturate(mat.coatRoughAnisoIorDark.w);
 
@@ -191,7 +195,7 @@ float pdfBSDF(GpuMaterial mat, float3 wo, float3 wi, float3 N, float3 T, float3 
     } else {
         // A2: Use the OpenPBR-correct transmission PDF (includes eta² in Jacobian)
         if (transmissionWeight > 0.0) {
-            float eta = mat.specularRoughAnisoIor.z;
+            float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), 1.0, max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
             float eta_ratio = woL.z > 0.0 ? (1.0 / eta) : eta;
             float3 h = normalize(-woL * eta_ratio + wiL);
             if (h.z < 0.0) h = -h;
@@ -254,7 +258,7 @@ BSDFSample sampleBSDF(GpuMaterial mat, float3 wo, float3 N, float3 T, float3 B, 
     bool glassMode;
     computeLobeWeights(mat, diffuseWeight, subsurfaceWeight, specularWeight, metalWeight, transmissionWeight, coatWeight, fuzzWeight, diffuseTransWeight, mirrorMode, glassMode);
 
-    float eta = max(mat.specularRoughAnisoIor.z, 1.01);
+    float eta = openpbrModulatedEta(max(mat.specularRoughAnisoIor.z, 1.01), 1.0, max(mat.coatRoughAnisoIorDark.z, 1.01), saturate(mat.coatColorWeight.w));
     float baseRough = mat.specularRoughAnisoIor.x;
     float baseAniso = mat.specularRoughAnisoIor.y;
     float coatRough = mat.coatRoughAnisoIorDark.x;

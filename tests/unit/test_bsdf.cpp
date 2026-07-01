@@ -569,9 +569,16 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     const glm::vec3 fuzzColor = glm::clamp(glm::vec3(mat.fuzzColorWeight), glm::vec3(0.0F), glm::vec3(1.0F));
 
     const float baseRough = mat.specularRoughAnisoIor.x;
-    const float eta = std::max(mat.specularRoughAnisoIor.z, 1.01F);
     const float coatRough = mat.coatRoughAnisoIorDark.x;
     const float coatEta = std::max(mat.coatRoughAnisoIorDark.z, 1.01F);
+    // G3 coat relative-IOR (mirror of openpbrModulatedEta with specular_weight=1): when coated,
+    // the base sees specular_ior/coat_ior (TIR-safe inverted); uncoated → specular_ior unchanged.
+    const float specIorRaw = std::max(mat.specularRoughAnisoIor.z, 1.01F);
+    float etaRatioG3 = specIorRaw / std::max(coatEta, 1.0e-4F);
+    if (etaRatioG3 < 1.0F) {
+        etaRatioG3 = coatEta / std::max(specIorRaw, 1.0e-4F);
+    }
+    const float eta = std::lerp(specIorRaw, etaRatioG3, std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F));
     const float diffuseRough = std::clamp(mat.baseMetalnessDiffRough.y, 0.0F, 1.0F);
     const float coatDark = std::clamp(mat.coatRoughAnisoIorDark.w, 0.0F, 1.0F);
 
