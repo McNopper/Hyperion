@@ -288,7 +288,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
 
     HyperionTracer tracer;
     integrateSurface(tracer, surf,
-        pushConst.emissiveTriangleCount, emissiveTriangles,
+        pushConst.emissiveTriangleCount, emissiveTriangles, emissiveCdf,
         envMarginalCdf, envConditionalCdf,
         pushConst.envImportanceWidth, pushConst.envImportanceHeight,
         (pushConst.hasEnvMap != 0u), pushConst.envLuminanceScale,

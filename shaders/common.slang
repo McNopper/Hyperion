@@ -171,4 +171,8 @@ static const float kFireflyClamp = 100.0;
 [[vk::binding(8, 1)]] StructuredBuffer<float> envMarginalCdf;     ///< (H+1) normalized row CDFs
 [[vk::binding(9, 1)]] StructuredBuffer<float> envConditionalCdf;  ///< H×(W+1) per-row column CDFs
 
+/// Power-proportional selection CDF for emissive-triangle NEE (binding 10, set 1).
+/// cdf[i] = (Σ_{j≤i} area_j·luminance(Le_j)) / totalPower, so cdf[N-1] == 1.
+[[vk::binding(10, 1)]] StructuredBuffer<float> emissiveCdf;
+
 [[vk::push_constant]] PushConstants pushConst;

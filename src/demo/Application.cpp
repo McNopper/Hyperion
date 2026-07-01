@@ -156,6 +156,7 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
                                                              m_scene.indexBuffer().handle(),
                                                              m_scene.lightBuffer().handle(),
                                                              m_scene.emissiveTriangleBuffer().handle(),
+                                                             m_scene.emissiveCdfBuffer().handle(),
                                                              m_scene.textures());
         result != VK_SUCCESS) {
         Logger::error("Descriptor update failed: VkResult {}", static_cast<int>(result));

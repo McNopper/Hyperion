@@ -213,6 +213,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
                                                                       scene.indexBuffer().handle(),
                                                                       scene.lightBuffer().handle(),
                                                                       scene.emissiveTriangleBuffer().handle(),
+                                                                      scene.emissiveCdfBuffer().handle(),
                                                                       scene.textures());
         descriptorResult != VK_SUCCESS) {
         GTEST_SKIP() << "Failed to update scene descriptor set: VkResult=" << static_cast<int>(descriptorResult);
