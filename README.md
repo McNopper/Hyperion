@@ -95,10 +95,13 @@ beneath the fuzz.
 or tinted-diffuse approximation: light refracts through the dielectric interface (Fresnel-gated),
 takes an exponential free-flight walk with Henyey-Greenstein phase scattering
 (`subsurface_scatter_anisotropy` = the phase mean cosine), and exits through the interface with
-Fresnel-gated transmission / total internal reflection. Extinction is derived from
-`subsurface_radius` × `subsurface_radius_scale`; the single-scatter albedo is `subsurface_color`.
-The walk runs on its own bounce budget (it does not starve surface transport). Thin-walled
-subsurface keeps a diffuse reflection/transmission sheet.
+Fresnel-gated transmission / total internal reflection. Extinction is **chromatic (per-channel)** —
+derived from `subsurface_radius` × `subsurface_radius_scale`, so the default `(1, 0.5, 0.25)` scale
+gives the characteristic red-shifted subsurface glow; the single-scatter albedo is `subsurface_color`.
+A **hero-wavelength spectral-MIS estimator** samples one channel's mean-free-path per step and
+reweights the others, and reduces exactly to the achromatic walk when the extinction is grey (clear
+glass stays byte-stable). The walk runs on its own bounce budget (it does not starve surface
+transport). Thin-walled subsurface keeps a diffuse reflection/transmission sheet.
 
 **Transmission scattering** reuses the same volumetric walk: when `transmission_scatter` is set,
 the smooth dielectric interior becomes a genuine scattering medium (milky/cloudy liquids) rather
@@ -256,6 +259,9 @@ The following specifications, textbooks, and learning resources informed the des
 | [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path tracing, BSDF sampling, MIS balance heuristic (§13.4.3), emissive area light NEE (§12.4), env map importance sampling via 2D separable CDF (§12.5) |
 | [Veach — "Robust Monte Carlo Methods for Light Transport Simulation" (1997)](http://graphics.stanford.edu/papers/veach_thesis/) | Multiple Importance Sampling (MIS) — balance and power heuristics (§9.2); theoretical foundation for combining BSDF and NEE pdf estimates |
 | [Shirley, Wang & Zimmerman — "Monte Carlo Techniques for Direct Lighting Calculations" (1996)](https://www.cs.utah.edu/~shirley/papers/tog96.pdf) | Uniform area sampling of triangles via sqrt-folding barycentric coordinates; area-to-solid-angle PDF conversion |
+| [Henyey & Greenstein — "Diffuse Radiation in the Galaxy" (1941)](https://articles.adsabs.harvard.edu/pdf/1941ApJ....93...70H) | Henyey-Greenstein phase function for the subsurface / transmission volumetric random walk |
+| [Wilkie, Nawaz, Droske, Weidlich & Hanika — "Hero Wavelength Spectral Sampling" (EGSR 2014)](https://cgg.mff.cuni.cz/~wilkie/Website/EGSR_14_files/WNDWH14.pdf) | Hero-wavelength spectral-MIS estimator for chromatic (per-channel) subsurface / transmission media |
+| [Novák, Georgiev, Hanika & Jarosz — "Monte Carlo Methods for Volumetric Light Transport Simulation" (Eurographics STAR 2018)](https://cs.dartmouth.edu/~wjarosz/publications/novak18monte.html) | Free-flight distance sampling, collision estimators, and transmittance for the medium walk |
 | [Ray Tracing Gems I & II](https://www.realtimerendering.com/raytracinggems/) (Haines et al., Marrs et al.) | Shadow ray precision, NEE techniques, ray tracing best practices |
 | [Ray Tracing in One Weekend series](https://raytracing.github.io/) (Shirley et al.) | Introductory path-tracer architecture |
 
@@ -270,9 +276,10 @@ The following specifications, textbooks, and learning resources informed the des
 ### Material Model
 | Resource | Relevance |
 |----------|-----------|
-| [OpenPBR Surface Specification v1.1](https://academysoftwarefoundation.github.io/OpenPBR/) | Material layer stack, parameter naming (base/specular/coat/fuzz/emission/transmission) |
+| [OpenPBR Surface Specification v1.1.1](https://academysoftwarefoundation.github.io/OpenPBR/) | Material layer stack, parameter naming (base/specular/coat/fuzz/emission/transmission) |
 | [MaterialX Standard Surface](https://materialx.org/) | Cross-reference for PBR parameter vocabulary |
 | [Blender Principled BSDF](https://docs.blender.org/manual/en/latest/render/shader_nodes/shader/principled.html) | Cross-reference for PBR parameter vocabulary |
+| [Harmonia README — Surface BSDF references](https://github.com/McNopper/Harmonia#references) | Full citations for the shared BSDF closures (thin-film, sheen/LTC, MS-comp, conductor Fresnel) implemented in `bsdf_shared.slang` |
 
 ### Color Science
 | Resource | Relevance |
