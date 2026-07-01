@@ -7,11 +7,14 @@ void pathTracingRaygen()
     uint2 launchID = DispatchRaysIndex().xy;
     uint2 launchDim = DispatchRaysDimensions().xy;
 
-    uint seed = wangHash(launchID.x + launchID.y * launchDim.x + pushConst.rngSeed * launchDim.x * launchDim.y);
+    uint pixelKey = launchID.x + launchID.y * launchDim.x;
     float3 totalRadiance = 0.0.xxx;
     const uint spp = max(pushConst.samplesPerPixel, 1u);
 
     for (uint s = 0; s < spp; ++s) {
+        // A0(a): fresh Owen-Sobol' sample per (pixel, frame, spp-index); dim resets to 0 so
+        // camera AA jitter takes the first low-discrepancy 2D, lens the next, path the rest.
+        RngState seed = makeRngState(pixelKey, pushConst.rngSeed * spp + s);
         float2 jitter = float2(randFloat(seed), randFloat(seed));
         float2 uv = (float2(launchID) + jitter) / float2(launchDim);
         uv.y = 1.0 - uv.y;
@@ -100,7 +103,6 @@ void pathTracingRaygen()
             sampleRadiance *= kFireflyClamp / sampleAvg;
 
         totalRadiance += sampleRadiance;
-        seed = payload.seed;
     }
 
     // Temporal accumulation: blend current sample into running average.

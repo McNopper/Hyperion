@@ -1,3 +1,5 @@
+import rng;
+
 struct GpuVertex   { float3 position; float tangentX; float3 normal; float tangentY; float2 uv; float tangentZ; float bitangentSign; };
 struct GpuMaterial {
     float4 baseColorWeight;
@@ -82,7 +84,7 @@ struct RayPayload {
     float3 origin        : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     float3 direction     : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     uint   depth         : read(caller, closesthit, miss) : write(caller, closesthit, miss);
-    uint   seed          : read(caller, closesthit, miss) : write(caller, closesthit, miss);
+    RngState seed         : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     bool   terminated    : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     bool   specularBounce: read(caller, closesthit)       : write(caller, closesthit);
     float  lastBsdfPdf   : read(caller, closesthit, miss) : write(caller, closesthit);
