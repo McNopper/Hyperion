@@ -599,8 +599,9 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
         glm::vec3(1.0F - Kcoat) / glm::max(glm::vec3(1.0F) - Ebase * Kcoat, glm::vec3(1.0e-4F)),
         std::clamp(weights.coatWeight * coatDark, 0.0F, 1.0F));
     const glm::vec3 coatAtten = glm::mix(glm::vec3(1.0F), coatColor, std::clamp(weights.coatWeight, 0.0F, 1.0F));
-    const glm::vec3 baseLayerScale = darkening * coatAtten *
-                                 (1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight);
+    // G8: fuzz (topmost) attenuates both the base and the coat lobe below it.
+    const float fuzzAtten = 1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight;
+    const glm::vec3 baseLayerScale = darkening * coatAtten * fuzzAtten;
 
     glm::vec3 result(0.0F);
     if (wiL.z > 0.0F && woL.z > 0.0F) {
@@ -641,7 +642,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
         const glm::vec3 wiC = toLocal(wi, cTs, cBs, cNs);
         if (woC.z > 0.0F && wiC.z > 0.0F) {
             const glm::vec3 coatF0 = iorToF0(coatEta) * glm::max(coatColor, glm::vec3(0.04F));
-            result += weights.coatWeight * evalReflectionMicrofacet(coatF0, coatColor, woC, wiC, coatAlpha.x, coatAlpha.y);
+            result += fuzzAtten * weights.coatWeight * evalReflectionMicrofacet(coatF0, coatColor, woC, wiC, coatAlpha.x, coatAlpha.y);
         }
     }
 
