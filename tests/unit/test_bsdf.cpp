@@ -575,10 +575,16 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, glm::vec3 eta2, glm::
     const float diffuseRough = std::clamp(mat.baseMetalnessDiffRough.y, 0.0F, 1.0F);
     const float coatDark = std::clamp(mat.coatRoughAnisoIorDark.w, 0.0F, 1.0F);
 
-    const glm::vec2 alpha = computeAlpha(baseRough, 0.0F);
+    // G4 (mirror of bsdf_shared.slang openpbrEffectiveSpecularRoughness): the coat roughens the
+    // specular base in roughness space, then computeAlpha — NOT an alpha-space combine.
+    const float coatWeightG4 = std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F);
+    const float effSpecRough = std::lerp(baseRough,
+        std::pow(std::min(1.0F, 2.0F * std::pow(coatRough, 4.0F) + std::pow(baseRough, 4.0F)), 0.25F),
+        coatWeightG4);
+    const glm::vec2 alpha = computeAlpha(effSpecRough, 0.0F);
     const glm::vec2 coatAlpha = computeAlpha(coatRough, 0.0F);
-    const float alphaX = std::sqrt((alpha.x * alpha.x) + (coatAlpha.x * coatAlpha.x * std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F)));
-    const float alphaY = std::sqrt((alpha.y * alpha.y) + (coatAlpha.y * coatAlpha.y * std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F)));
+    const float alphaX = alpha.x;
+    const float alphaY = alpha.y;
 
     LobeWeights weights = computeLobeWeights(mat);
     // OpenPBR layer stacking: substrate transmittance through coat = (1 - coat·E_coat(NoV));
