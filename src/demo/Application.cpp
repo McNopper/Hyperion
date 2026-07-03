@@ -40,11 +40,16 @@ int Application::run(Config config, DemoConfig demoConfig) {
 }
 
 bool Application::onInitialize() {
+    m_positionFetchSupported = deviceContext().positionFetchSupported;
+    Logger::info("VK_KHR_ray_tracing_position_fetch: {}", m_positionFetchSupported ? "enabled" : "disabled");
+
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
+    const std::filesystem::path closestHitPath = m_positionFetchSupported ? m_shaderDir / "closesthit_pf.spv"
+                                                                          : m_shaderDir / "closesthit.spv";
     const Pipeline::ShaderPaths shaderPaths{
         .raygen = m_shaderDir / "raygen.spv",
-        .closesthitTriangle = m_shaderDir / "closesthit.spv",
-        .closesthitSphere = m_shaderDir / "closesthit.spv",
+        .closesthitTriangle = closestHitPath,
+        .closesthitSphere = closestHitPath,
         .intersection = m_shaderDir / "intersection.spv",
         .miss = m_shaderDir / "miss.spv",
         .shadowMiss = m_shaderDir / "shadow_miss.spv",

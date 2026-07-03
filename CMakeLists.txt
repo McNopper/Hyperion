@@ -36,6 +36,11 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/McNopper/Harmonia.git
     GIT_TAG v0.6.3
 )
+
+# clang-cl needs explicit C++ exception support for the toml++-using code in
+# Aether and Harmonia; apply it before adding the subprojects.
+add_compile_options($<$<CXX_COMPILER_ID:MSVC,Clang>:/EHsc>)
+
 FetchContent_MakeAvailable(aether harmonia)
 
 set(HYPERION_SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
@@ -94,9 +99,17 @@ if(BUILD_TESTING)
 
     if(TARGET gtest)
         set_property(TARGET gtest PROPERTY SYSTEM ON)
+        target_compile_options(gtest PRIVATE -Wno-character-conversion)
     endif()
     if(TARGET gtest_main)
         set_property(TARGET gtest_main PROPERTY SYSTEM ON)
+        target_compile_options(gtest_main PRIVATE -Wno-character-conversion)
+    endif()
+    if(TARGET gmock)
+        target_compile_options(gmock PRIVATE -Wno-character-conversion)
+    endif()
+    if(TARGET gmock_main)
+        target_compile_options(gmock_main PRIVATE -Wno-character-conversion)
     endif()
     if(NOT TARGET GTest::gtest AND TARGET gtest)
         add_library(GTest::gtest ALIAS gtest)
@@ -110,10 +123,19 @@ endif()
 # of truth; add their directory so slangc resolves imports from there.
 set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${HARMONIA_SHADER_SOURCE_DIR}")
 compile_slang_shaders(hyperion_shaders "${HYPERION_SHADER_OUTPUT_DIR}" ${HYPERION_ENTRY_SHADERS})
+
+# Position-fetch variant of the closest-hit shader for GPUs that support
+# VK_KHR_ray_tracing_position_fetch.  closesthit_pf.slang #includes
+# closesthit.slang with POSITION_FETCH_ENABLED defined.
+set(COMPILE_SLANG_EXTRA_DEFINES "-DPOSITION_FETCH_ENABLED")
+set(COMPILE_SLANG_EXTRA_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/closesthit.slang")
+compile_slang_shaders(hyperion_shaders_pf "${HYPERION_SHADER_OUTPUT_DIR}" closesthit_pf.slang)
+unset(COMPILE_SLANG_EXTRA_DEFINES)
+unset(COMPILE_SLANG_EXTRA_DEPENDS)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
 
 add_library(hyperion_lib STATIC ${HYPERION_LIBRARY_SOURCES})
-add_dependencies(hyperion_lib hyperion_shaders)
+add_dependencies(hyperion_lib hyperion_shaders hyperion_shaders_pf)
 
 target_include_directories(hyperion_lib
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -134,7 +156,7 @@ add_library(hyperion_demo STATIC ${HYPERION_DEMO_SOURCES})
 target_link_libraries(hyperion_demo PUBLIC hyperion_lib)
 
 add_executable(hyperion ${HYPERION_APP_SOURCES})
-add_dependencies(hyperion hyperion_shaders)
+add_dependencies(hyperion hyperion_shaders hyperion_shaders_pf)
 target_link_libraries(hyperion PRIVATE hyperion_demo)
 
 if(BUILD_TESTING)

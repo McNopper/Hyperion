@@ -147,10 +147,6 @@ struct LobeWeights {
     return glm::vec3(glm::dot(v, T), glm::dot(v, B), glm::dot(v, N));
 }
 
-[[nodiscard]] glm::vec3 toWorld(const glm::vec3& v, const glm::vec3& T, const glm::vec3& B, const glm::vec3& N) noexcept {
-    return (T * v.x) + (B * v.y) + (N * v.z);
-}
-
 void orientFrame(const glm::vec3& wo, const glm::vec3& N, const glm::vec3& T, const glm::vec3& B,
                  glm::vec3& Ns, glm::vec3& Ts, glm::vec3& Bs) noexcept {
     if (glm::dot(wo, N) >= 0.0F) {
