@@ -25,7 +25,7 @@ add_compile_definitions(VK_NO_PROTOTYPES)
 # development against working copies, override FETCHCONTENT_SOURCE_DIR_AETHER /
 # FETCHCONTENT_SOURCE_DIR_HARMONIA.
 # Aether is declared first so Harmonia reuses this same declaration (dedup by
-# name). Aether is pinned v0.5.0; Harmonia is pinned v0.6.3.
+# name). Aether is pinned v0.5.0; Harmonia is pinned v0.6.4.
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
@@ -34,7 +34,7 @@ FetchContent_Declare(
 FetchContent_Declare(
     harmonia
     GIT_REPOSITORY https://github.com/McNopper/Harmonia.git
-    GIT_TAG v0.6.3
+    GIT_TAG v0.6.4
 )
 
 # clang-cl needs explicit C++ exception support for the toml++-using code in
