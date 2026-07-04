@@ -69,14 +69,15 @@ void pathTracingRaygen()
             ray.Direction = payload.direction;
             ray.TMin = wasInMedium ? kMediumEpsilon : kRayEpsilon;
             if (wasInMedium) {
-                // G5/G6 hero-wavelength free-flight sampling: pick one RGB channel uniformly and
-                // sample the flight distance from THAT channel's σ_t. A miss within this distance
-                // is a scattering event (miss.slang); a hit is a medium-boundary crossing
-                // (closesthit.slang's shadeMediumBoundary). The per-channel throughput correction
-                // (spectral MIS) is applied in miss/closesthit, not here.
+                // G5/G6 hero-wavelength free-flight sampling: σ_t-importance-weighted channel
+                // selection (A3(c) synergy: unbiased, matches Theia's gi.comp.slang). chProb is
+                // proportional to extinction so near-transparent channels aren't over-sampled.
+                // pdfColl/pdfSurf in miss.slang/closesthit.slang use the same chProb so the
+                // balance-heuristic estimator is exactly unbiased. σ_t clamped to 1e-6 above.
                 float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
+                float3 chProb = st / (st.x + st.y + st.z);
                 float chSel = randFloat(payload.seed);
-                float sigmaHero = chSel < (1.0 / 3.0) ? st.x : (chSel < (2.0 / 3.0) ? st.y : st.z);
+                float sigmaHero = chSel < chProb.x ? st.x : (chSel < chProb.x + chProb.y ? st.y : st.z);
                 float u = randFloat(payload.seed);
                 payload.mediumFreeDist = -log(max(1.0 - u, 1.0e-6)) / max(sigmaHero, 1.0e-6);
                 ray.TMax = payload.mediumFreeDist;

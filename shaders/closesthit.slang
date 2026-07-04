@@ -142,7 +142,9 @@ void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
     {
         float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
         float3 Tb = exp(-st * RayTCurrent());
-        float pdfSurf = (Tb.x + Tb.y + Tb.z) * (1.0 / 3.0);
+        // A3(c) synergy: σ_t-importance boundary pdf — matches chProb in raygen.slang/miss.slang.
+        float3 chProb = st / (st.x + st.y + st.z);
+        float pdfSurf = dot(chProb, Tb);
         payload.throughput *= Tb / max(pdfSurf, 1.0e-8);
     }
 

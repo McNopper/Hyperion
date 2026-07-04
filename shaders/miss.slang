@@ -21,7 +21,10 @@ void backgroundMiss(inout RayPayload payload)
         float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
         float3 T = exp(-st * payload.mediumFreeDist);
         float3 sigmaS = payload.mediumAlbedo * st;
-        float pdfColl = (st.x * T.x + st.y * T.y + st.z * T.z) * (1.0 / 3.0);
+        // A3(c) synergy: σ_t-importance collision pdf — matches chProb used in raygen.slang.
+        // dot(chProb, st*T) = dot(st/(Σst), st*T) = Σ(st_c² * T_c) / Σst_c
+        float3 chProb = st / (st.x + st.y + st.z);
+        float pdfColl = dot(chProb, st * T);
         payload.throughput *= (sigmaS * T) / max(pdfColl, 1.0e-8);
 
         // Russian roulette on the walk's own throughput (depth-independent; the walk does not
