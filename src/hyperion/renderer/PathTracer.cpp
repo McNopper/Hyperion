@@ -7,6 +7,11 @@
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "hyperion/scene/Scene.hpp"
 
+// VK_EXT_ray_tracing_invocation_reorder runtime command. Not yet in the SDK volk/headers
+// on all toolchains, so load it dynamically and fall back to a no-op if unavailable.
+using PFN_vkCmdSetRayTracingInvocationReorderModeEXT = void(VKAPI_PTR*)(VkCommandBuffer commandBuffer,
+                                                                        VkRayTracingInvocationReorderModeEXT reorderMode);
+
 std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
                                                        VkExtent2D renderExtent,
                                                        const Pipeline& pipeline,
@@ -31,6 +36,7 @@ std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
     }
 
     PathTracer tracer;
+    tracer.m_ctx = &ctx;
     tracer.m_rtPipeline = pipeline.rtPipeline();
     tracer.m_pipelineLayout = descriptors.pipelineLayout();
     tracer.m_sceneSet = descriptors.set1();
@@ -176,6 +182,14 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
         .workingColorSpace = m_config.workingColorSpace,
     };
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstants), &pushConstants);
+
+    if (m_config.serEnabled) {
+        auto* setMode = reinterpret_cast<PFN_vkCmdSetRayTracingInvocationReorderModeEXT>(
+            vkGetDeviceProcAddr(m_ctx->device, "vkCmdSetRayTracingInvocationReorderModeEXT"));
+        if (setMode != nullptr) {
+            setMode(cmd, VK_RAY_TRACING_INVOCATION_REORDER_MODE_REORDER_EXT);
+        }
+    }
 
     vkCmdTraceRaysKHR(cmd, &m_raygen, &m_miss, &m_hit, &m_callable, m_extent.width, m_extent.height, 1);
     return VK_SUCCESS;

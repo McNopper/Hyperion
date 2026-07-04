@@ -31,9 +31,9 @@ It implements the [OpenPBR Surface v1.1.1](https://academysoftwarefoundation.git
 |:-------------:|:---------------------:|:---------------------:|
 | ![textured_cube](screenshots/textured_cube.png) | ![dragon_teapot](screenshots/dragon_teapot.png) | ![openpbr_advanced](screenshots/openpbr_advanced.png) |
 
-| A Beautiful Game (IBL) |
-|:----------------------:|
-| ![ABeautifulGame](screenshots/ABeautifulGame.png) |
+| A Beautiful Game (IBL) | Bunny + ShaderBall (IBL) | Blender Export |
+|:----------------------:|:------------------------:|:------------------------:|
+| ![ABeautifulGame](screenshots/ABeautifulGame.png) | ![bunny_shaderball](screenshots/bunny_shaderball.png) | ![camera_suzanne](screenshots/camera_suzanne.png) |
 
 ---
 

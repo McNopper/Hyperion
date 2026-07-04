@@ -42,6 +42,8 @@ int Application::run(Config config, DemoConfig demoConfig) {
 bool Application::onInitialize() {
     m_positionFetchSupported = deviceContext().positionFetchSupported;
     Logger::info("VK_KHR_ray_tracing_position_fetch: {}", m_positionFetchSupported ? "enabled" : "disabled");
+    Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}",
+                 deviceContext().serSupported ? "enabled" : "disabled");
 
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
     const std::filesystem::path closestHitPath = m_positionFetchSupported ? m_shaderDir / "closesthit_pf.spv"
@@ -184,6 +186,7 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
                                          .envImportanceHeight = hasIbl ? iblProbe()->cdfHeight() : 0u,
                                          .tonemapper = tonemapper(),
                                          .workingColorSpace = static_cast<uint32_t>(workingColorSpace()),
+                                         .serEnabled = deviceContext().serSupported,
                                      });
     if (!tracer) {
         Logger::error("PathTracer creation failed: VkResult {}", static_cast<int>(tracer.error()));

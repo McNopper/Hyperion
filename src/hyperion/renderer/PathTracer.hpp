@@ -29,6 +29,7 @@ class PathTracer {
         /// space (0 = linear Rec.2020, 1 = linear Rec.709); forwarded to the
         /// tonemap push constant.
         uint32_t workingColorSpace = 0;
+        bool serEnabled = false; ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
     };
 
     [[nodiscard]] static std::expected<PathTracer, VkResult> create(const DeviceContext& ctx,
@@ -56,6 +57,7 @@ class PathTracer {
     void onResize(VkExtent2D newExtent) noexcept;
 
   private:
+    const DeviceContext* m_ctx{};
     VkPipeline m_rtPipeline{VK_NULL_HANDLE};
     VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
     VkDescriptorSet m_sceneSet{VK_NULL_HANDLE};
