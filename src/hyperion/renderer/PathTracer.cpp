@@ -35,6 +35,20 @@ std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
         return std::unexpected(cameraBuffer.error());
     }
 
+    Buffer indirectDispatchBuffer{};
+    if (config.indirectRt2Enabled) {
+        auto indirectBuf = Buffer::create(ctx,
+                                          sizeof(VkTraceRaysIndirectCommand2KHR),
+                                          VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
+                                              VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                          VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                          "hyperion.indirectDispatch");
+        if (!indirectBuf) {
+            return std::unexpected(indirectBuf.error());
+        }
+        indirectDispatchBuffer = std::move(*indirectBuf);
+    }
+
     PathTracer tracer;
     tracer.m_ctx = &ctx;
     tracer.m_rtPipeline = pipeline.rtPipeline();
@@ -43,6 +57,7 @@ std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
     tracer.m_extent = renderExtent;
     tracer.m_config = config;
     tracer.m_cameraBuffer = std::move(*cameraBuffer);
+    tracer.m_indirectDispatchBuffer = std::move(indirectDispatchBuffer);
     tracer.m_raygen = sbt.raygenRegion();
     tracer.m_miss = sbt.missRegion();
     tracer.m_hit = sbt.hitRegion();
@@ -191,7 +206,57 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
         }
     }
 
-    vkCmdTraceRaysKHR(cmd, &m_raygen, &m_miss, &m_hit, &m_callable, m_extent.width, m_extent.height, 1);
+    if (m_config.indirectRt2Enabled && m_indirectDispatchBuffer.isValid()) {
+        static auto pfnTraceRaysIndirect2 = reinterpret_cast<PFN_vkCmdTraceRaysIndirect2KHR>(
+            vkGetDeviceProcAddr(m_ctx->device, "vkCmdTraceRaysIndirect2KHR"));
+
+        if (pfnTraceRaysIndirect2 != nullptr) {
+            VkTraceRaysIndirectCommand2KHR indirectCmd{};
+            indirectCmd.raygenShaderRecordAddress = m_raygen.deviceAddress;
+            indirectCmd.raygenShaderRecordSize = m_raygen.size;
+            indirectCmd.missShaderBindingTableAddress = m_miss.deviceAddress;
+            indirectCmd.missShaderBindingTableSize = m_miss.size;
+            indirectCmd.missShaderBindingTableStride = m_miss.stride;
+            indirectCmd.hitShaderBindingTableAddress = m_hit.deviceAddress;
+            indirectCmd.hitShaderBindingTableSize = m_hit.size;
+            indirectCmd.hitShaderBindingTableStride = m_hit.stride;
+            indirectCmd.callableShaderBindingTableAddress = m_callable.deviceAddress;
+            indirectCmd.callableShaderBindingTableSize = m_callable.size;
+            indirectCmd.callableShaderBindingTableStride = m_callable.stride;
+            indirectCmd.width = m_extent.width;
+            indirectCmd.height = m_extent.height;
+            indirectCmd.depth = 1;
+            m_indirectDispatchBuffer.uploadData(&indirectCmd, sizeof(indirectCmd), 0);
+
+            const VkMemoryBarrier2 hostToIndirect{
+                .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+                .pNext = nullptr,
+                .srcStageMask = VK_PIPELINE_STAGE_2_HOST_BIT,
+                .srcAccessMask = VK_ACCESS_2_HOST_WRITE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                .dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,
+            };
+            const VkDependencyInfo dep{
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .pNext = nullptr,
+                .dependencyFlags = 0,
+                .memoryBarrierCount = 1,
+                .pMemoryBarriers = &hostToIndirect,
+                .bufferMemoryBarrierCount = 0,
+                .pBufferMemoryBarriers = nullptr,
+                .imageMemoryBarrierCount = 0,
+                .pImageMemoryBarriers = nullptr,
+            };
+            vkCmdPipelineBarrier2(cmd, &dep);
+
+            pfnTraceRaysIndirect2(cmd, m_indirectDispatchBuffer.deviceAddress());
+        } else {
+            vkCmdTraceRaysKHR(cmd, &m_raygen, &m_miss, &m_hit, &m_callable, m_extent.width, m_extent.height, 1);
+        }
+    } else {
+        vkCmdTraceRaysKHR(cmd, &m_raygen, &m_miss, &m_hit, &m_callable, m_extent.width, m_extent.height, 1);
+    }
+
     return VK_SUCCESS;
 }
 

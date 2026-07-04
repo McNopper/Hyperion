@@ -29,7 +29,8 @@ class PathTracer {
         /// space (0 = linear Rec.2020, 1 = linear Rec.709); forwarded to the
         /// tonemap push constant.
         uint32_t workingColorSpace = 0;
-        bool serEnabled = false; ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
+        bool serEnabled = false;      ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
+        bool indirectRt2Enabled = false; ///< Use vkCmdTraceRaysIndirect2KHR when supported.
     };
 
     [[nodiscard]] static std::expected<PathTracer, VkResult> create(const DeviceContext& ctx,
@@ -64,6 +65,7 @@ class PathTracer {
     VkExtent2D m_extent{};
     Config m_config;
     Buffer m_cameraBuffer{};
+    Buffer m_indirectDispatchBuffer{}; ///< GPU buffer for VkTraceRaysIndirectCommand2KHR (B2).
     VkStridedDeviceAddressRegionKHR m_raygen{};
     VkStridedDeviceAddressRegionKHR m_miss{};
     VkStridedDeviceAddressRegionKHR m_hit{};
