@@ -34,12 +34,8 @@ FetchContent_Declare(
 FetchContent_Declare(
     harmonia
     GIT_REPOSITORY https://github.com/McNopper/Harmonia.git
-    GIT_TAG v0.6.4
+    GIT_TAG v0.6.5
 )
-
-# clang-cl needs explicit C++ exception support for the toml++-using code in
-# Aether and Harmonia; apply it before adding the subprojects.
-add_compile_options($<$<CXX_COMPILER_ID:MSVC,Clang>:/EHsc>)
 
 FetchContent_MakeAvailable(aether harmonia)
 
