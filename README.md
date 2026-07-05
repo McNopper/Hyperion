@@ -50,6 +50,7 @@ It implements the [OpenPBR Surface v1.1.1](https://academysoftwarefoundation.git
 - Firefly suppression (channel-average clamping with NaN guard)
 - À trous wavelet denoiser pass
 - Headless render mode with PNG + EXR output
+- **`VK_KHR_ray_tracing_maintenance1`** — `vkCmdTraceRaysIndirect2KHR` indirect dispatch (GPU-buffer-driven ray dispatch dimensions; falls back to `vkCmdTraceRaysKHR` when absent)
 
 ### Material model — OpenPBR Surface v1.1.1
 All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.github.io/OpenPBR/) naming:
