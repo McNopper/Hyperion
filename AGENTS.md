@@ -21,9 +21,11 @@ against MaterialX.
 
 Pipeline (dependency direction):
 
-```
-Aether (file format)  ->  Harmonia (shared Vulkan lib)  ->  Hyperion (this repo, ground truth)
-                                                         \-> Theia    (real-time rasterizer)
+```mermaid
+flowchart LR
+    A["Aether<br/>file format"] --> H["Harmonia<br/>shared Vulkan lib"]
+    H --> Hy["<b>Hyperion</b><br/>path tracer · ground truth (this repo)"]
+    H --> T["Theia<br/>real-time renderer"]
 ```
 
 Consumes Aether + Harmonia via CMake FetchContent. The demo is a thin `harmonia::App`

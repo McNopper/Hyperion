@@ -161,6 +161,13 @@ design; all material assignments are declared in the scene file. See the
 
 Hyperion is the **offline / ground-truth** renderer in a family of four repositories:
 
+```mermaid
+flowchart LR
+    A["Aether<br/>file format"] --> H["Harmonia<br/>shared Vulkan lib"]
+    H --> Hy["<b>Hyperion</b><br/>path tracer · ground truth"]
+    H --> T["Theia<br/>real-time renderer"]
+```
+
 | Repository | Role |
 |------------|------|
 | [Aether](https://github.com/McNopper/Aether) | GPU-agnostic file formats & scene data (`.scene.toml` / `.materials.toml` / OBJ → plain CPU structs); no Vulkan |
@@ -217,8 +224,8 @@ build/hyperion.exe meadow_scene
 | `--output <file>` / `-o` | — | Headless mode: accumulate and save EXR (untonemapped) + PNG (tonemapped), then exit; a `.png` output saves PNG only |
 | `--spp <n>` | scene value | Override samples per pixel |
 | `--depth <n>` | scene value | Override maximum bounce depth |
-| `--width <n>` | 1920 | Override render width in pixels |
-| `--height <n>` | 1080 | Override render height in pixels |
+| `--width <n>` | 1024 | Override render width in pixels |
+| `--height <n>` | 768 | Override render height in pixels |
 | `--validation` / `--no-validation` | disabled | Enable / disable Vulkan validation layers |
 
 ---
