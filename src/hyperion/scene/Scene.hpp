@@ -16,6 +16,7 @@
 #include "harmonia/scene/ISceneBuilder.hpp"
 #include "harmonia/scene/Light.hpp"
 #include "harmonia/scene/Material.hpp"
+#include "harmonia/scene/SceneBase.hpp"
 #include "harmonia/scene/Texture.hpp"
 
 /// Hyperion (path tracer) per-instance GPU layout (std430, 32 bytes). The path tracer
@@ -35,11 +36,13 @@ static_assert(sizeof(GpuInstance) == 32);
 
 class SceneBuilder;
 
-class Scene : public ISceneBuilder {
+class Scene : public harmonia::SceneBase {
   public:
     using Builder = SceneBuilder;
 
-    [[nodiscard]] uint32_t addMaterial(Material&& mat) override;
+    [[nodiscard]] uint32_t addMaterial(Material&& mat) override { return harmonia::SceneBase::addMaterial(std::move(mat)); }
+    [[nodiscard]] uint32_t addTexture(Texture&& texture) override { return harmonia::SceneBase::addTexture(std::move(texture)); }
+
     [[nodiscard]] uint32_t addMesh(const DeviceContext& ctx,
                                    const CommandPool& pool,
                                    MeshData&& data,
@@ -50,14 +53,6 @@ class Scene : public ISceneBuilder {
                                      sm::float3 center,
                                      float radius,
                                      uint32_t materialIdx) override;
-
-    /// Add a light to the scene. Returns the light index.
-    /// Must be called before build().
-    uint32_t addLight(std::unique_ptr<Light> light);
-
-    /// Add a texture to the scene. Returns the bindless texture index.
-    /// Must be called before build() / updateSceneSet().
-    [[nodiscard]] uint32_t addTexture(Texture&& texture) override;
 
     VkResult build(const DeviceContext& ctx, const CommandPool& pool);
 
@@ -70,7 +65,6 @@ class Scene : public ISceneBuilder {
     [[nodiscard]] const Buffer& lightBuffer() const noexcept { return m_lightBuffer; }
     [[nodiscard]] const Buffer& emissiveTriangleBuffer() const noexcept { return m_emissiveTriangleBuffer; }
     [[nodiscard]] const Buffer& emissiveCdfBuffer() const noexcept { return m_emissiveCdfBuffer; }
-    [[nodiscard]] const std::vector<Texture>& textures() const noexcept { return m_textures; }
     [[nodiscard]] uint32_t instanceCount() const noexcept { return static_cast<uint32_t>(m_geometries.size()); }
     [[nodiscard]] uint32_t lightCount() const noexcept { return static_cast<uint32_t>(m_lights.size()); }
     [[nodiscard]] uint32_t emissiveTriangleCount() const noexcept { return m_emissiveTriangleCount; }
@@ -79,11 +73,7 @@ class Scene : public ISceneBuilder {
     VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool);
     VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool);
 
-    std::vector<Material> m_materials;
     std::vector<GpuInstance> m_instances;
-    std::vector<std::unique_ptr<Geometry>> m_geometries;
-    std::vector<std::unique_ptr<Light>> m_lights;
-    std::vector<Texture> m_textures;
     Buffer m_instanceBuffer{};
     Buffer m_materialBuffer{};
     Buffer m_vertexBuffer{};
