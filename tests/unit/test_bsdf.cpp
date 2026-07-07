@@ -234,7 +234,7 @@ void mx_artistic_ior(sm::float3 reflectivity, sm::float3 edgeColor, sm::float3& 
     const sm::float3 rSqrt = sm::sqrt(r);
     const sm::float3 nMin = (sm::float3(1.0F) - r) / (sm::float3(1.0F) + r);
     const sm::float3 nMax = (sm::float3(1.0F) + rSqrt) / sm::max(sm::float3(1.0F) - rSqrt, sm::float3(1.0e-4F));
-    ior = sm::mix(nMax, nMin, sm::clamp(edgeColor, sm::float3(0.0F), sm::float3(1.0F)));
+    ior = sm::lerp(nMax, nMin, sm::clamp(edgeColor, sm::float3(0.0F), sm::float3(1.0F)));
     const sm::float3 np1 = ior + 1.0F;
     const sm::float3 nm1 = ior - 1.0F;
     const sm::float3 k2 = (np1 * np1 * r - nm1 * nm1) / sm::max(sm::float3(1.0F) - r, sm::float3(1.0e-4F));
@@ -605,12 +605,12 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     const float coatF0v = std::pow((coatEta - 1.0F) / (coatEta + 1.0F), 2.0F);
     const float Kcoat = 1.0F - (1.0F - coatF0v) / std::max(coatEta * coatEta, 1.0e-4F);
     const sm::float3 Emetal = baseColor * std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F);
-    const sm::float3 Edielectric = sm::mix(baseColor, subsurfaceColor, std::clamp(mat.subsurfaceColorWeight.w, 0.0F, 1.0F));
-    const sm::float3 Ebase = sm::clamp(sm::mix(Edielectric, Emetal, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F)), sm::float3(0.0F), sm::float3(1.0F));
-    const sm::float3 darkening = sm::mix(sm::float3(1.0F),
+    const sm::float3 Edielectric = sm::lerp(baseColor, subsurfaceColor, std::clamp(mat.subsurfaceColorWeight.w, 0.0F, 1.0F));
+    const sm::float3 Ebase = sm::clamp(sm::lerp(Edielectric, Emetal, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F)), sm::float3(0.0F), sm::float3(1.0F));
+    const sm::float3 darkening = sm::lerp(sm::float3(1.0F),
         sm::float3(1.0F - Kcoat) / sm::max(sm::float3(1.0F) - Ebase * Kcoat, sm::float3(1.0e-4F)),
         std::clamp(weights.coatWeight * coatDark, 0.0F, 1.0F));
-    const sm::float3 coatAtten = sm::mix(sm::float3(1.0F), coatColor, std::clamp(weights.coatWeight, 0.0F, 1.0F));
+    const sm::float3 coatAtten = sm::lerp(sm::float3(1.0F), coatColor, std::clamp(weights.coatWeight, 0.0F, 1.0F));
     // G8: fuzz (topmost) attenuates both the base and the coat lobe below it.
     const float fuzzAtten = 1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight;
     const sm::float3 baseLayerScale = darkening * coatAtten * fuzzAtten;
@@ -618,7 +618,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     sm::float3 result(0.0F);
     if (wiL.z > 0.0F && woL.z > 0.0F) {
         const sm::float3 dielectricF0 = iorToF0(eta);
-        sm::float3 glossyF0 = sm::mix(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
+        sm::float3 glossyF0 = sm::lerp(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
         const sm::float3 glossyF82 = specColor;
         const float specF0 = Math::luminance(dielectricF0 * specColor);
         auto underSpec = [&](float c) { return std::clamp(1.0F - std::clamp(specF0 + (1.0F - specF0) * std::pow(1.0F - std::clamp(c, 0.0F, 1.0F), 5.0F), 0.0F, 1.0F), 0.0F, 1.0F); };
@@ -996,7 +996,7 @@ TEST(Bsdf, ThinFilmGuardReturnsBaseWhenInactive) {
             return base;
         }
         const sm::float3 irid = thinFilmIridescentReflectance(baseF0, cosT, thickness, ior);
-        return sm::mix(base, irid, std::clamp(weight, 0.0F, 1.0F));
+        return sm::lerp(base, irid, std::clamp(weight, 0.0F, 1.0F));
     };
     const sm::float3 baseF0(0.95F, 0.78F, 0.40F);
     for (const float cosT : {0.2F, 0.5F, 0.9F}) {
@@ -1588,4 +1588,5 @@ TEST(Bsdf, OpenPbrV0_MediumExitFresnelReportsTirAboveCriticalAngle) {
         EXPECT_NEAR(F + (1.0F - F), 1.0F, 1.0e-6F) << "eta=" << eta;
     }
 }
+
 

@@ -1,25 +1,16 @@
-#include <charconv>
-#include <string_view>
-
 #include "demo/Application.hpp"
+#include "harmonia/app/App.hpp"
 #include "harmonia/core/Logger.hpp"
 
 namespace {
-bool parseUint(std::string_view text, uint32_t& value) {
-    const char* const begin = text.data();
-    const char* const end = begin + text.size();
-    const auto [ptr, ec] = std::from_chars(begin, end, value);
-    return ec == std::errc{} && ptr == end;
-}
-
 bool consumeValue(int& index, int argc, char* const argv[], std::string_view option, uint32_t& outValue) {
     std::string_view arg = argv[index];
     if (arg.starts_with(option) && arg.size() > option.size() && arg[option.size()] == '=') {
-        return parseUint(arg.substr(option.size() + 1), outValue);
+        return harmonia::App::parseUint32(arg.substr(option.size() + 1), outValue);
     }
     if (arg == option && (index + 1) < argc) {
         ++index;
-        return parseUint(argv[index], outValue);
+        return harmonia::App::parseUint32(argv[index], outValue);
     }
     return false;
 }

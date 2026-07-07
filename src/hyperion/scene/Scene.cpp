@@ -18,12 +18,12 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/scene/Geometry.hpp"
 
-uint32_t Scene::addMaterial(Material mat) {
+uint32_t Scene::addMaterial(Material&& mat) {
     m_materials.push_back(std::move(mat));
     return static_cast<uint32_t>(m_materials.size() - 1);
 }
 
-uint32_t Scene::addTexture(Texture texture) {
+uint32_t Scene::addTexture(Texture&& texture) {
     const auto idx = static_cast<uint32_t>(m_textures.size());
     m_textures.push_back(std::move(texture));
     return idx;
@@ -31,7 +31,7 @@ uint32_t Scene::addTexture(Texture texture) {
 
 uint32_t Scene::addMesh(const DeviceContext& ctx,
                         const CommandPool& pool,
-                        MeshData data,
+                        MeshData&& data,
                         uint32_t materialIdx,
                         std::string_view name) {
     const uint32_t instanceIndex = static_cast<uint32_t>(m_geometries.size());

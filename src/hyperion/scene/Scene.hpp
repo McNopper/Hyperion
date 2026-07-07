@@ -39,10 +39,10 @@ class Scene : public ISceneBuilder {
   public:
     using Builder = SceneBuilder;
 
-    [[nodiscard]] uint32_t addMaterial(Material mat) override;
+    [[nodiscard]] uint32_t addMaterial(Material&& mat) override;
     [[nodiscard]] uint32_t addMesh(const DeviceContext& ctx,
                                    const CommandPool& pool,
-                                   MeshData data,
+                                   MeshData&& data,
                                    uint32_t materialIdx,
                                    std::string_view name = "") override;
     [[nodiscard]] uint32_t addSphere(const DeviceContext& ctx,
@@ -57,7 +57,7 @@ class Scene : public ISceneBuilder {
 
     /// Add a texture to the scene. Returns the bindless texture index.
     /// Must be called before build() / updateSceneSet().
-    [[nodiscard]] uint32_t addTexture(Texture texture) override;
+    [[nodiscard]] uint32_t addTexture(Texture&& texture) override;
 
     VkResult build(const DeviceContext& ctx, const CommandPool& pool);
 

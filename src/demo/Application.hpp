@@ -29,7 +29,7 @@ class Application final : public harmonia::App, public harmonia::IRenderer {
         std::filesystem::path shaderDir;
     };
 
-    int run(Config config, DemoConfig demoConfig);
+    int run(Config&& config, DemoConfig&& demoConfig);
 
     // harmonia::IRenderer
     void record(VkCommandBuffer cmd, const harmonia::RenderTarget& target) noexcept override;

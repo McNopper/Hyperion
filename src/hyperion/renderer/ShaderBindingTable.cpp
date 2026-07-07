@@ -17,7 +17,7 @@ namespace {
 std::expected<ShaderBindingTable, VkResult>
 ShaderBindingTable::create(const DeviceContext& ctx,
                            const Pipeline& pipeline,
-                           VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps) {
+                           const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps) {
     constexpr uint32_t groupCount = 5;
     constexpr uint32_t raygenCount = 1;
     constexpr uint32_t missCount = 2;

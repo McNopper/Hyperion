@@ -33,7 +33,7 @@ namespace {
 
 } // namespace
 
-int Application::run(Config config, DemoConfig demoConfig) {
+int Application::run(Config&& config, DemoConfig&& demoConfig) {
     m_demoConfig = std::move(demoConfig);
     return harmonia::App::run(std::move(config));
 }
@@ -129,11 +129,7 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
     // Build camera — fall back to Cornell box defaults when scene file omits settings.
     Camera::PhysicalCamera physical{};
     if (sceneConfig.cameraEv100) {
-        // EV100 = log2(N² × t_inv × 100/ISO) with N=1, ISO=100 → t_inv = 2^EV100
-        const float ev100 = *sceneConfig.cameraEv100;
-        physical.aperture = 1.0f;
-        physical.iso = 100.0f;
-        physical.shutterSpeedHz = std::pow(2.0f, ev100);
+        physical = Camera::PhysicalCamera::fromEv100(*sceneConfig.cameraEv100);
     }
     const sm::float3 camPos = sceneConfig.cameraPos.value_or(sm::float3(278.0f, 273.0f, -800.0f));
     const sm::float3 camAt = sceneConfig.cameraAt.value_or(sm::float3(278.0f, 273.0f, 279.5f));

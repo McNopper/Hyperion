@@ -163,3 +163,4 @@ endif()
 # Only SDL3 + Vulkan + volk. Used to isolate driver/presentation issues.
 add_executable(hyperion_diag tests/diag/test_sdl_vulkan_init.cpp)
 target_link_libraries(hyperion_diag PRIVATE volk hyperion_vulkan_sdk hyperion_project_options)
+

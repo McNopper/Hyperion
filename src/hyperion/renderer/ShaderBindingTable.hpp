@@ -12,7 +12,7 @@ class Pipeline;
 class ShaderBindingTable {
   public:
     [[nodiscard]] static std::expected<ShaderBindingTable, VkResult>
-    create(const DeviceContext& ctx, const Pipeline& pipeline, VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProps);
+    create(const DeviceContext& ctx, const Pipeline& pipeline, const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps);
 
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& raygenRegion() const noexcept { return m_raygen; }
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& missRegion() const noexcept { return m_miss; }
