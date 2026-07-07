@@ -2,7 +2,6 @@
 
 #include <SDL3/SDL.h>
 
-#include <glm/geometric.hpp>
 #include <slang-math/slang-math.hpp>
 
 #include <algorithm>
