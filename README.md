@@ -250,7 +250,7 @@ cd build && ctest --output-on-failure
 | [volk](https://github.com/zeux/volk) | Vulkan loader |
 | [VMA](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator) | GPU memory allocation |
 | [SDL3](https://libsdl.org/) | Window & surface |
-| [GLM](https://github.com/g-truc/glm) | Math |
+| [slang-math](https://github.com/McNopper/slang-math) | Math — via Harmonia (transitive FetchContent) |
 | [OpenImageIO](https://openimageio.readthedocs.io/) | Image I/O — PNG/JPEG/EXR load and save (via Harmonia; stb and OpenEXR are transitive dependencies) |
 | [Slang](https://shader-slang.com/) | Shader language |
 | [Google Test](https://github.com/google/googletest) | Testing |
