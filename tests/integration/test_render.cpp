@@ -3,8 +3,7 @@
 #include <SDL3/SDL.h>
 
 #include <glm/geometric.hpp>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <algorithm>
 #include <array>
@@ -163,7 +162,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     const VkDeviceSize readbackSize =
-        static_cast<VkDeviceSize>(renderExtent.width) * renderExtent.height * sizeof(glm::vec4);
+        static_cast<VkDeviceSize>(renderExtent.width) * renderExtent.height * sizeof(sm::float4);
     auto readback = Buffer::create(context->deviceContext(),
                                    readbackSize,
                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -174,15 +173,15 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     Scene scene;
-    const uint32_t floorMaterial = scene.addMaterial(Material::diffuse(glm::vec3(0.8F), 1.0F));
-    const uint32_t sphereMaterial = scene.addMaterial(Material::metal(glm::vec3(0.9F, 0.3F, 0.2F), 0.15F));
+    const uint32_t floorMaterial = scene.addMaterial(Material::diffuse(sm::float3(0.8F), 1.0F));
+    const uint32_t sphereMaterial = scene.addMaterial(Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
     // Emissive sphere as area light: replaces the removed procedural sky.
     // 50 000 cd/m² at EV100=0 (exposure≈0.833) → display-space ≈ 41 667, clamped to 100
     // by kMaxDisplayLuminance.  At r=1.5, d=6.5 → P(hit)≈1.7 % → average luminance ≫ 1e-3.
-    const uint32_t lightMaterial = scene.addMaterial(Material::emissive(glm::vec3(1.0F), 50000.0F));
+    const uint32_t lightMaterial = scene.addMaterial(Material::emissive(sm::float3(1.0F), 50000.0F));
 
-    const glm::mat4 floorTransform = glm::translate(glm::mat4(1.0F), glm::vec3(0.0F, -1.5F, 0.0F));
-    MeshData floorMesh = ProceduralGeometry::makeBox(glm::vec3(4.0F, 0.1F, 4.0F), floorTransform);
+    const sm::float4x4 floorTransform = sm::translate(sm::float4x4(1.0F), sm::float3(0.0F, -1.5F, 0.0F));
+    MeshData floorMesh = ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F), floorTransform);
     const uint32_t floorInstance =
         scene.addMesh(context->deviceContext(), *commandPool, std::move(floorMesh), floorMaterial, "test.floor");
     if (floorInstance == std::numeric_limits<uint32_t>::max()) {
@@ -190,14 +189,14 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     const uint32_t sphereInstance =
-        scene.addSphere(context->deviceContext(), *commandPool, glm::vec3(0.0F, -0.25F, 0.5F), 1.0F, sphereMaterial);
+        scene.addSphere(context->deviceContext(), *commandPool, sm::float3(0.0F, -0.25F, 0.5F), 1.0F, sphereMaterial);
     if (sphereInstance == std::numeric_limits<uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload sphere";
     }
 
     // Emissive sphere positioned above scene, fully visible from camera.
     const uint32_t lightInstance =
-        scene.addSphere(context->deviceContext(), *commandPool, glm::vec3(0.0F, 5.0F, 0.0F), 1.5F, lightMaterial);
+        scene.addSphere(context->deviceContext(), *commandPool, sm::float3(0.0F, 5.0F, 0.0F), 1.5F, lightMaterial);
     if (lightInstance == std::numeric_limits<uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload light sphere";
     }
@@ -230,9 +229,9 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     Camera camera(Camera::Params{
-        .position = glm::vec3(0.0F, 1.0F, -6.0F),
-        .target = glm::vec3(0.0F, -0.1F, 0.2F),
-        .up = glm::vec3(0.0F, 1.0F, 0.0F),
+        .position = sm::float3(0.0F, 1.0F, -6.0F),
+        .target = sm::float3(0.0F, -0.1F, 0.2F),
+        .up = sm::float3(0.0F, 1.0F, 0.0F),
         .vfovDeg = 45.0F,
         .aspectRatio = 1.0F,
         .nearPlane = 0.1F,
@@ -299,15 +298,17 @@ TEST(PathTracer, CornellBoxNonBlack) {
 
     ASSERT_EQ(commandPool->endOneShot(*cmd), VK_SUCCESS);
 
-    const auto* pixels = static_cast<const glm::vec4*>(readback->mappedData());
+    const auto* pixels = static_cast<const sm::float4*>(readback->mappedData());
     ASSERT_NE(pixels, nullptr);
 
     double averageLuminance = 0.0;
     const size_t pixelCount = static_cast<size_t>(renderExtent.width) * renderExtent.height;
     for (size_t i = 0; i < pixelCount; ++i) {
-        averageLuminance += Math::luminance(glm::max(glm::vec3(pixels[i]), glm::vec3(0.0F)));
+        averageLuminance += Math::luminance(sm::max(sm::float3(pixels[i]), sm::float3(0.0F)));
     }
     averageLuminance /= static_cast<double>(pixelCount);
 
     EXPECT_GT(static_cast<float>(averageLuminance), 1.0e-3F);
 }
+
+

@@ -1,7 +1,6 @@
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "demo/Application.hpp"
 
-#include <glm/glm.hpp>
+#include <slang-math/slang-math.hpp>
 
 #include <array>
 #include <cmath>
@@ -136,13 +135,13 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
         physical.iso = 100.0f;
         physical.shutterSpeedHz = std::pow(2.0f, ev100);
     }
-    const glm::vec3 camPos = sceneConfig.cameraPos.value_or(glm::vec3(278.0f, 273.0f, -800.0f));
-    const glm::vec3 camAt = sceneConfig.cameraAt.value_or(glm::vec3(278.0f, 273.0f, 279.5f));
-    const auto [nearPlane, farPlane] = Camera::nearFarFromDistance(glm::length(camAt - camPos));
+    const sm::float3 camPos = sceneConfig.cameraPos.value_or(sm::float3(278.0f, 273.0f, -800.0f));
+    const sm::float3 camAt = sceneConfig.cameraAt.value_or(sm::float3(278.0f, 273.0f, 279.5f));
+    const auto [nearPlane, farPlane] = Camera::nearFarFromDistance(sm::length(camAt - camPos));
     m_camera = Camera(Camera::Params{
         .position = camPos,
         .target = camAt,
-        .up = sceneConfig.cameraUp.value_or(glm::vec3(0.0f, 1.0f, 0.0f)),
+        .up = sceneConfig.cameraUp.value_or(sm::float3(0.0f, 1.0f, 0.0f)),
         .vfovDeg = sceneConfig.cameraVfov.value_or(39.1f),
         .aspectRatio = static_cast<float>(swapchain().extent().width) / static_cast<float>(swapchain().extent().height),
         .nearPlane = nearPlane,

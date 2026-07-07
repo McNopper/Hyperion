@@ -47,7 +47,7 @@ class Scene : public ISceneBuilder {
                                    std::string_view name = "") override;
     [[nodiscard]] uint32_t addSphere(const DeviceContext& ctx,
                                      const CommandPool& pool,
-                                     glm::vec3 center,
+                                     sm::float3 center,
                                      float radius,
                                      uint32_t materialIdx) override;
 

@@ -1,9 +1,7 @@
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "hyperion/scene/Scene.hpp"
 
+#include <slang-math/slang-math.hpp>
 #include <volk/volk.h>
-
-#include <glm/glm.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -60,7 +58,7 @@ uint32_t Scene::addMesh(const DeviceContext& ctx,
 
 uint32_t Scene::addSphere(const DeviceContext& ctx,
                           const CommandPool& pool,
-                          glm::vec3 center,
+                          sm::float3 center,
                           float radius,
                           uint32_t materialIdx) {
     const uint32_t instanceIndex = static_cast<uint32_t>(m_geometries.size());
@@ -137,9 +135,9 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
             vertices.push_back(GpuVertex{
                 .position = sphere->center(),
                 .tangentX = 0.0f,
-                .normal = glm::vec3(0.0f),
+                .normal = sm::float3{0.0f, 0.0f, 0.0f},
                 .tangentY = 0.0f,
-                .uv = glm::vec2(0.0f),
+                .uv = sm::float2{0.0f, 0.0f},
                 .tangentZ = 0.0f,
                 .bitangentSign = 1.0f,
             });
@@ -241,34 +239,34 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
             continue;
         }
 
-        const glm::mat4 xformMat = m_geometries[i]->xform.matrix();
-        const glm::vec3 emission = glm::vec3(gpuMat.emissionColorLum) *
+        const sm::float4x4 xformMat = m_geometries[i]->xform.matrix();
+        const sm::float3 emission = static_cast<sm::float3>(gpuMat.emissionColorLum) *
                                    gpuMat.emissionColorLum.w; // NOLINT(cppcoreguidelines-pro-type-union-access)
 
         const uint32_t triCount = static_cast<uint32_t>(idxBuf.size() / 3);
         for (uint32_t t = 0; t < triCount; ++t) {
-            const glm::vec3 lv0 = verts[idxBuf[t * 3 + 0]].position;
-            const glm::vec3 lv1 = verts[idxBuf[t * 3 + 1]].position;
-            const glm::vec3 lv2 = verts[idxBuf[t * 3 + 2]].position;
+            const sm::float3 lv0 = verts[idxBuf[t * 3 + 0]].position;
+            const sm::float3 lv1 = verts[idxBuf[t * 3 + 1]].position;
+            const sm::float3 lv2 = verts[idxBuf[t * 3 + 2]].position;
 
-            const glm::vec3 wv0 = glm::vec3(xformMat * glm::vec4(lv0, 1.0F));
-            const glm::vec3 wv1 = glm::vec3(xformMat * glm::vec4(lv1, 1.0F));
-            const glm::vec3 wv2 = glm::vec3(xformMat * glm::vec4(lv2, 1.0F));
-            const glm::vec3 edge1 = wv1 - wv0;
-            const glm::vec3 edge2 = wv2 - wv0;
-            const glm::vec3 cross = glm::cross(edge1, edge2);
-            const float area = 0.5F * glm::length(cross);
+            const sm::float3 wv0 = static_cast<sm::float3>(xformMat * sm::float4(lv0, 1.0F));
+            const sm::float3 wv1 = static_cast<sm::float3>(xformMat * sm::float4(lv1, 1.0F));
+            const sm::float3 wv2 = static_cast<sm::float3>(xformMat * sm::float4(lv2, 1.0F));
+            const sm::float3 edge1 = wv1 - wv0;
+            const sm::float3 edge2 = wv2 - wv0;
+            const sm::float3 cross = sm::cross(edge1, edge2);
+            const float area = 0.5F * sm::length(cross);
 
             if (area <= 1.0e-6F) {
                 continue; // skip degenerate triangles
             }
-            const glm::vec3 normal = cross / (2.0F * area); // normalize: cross/|cross|
+            const sm::float3 normal = cross / (2.0F * area); // normalize: cross/|cross|
 
             emissiveTriangles.push_back(GpuEmissiveTriangle{
-                .v0_area = glm::vec4(wv0, area),
-                .edge1_emitR = glm::vec4(edge1, emission.r),
-                .edge2_emitG = glm::vec4(edge2, emission.g),
-                .normal_emitB = glm::vec4(normal, emission.b),
+                .v0_area = sm::float4(wv0, area),
+                .edge1_emitR = sm::float4(edge1, emission.r),
+                .edge2_emitG = sm::float4(edge2, emission.g),
+                .normal_emitB = sm::float4(normal, emission.b),
             });
             // Power for power-proportional NEE selection: area × luminance(Le) (Rec.2020).
             const float lumLe = 0.2627F * emission.r + 0.6780F * emission.g + 0.0593F * emission.b;

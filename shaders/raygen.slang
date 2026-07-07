@@ -20,15 +20,15 @@ void pathTracingRaygen()
         uv.y = 1.0 - uv.y;
 
         float4 clipPos = float4(uv * 2.0 - 1.0, 0.0, 1.0);
-        float4 viewPos = mul(camera.invProj, clipPos);
+        float4 viewPos = mul(clipPos, camera.invProj);
         viewPos /= max(viewPos.w, 1.0e-6);
 
-        float3 rayDir = normalize(mul((float3x3)camera.invView, viewPos.xyz));
+        float3 rayDir = normalize(mul(viewPos.xyz, (float3x3)camera.invView));
         float3 rayOrigin = camera.position.xyz;
 
         if (camera.lensRadius > 0.0) {
             float2 lens = camera.lensRadius * sampleDisk(randFloat2(seed));
-            float3 lensWorld = mul((float3x3)camera.invView, float3(lens, 0.0));
+            float3 lensWorld = mul(float3(lens, 0.0), (float3x3)camera.invView);
             float3 focalPoint = rayOrigin + rayDir * camera.focusDistance;
             rayOrigin += lensWorld;
             rayDir = normalize(focalPoint - rayOrigin);
