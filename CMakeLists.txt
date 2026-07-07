@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(hyperion VERSION 0.6.9 LANGUAGES C CXX)
+project(hyperion VERSION 0.6.10 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
