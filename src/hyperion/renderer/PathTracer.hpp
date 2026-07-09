@@ -58,6 +58,7 @@ class PathTracer {
     void onResize(VkExtent2D newExtent) noexcept;
 
   private:
+    void updateIndirectBuffer() noexcept;
     const DeviceContext* m_ctx{};
     VkPipeline m_rtPipeline{VK_NULL_HANDLE};
     VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
