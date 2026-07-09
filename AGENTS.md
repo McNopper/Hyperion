@@ -87,3 +87,23 @@ SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides opene
 - **GPU-driven, latest standard Vulkan, cross-vendor only** (core + `KHR`/`EXT`). No
   vendor-specific extensions (`VK_NV_*`/`VK_AMD_*`/`VK_INTEL_*`) — must run on any vendor.
 - Working color space is scene-referred (e.g. `lin_rec2020_scene`).
+
+## GPU-driven design (Hyperion)
+
+**Principle:** GPU-driven by design — all dispatch parameters are GPU-resident and pre-set;
+`render()` is a pure GPU command record with no CPU→GPU data transfer on the hot path.
+
+**Indirect RT dispatch (`VK_KHR_ray_tracing_maintenance1`):**
+- When `indirectRt2Supported` (= `DeviceContext::indirectRt2Supported`), Hyperion uses
+  `vkCmdTraceRaysIndirect2KHR`. The `VkTraceRaysIndirectCommand2KHR` buffer (SBT addresses +
+  render dimensions) is written **once** at `PathTracer::create()` and updated in `onResize()`.
+  The per-frame `render()` path records only GPU commands — no host writes.
+- Falls back to `vkCmdTraceRaysKHR` when the extension is unavailable.
+
+**Acceleration structure builds — device-side only (Khronos deprecation compliant):**
+- All BLAS builds: `vkCmdBuildAccelerationStructuresKHR` (Harmonia `Geometry::buildBlas`).
+- All TLAS builds: `vkCmdBuildAccelerationStructuresKHR` (`Scene::buildTlas`).
+- `vkBuildAccelerationStructuresKHR` (host-side) is **never used** — deprecated per the
+  [Khronos RT AS deprecation blog](https://www.khronos.org/blog/vulkan-ray-tracing-deprecating-host-side-acceleration-structure-builds).
+- `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` is the future
+  forward path — plan when available on dev hardware.
