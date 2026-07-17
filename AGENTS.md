@@ -35,7 +35,7 @@ subclass injecting `harmonia::IRenderer`.
 
 ```powershell
 build/hyperion.exe --scene cornell_classic --output out.exr            # headless EXR+PNG
-build/hyperion.exe --scene fixture_ibl --spp 512 --output ref.exr      # clean IBL reference
+build/hyperion.exe --scene fixture_ibl --spp 256 --output ref.exr      # clean IBL reference
 build/hyperion.exe meadow_scene                                        # interactive window
 ```
 
@@ -56,7 +56,7 @@ CLI flags: all common Harmonia flags (`--scene/-s`, `--output/-o`, `--width`, `-
   update the `_deps` copy or build with `-DFETCHCONTENT_SOURCE_DIR_AETHER=...`. Symptom:
   two "different" renders give byte-identical metrics. See Aether/AGENTS.md.
 - **spp for parity:** scenes using `alignment_16spp_8bounce.render.toml` render at only
-  16 spp (noisy under IBL). Pass `--spp 512` when producing a parity reference, or the diff
+  16 spp (noisy under IBL). Pass `--spp 256` when producing a parity reference, or the diff
   measures Monte-Carlo noise, not a real discrepancy.
 - **Emissive winding:** emissive-triangle normals derive from OBJ winding
   (`cross(edge1,edge2)`); back-facing emitters are skipped in NEE. OBJs must be
