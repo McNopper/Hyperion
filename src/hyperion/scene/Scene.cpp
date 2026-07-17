@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <limits>
 #include <span>
-#include <string>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
@@ -22,66 +21,45 @@
 uint32_t Scene::addMesh(const DeviceContext& ctx,
                         const CommandPool& pool,
                         MeshData&& data,
-                        uint32_t materialIdx,
                         std::string_view name) {
-    const uint32_t instanceIndex = static_cast<uint32_t>(m_geometries.size());
+    const uint32_t meshIndex = static_cast<uint32_t>(m_meshes.size());
     const std::string debugName =
-        name.empty() ? std::string{"mesh."} + std::to_string(instanceIndex) : std::string{name};
+        name.empty() ? std::string{"mesh."} + std::to_string(meshIndex) : std::string{name};
 
-    auto mesh = TriangleMesh::create(ctx, pool, std::move(data), materialIdx, debugName);
+    auto mesh = TriangleMesh::create(ctx, pool, std::move(data), debugName);
     if (!mesh) {
         return std::numeric_limits<uint32_t>::max();
     }
-
-    m_geometries.push_back(std::move(*mesh));
-    m_instances.push_back(GpuInstance{
-        .meshIndex = instanceIndex,
-        .materialIndex = materialIdx,
-        .vertexOffset = 0,
-        .indexOffset = 0,
-        .geometryKind = 0,
-        .sphereRadius = 0.0f,
-        ._pad = {0, 0},
-    });
-    return instanceIndex;
+    m_meshes.push_back(std::move(*mesh));
+    return meshIndex;
 }
 
-uint32_t Scene::addSphere(const DeviceContext& ctx,
-                          const CommandPool& pool,
-                          sm::float3 center,
-                          float radius,
-                          uint32_t materialIdx) {
-    const uint32_t instanceIndex = static_cast<uint32_t>(m_geometries.size());
-    const std::string debugName = std::string{"sphere."} + std::to_string(instanceIndex);
+uint32_t Scene::addSphereMesh(const DeviceContext& ctx,
+                              const CommandPool& pool,
+                              float radius,
+                              std::string_view name) {
+    const uint32_t meshIndex = static_cast<uint32_t>(m_meshes.size());
+    const std::string debugName =
+        name.empty() ? std::string{"sphere."} + std::to_string(meshIndex) : std::string{name};
 
-    auto sphere = Sphere::create(ctx, pool, center, radius, materialIdx, debugName);
+    auto sphere = Sphere::create(ctx, pool, radius, debugName);
     if (!sphere) {
         return std::numeric_limits<uint32_t>::max();
     }
-
-    m_geometries.push_back(std::move(*sphere));
-    m_instances.push_back(GpuInstance{
-        .meshIndex = instanceIndex,
-        .materialIndex = materialIdx,
-        .vertexOffset = 0,
-        .indexOffset = 0,
-        .geometryKind = 1,
-        .sphereRadius = radius,
-        ._pad = {0, 0},
-    });
-    return instanceIndex;
+    m_meshes.push_back(std::move(*sphere));
+    return meshIndex;
 }
 
 VkResult Scene::build(const DeviceContext& ctx, const CommandPool& pool) {
-    if (m_geometries.empty()) {
+    if (m_instances.empty()) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
-    assert(m_geometries.size() == m_instances.size());
     if (const VkResult result = buildSceneBuffers(ctx, pool); result != VK_SUCCESS) {
         return result;
     }
-    for (auto& geo : m_geometries) {
-        if (const VkResult result = geo->buildBlas(ctx, pool); result != VK_SUCCESS) {
+    // One BLAS per unique mesh; N TLAS instances reference a shared BLAS.
+    for (auto& mesh : m_meshes) {
+        if (const VkResult result = mesh->buildBlas(ctx, pool); result != VK_SUCCESS) {
             return result;
         }
     }
@@ -98,26 +76,31 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
         gpuMaterials.push_back(GpuMaterial{});
     }
 
+    // Lay out the global vertex/index buffers from the unique meshes (object space),
+    // recording each mesh's range for the per-instance GpuInstance rows.
     std::vector<GpuVertex> vertices;
     std::vector<uint32_t> indices;
-    vertices.reserve(std::max<size_t>(m_geometries.size(), 1));
+    m_meshGpu.assign(m_meshes.size(), MeshGpu{});
 
-    for (size_t i = 0; i < m_geometries.size(); ++i) {
-        GpuInstance& instance = m_instances[i];
-
-        if (const auto* mesh = dynamic_cast<const TriangleMesh*>(m_geometries[i].get())) {
-            instance.vertexOffset = static_cast<uint32_t>(vertices.size());
-            instance.indexOffset = static_cast<uint32_t>(indices.size());
+    for (size_t mi = 0; mi < m_meshes.size(); ++mi) {
+        if (const auto* mesh = dynamic_cast<const TriangleMesh*>(m_meshes[mi].get())) {
+            MeshGpu& gpu = m_meshGpu[mi];
+            gpu.vertexOffset = static_cast<uint32_t>(vertices.size());
+            gpu.indexOffset = static_cast<uint32_t>(indices.size());
+            gpu.geometryKind = 0;
             vertices.insert(vertices.end(), mesh->data().vertices.begin(), mesh->data().vertices.end());
             for (uint32_t index : mesh->data().indices) {
-                indices.push_back(index + instance.vertexOffset);
+                indices.push_back(index + gpu.vertexOffset);
             }
-        } else if (const auto* sphere = dynamic_cast<const Sphere*>(m_geometries[i].get())) {
-            instance.vertexOffset = static_cast<uint32_t>(vertices.size());
-            instance.indexOffset = 0;
-            // Store sphere centre in the vertex position slot for shader lookup.
+        } else if (const auto* sphere = dynamic_cast<const Sphere*>(m_meshes[mi].get())) {
+            MeshGpu& gpu = m_meshGpu[mi];
+            gpu.vertexOffset = static_cast<uint32_t>(vertices.size());
+            gpu.indexOffset = 0;
+            gpu.geometryKind = 1;
+            gpu.sphereRadius = sphere->radius();
+            // Object-space sphere lives at the origin; the instance transform places it.
             vertices.push_back(GpuVertex{
-                .position = sphere->center(),
+                .position = sm::float3{0.0f, 0.0f, 0.0f},
                 .tangentX = 0.0f,
                 .normal = sm::float3{0.0f, 0.0f, 0.0f},
                 .tangentY = 0.0f,
@@ -135,10 +118,26 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
         indices.push_back(0);
     }
 
+    // Build per-instance GPU rows from the instance list (mesh index + material).
+    m_gpuInstances.clear();
+    m_gpuInstances.reserve(m_instances.size());
+    for (const InstanceRecord& inst : m_instances) {
+        const MeshGpu& gpu = m_meshGpu[inst.meshIndex];
+        m_gpuInstances.push_back(GpuInstance{
+            .meshIndex = inst.meshIndex,
+            .materialIndex = inst.materialIndex,
+            .vertexOffset = gpu.vertexOffset,
+            .indexOffset = gpu.indexOffset,
+            .geometryKind = gpu.geometryKind,
+            .sphereRadius = gpu.sphereRadius,
+            ._pad = {0, 0},
+        });
+    }
+
     auto instanceBuf =
         Buffer::upload(ctx,
                        pool,
-                       std::as_bytes(std::span<const GpuInstance>(m_instances.data(), m_instances.size())),
+                       std::as_bytes(std::span<const GpuInstance>(m_gpuInstances.data(), m_gpuInstances.size())),
                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                        "scene.instances");
     if (!instanceBuf) {
@@ -198,13 +197,7 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     m_lightBuffer = std::move(*lightBuf);
 
     // Build emissive triangle buffer via the shared harmonia utility.
-    std::vector<harmonia::EmissiveInstanceInfo> emissiveInstances;
-    emissiveInstances.reserve(m_instances.size());
-    for (const GpuInstance& inst : m_instances) {
-        emissiveInstances.push_back({inst.geometryKind, inst.materialIndex});
-    }
-    harmonia::EmissiveData emissiveData =
-        harmonia::buildEmissiveData(m_geometries, emissiveInstances, m_materials, gpuMaterials);
+    harmonia::EmissiveData emissiveData = harmonia::buildEmissiveData(m_meshes, m_instances, m_materials, gpuMaterials);
 
     m_emissiveTriangleCount = static_cast<uint32_t>(emissiveData.triangles.size());
     Logger::info("Scene: built {} emissive triangle(s) for NEE", m_emissiveTriangleCount);
@@ -264,9 +257,12 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
 }
 
 VkResult Scene::buildTlas(const DeviceContext& ctx, const CommandPool& pool) {
-    std::vector<VkAccelerationStructureInstanceKHR> instances(m_geometries.size());
-    for (size_t i = 0; i < m_geometries.size(); ++i) {
-        instances[i] = m_geometries[i]->makeInstance(static_cast<uint32_t>(i));
+    // One TLAS instance per InstanceRecord, each referencing its mesh's shared BLAS
+    // and carrying that instance's object→world transform.
+    std::vector<VkAccelerationStructureInstanceKHR> instances(m_instances.size());
+    for (size_t i = 0; i < m_instances.size(); ++i) {
+        const InstanceRecord& inst = m_instances[i];
+        instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<uint32_t>(i), inst.xform);
     }
 
     auto instanceUpload = Buffer::upload(

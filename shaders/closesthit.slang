@@ -33,15 +33,26 @@ HitInfo makeTriangleHit(BuiltInTriangleIntersectionAttributes attr)
     GpuVertex v1 = vertices[i1];
     GpuVertex v2 = vertices[i2];
 
+    // Vertices live in object space; the TLAS instance transform places them. Fetch
+    // the instance matrix and its inverse-transpose (for normals) from the builtins.
+    float3x4 o2w = ObjectToWorld3x4();
+    float3x3 normalMat = transpose((float3x3)WorldToObject3x4());
+
 #ifdef POSITION_FETCH_ENABLED
+    // Hardware-supplied positions are already in world space (post-instance-transform).
     float3 p0 = getHitTriangleVertexPosition(0);
     float3 p1 = getHitTriangleVertexPosition(1);
     float3 p2 = getHitTriangleVertexPosition(2);
 #else
-    float3 p0 = v0.position;
-    float3 p1 = v1.position;
-    float3 p2 = v2.position;
+    float3 p0 = mul(o2w, float4(v0.position, 1.0));
+    float3 p1 = mul(o2w, float4(v1.position, 1.0));
+    float3 p2 = mul(o2w, float4(v2.position, 1.0));
 #endif
+
+    // Normals come from the SSBO in object space — transform by the inverse-transpose.
+    float3 n0 = normalize(mul(normalMat, v0.normal));
+    float3 n1 = normalize(mul(normalMat, v1.normal));
+    float3 n2 = normalize(mul(normalMat, v2.normal));
 
     float b1 = attr.barycentrics.x;
     float b2 = attr.barycentrics.y;
@@ -49,7 +60,7 @@ HitInfo makeTriangleHit(BuiltInTriangleIntersectionAttributes attr)
 
     hit.position = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
     hit.geoNormal = normalize(cross(p1 - p0, p2 - p0));
-    hit.normal = normalize(v0.normal * b0 + v1.normal * b1 + v2.normal * b2);
+    hit.normal = normalize(n0 * b0 + n1 * b1 + n2 * b2);
     if (dot(hit.normal, hit.geoNormal) < 0.0) {
         hit.normal = -hit.normal;
     }
@@ -75,7 +86,11 @@ HitInfo makeSphereHit(SphereIntersectionAttributes attr)
     HitInfo hit;
     uint instanceIndex = (uint)InstanceID();
     GpuInstance instance = instances[instanceIndex];
-    float3 center = vertices[instance.vertexOffset].position;
+
+    // Analytic sphere mesh is centred at the object-space origin; its world centre is
+    // the instance translation (ObjectToWorld applied to the origin).
+    float3x4 o2w = ObjectToWorld3x4();
+    float3 center = mul(o2w, float4(0.0, 0.0, 0.0, 1.0));
 
     hit.position = WorldRayOrigin() + WorldRayDirection() * attr.t;
     hit.geoNormal = normalize(hit.position - center);

@@ -5,11 +5,13 @@ void sphereIntersection()
 {
     uint instanceIndex = (uint)InstanceID();
     GpuInstance instance = instances[instanceIndex];
-    float3 center = vertices[instance.vertexOffset].position;
     float radius = instance.sphereRadius;
 
-    float3 ro = WorldRayOrigin() - center;
-    float3 rd = WorldRayDirection();
+    // The analytic sphere mesh is centred at the object-space origin. The RT
+    // pipeline transforms the world ray into object space, so intersect here in
+    // object coordinates (the t parameter is shared with the world ray).
+    float3 ro = ObjectRayOrigin();
+    float3 rd = ObjectRayDirection();
     float tMin = RayTMin();
     float tMax = RayTCurrent();
 

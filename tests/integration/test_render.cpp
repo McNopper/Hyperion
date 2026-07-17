@@ -179,24 +179,29 @@ TEST(PathTracer, CornellBoxNonBlack) {
     // by kMaxDisplayLuminance.  At r=1.5, d=6.5 → P(hit)≈1.7 % → average luminance ≫ 1e-3.
     const uint32_t lightMaterial = scene.addMaterial(Material::emissive(sm::float3(1.0F), 50000.0F));
 
-    const sm::float4x4 floorTransform = sm::translate(sm::float4x4(1.0F), sm::float3(0.0F, -1.5F, 0.0F));
-    MeshData floorMesh = ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F), floorTransform);
-    const uint32_t floorInstance =
-        scene.addMesh(context->deviceContext(), *commandPool, std::move(floorMesh), floorMaterial, "test.floor");
-    if (floorInstance == std::numeric_limits<uint32_t>::max()) {
+    MeshData floorMesh = ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
+    const uint32_t floorMeshIdx =
+        scene.addMesh(context->deviceContext(), *commandPool, std::move(floorMesh), "test.floor");
+    if (floorMeshIdx == std::numeric_limits<uint32_t>::max() ||
+        scene.addInstance(floorMeshIdx, Xform{.translation = {0.0F, -1.5F, 0.0F}}, floorMaterial) ==
+            std::numeric_limits<uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload floor mesh";
     }
 
-    const uint32_t sphereInstance =
-        scene.addSphere(context->deviceContext(), *commandPool, sm::float3(0.0F, -0.25F, 0.5F), 1.0F, sphereMaterial);
-    if (sphereInstance == std::numeric_limits<uint32_t>::max()) {
+    const uint32_t sphereMeshIdx =
+        scene.addSphereMesh(context->deviceContext(), *commandPool, 1.0F, "test.sphere");
+    if (sphereMeshIdx == std::numeric_limits<uint32_t>::max() ||
+        scene.addInstance(sphereMeshIdx, Xform{.translation = {0.0F, -0.25F, 0.5F}}, sphereMaterial) ==
+            std::numeric_limits<uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload sphere";
     }
 
     // Emissive sphere positioned above scene, fully visible from camera.
-    const uint32_t lightInstance =
-        scene.addSphere(context->deviceContext(), *commandPool, sm::float3(0.0F, 5.0F, 0.0F), 1.5F, lightMaterial);
-    if (lightInstance == std::numeric_limits<uint32_t>::max()) {
+    const uint32_t lightMeshIdx =
+        scene.addSphereMesh(context->deviceContext(), *commandPool, 1.5F, "test.light");
+    if (lightMeshIdx == std::numeric_limits<uint32_t>::max() ||
+        scene.addInstance(lightMeshIdx, Xform{.translation = {0.0F, 5.0F, 0.0F}}, lightMaterial) ==
+            std::numeric_limits<uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload light sphere";
     }
 

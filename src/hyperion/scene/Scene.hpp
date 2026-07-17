@@ -2,9 +2,7 @@
 
 #include <volk/volk.h>
 
-#include <expected>
-#include <memory>
-#include <string>
+#include <cstdint>
 #include <string_view>
 #include <vector>
 
@@ -20,14 +18,16 @@
 #include "harmonia/scene/Texture.hpp"
 
 /// Hyperion (path tracer) per-instance GPU layout (std430, 32 bytes). The path tracer
-/// fetches triangles via an index buffer, so this carries indexOffset. Distinct from
-/// Theia's rasterizer layout, which carries meshletOffset/meshletCount instead.
+/// fetches triangles via an index buffer, so this carries the mesh's index/vertex
+/// range. Distinct from Theia's rasterizer layout, which carries meshlet ranges.
+/// Object→world placement comes from the TLAS instance transform (read in-shader via
+/// ObjectToWorld3x4), so no matrix is stored here.
 struct GpuInstance {
-    uint32_t meshIndex     = 0;
+    uint32_t meshIndex     = 0;  ///< references the unique mesh (for debugging)
     uint32_t materialIndex = 0;
-    uint32_t vertexOffset  = 0;
-    uint32_t indexOffset   = 0;
-    uint32_t geometryKind  = 0;
+    uint32_t vertexOffset  = 0;  ///< mesh's first vertex in the global vertex buffer
+    uint32_t indexOffset   = 0;  ///< mesh's first index in the global index buffer
+    uint32_t geometryKind  = 0;  ///< 0 = triangle mesh, 1 = analytic sphere
     float    sphereRadius  = 0.0f;
     uint32_t _pad[2]       = {};
 };
@@ -40,19 +40,16 @@ class Scene : public harmonia::SceneBase {
   public:
     using Builder = SceneBuilder;
 
-    [[nodiscard]] uint32_t addMaterial(Material&& mat) override { return harmonia::SceneBase::addMaterial(std::move(mat)); }
-    [[nodiscard]] uint32_t addTexture(Texture&& texture) override { return harmonia::SceneBase::addTexture(std::move(texture)); }
+    // addMaterial / addTexture / addInstance are inherited concrete from SceneBase.
 
     [[nodiscard]] uint32_t addMesh(const DeviceContext& ctx,
-                                   const CommandPool& pool,
-                                   MeshData&& data,
-                                   uint32_t materialIdx,
-                                   std::string_view name = "") override;
-    [[nodiscard]] uint32_t addSphere(const DeviceContext& ctx,
-                                     const CommandPool& pool,
-                                     sm::float3 center,
-                                     float radius,
-                                     uint32_t materialIdx) override;
+                                    const CommandPool& pool,
+                                    MeshData&& data,
+                                    std::string_view name = "") override;
+    [[nodiscard]] uint32_t addSphereMesh(const DeviceContext& ctx,
+                                         const CommandPool& pool,
+                                         float radius,
+                                         std::string_view name = "") override;
 
     VkResult build(const DeviceContext& ctx, const CommandPool& pool);
 
@@ -65,15 +62,24 @@ class Scene : public harmonia::SceneBase {
     [[nodiscard]] const Buffer& lightBuffer() const noexcept { return m_lightBuffer; }
     [[nodiscard]] const Buffer& emissiveTriangleBuffer() const noexcept { return m_emissiveTriangleBuffer; }
     [[nodiscard]] const Buffer& emissiveCdfBuffer() const noexcept { return m_emissiveCdfBuffer; }
-    [[nodiscard]] uint32_t instanceCount() const noexcept { return static_cast<uint32_t>(m_geometries.size()); }
+    [[nodiscard]] uint32_t instanceCount() const noexcept { return static_cast<uint32_t>(m_instances.size()); }
     [[nodiscard]] uint32_t lightCount() const noexcept { return static_cast<uint32_t>(m_lights.size()); }
     [[nodiscard]] uint32_t emissiveTriangleCount() const noexcept { return m_emissiveTriangleCount; }
 
   private:
+    /// Per-mesh GPU layout computed in buildSceneBuffers (parallel to m_meshes).
+    struct MeshGpu {
+        uint32_t vertexOffset = 0;
+        uint32_t indexOffset = 0;
+        uint32_t geometryKind = 0;  ///< 0 = triangle mesh, 1 = analytic sphere
+        float    sphereRadius = 0.0f;
+    };
+
     VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool);
     VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool);
 
-    std::vector<GpuInstance> m_instances;
+    std::vector<MeshGpu>     m_meshGpu;       ///< per-mesh GPU ranges
+    std::vector<GpuInstance> m_gpuInstances;  ///< per-instance GPU rows (built at build)
     Buffer m_instanceBuffer{};
     Buffer m_materialBuffer{};
     Buffer m_vertexBuffer{};
