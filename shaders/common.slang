@@ -61,6 +61,7 @@ struct ShadowPayload {
 
 struct HitInfo {
     float3 position;
+    float3 smoothPosition; ///< shadow/NEE ray origin: hit point lifted onto the smooth (shading-normal) surface
     float3 normal;
     float3 geoNormal;
     float3 tangent;   ///< UV-aligned surface tangent (world space); used for normal mapping

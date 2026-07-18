@@ -64,6 +64,37 @@ HitInfo makeTriangleHit(BuiltInTriangleIntersectionAttributes attr)
     if (dot(hit.normal, hit.geoNormal) < 0.0) {
         hit.normal = -hit.normal;
     }
+
+    // Shadow-terminator fix (Hanika, "Hacking the Shadow Terminator", 2021): the SHADOW/NEE ray
+    // origin is lifted onto the smooth surface implied by the interpolated shading normals, so
+    // grazing direct-light rays don't self-intersect the faceted mesh (whose per-face geometric
+    // horizon sits below the smooth shading horizon) and lose environment light — the dark band
+    // on smooth-shaded balls. The reconstruction's lift equals the local sagitta, which is exactly
+    // the amount needed to clear the horizon, so we keep the FULL lift vector (projecting onto the
+    // geometric normal instead under-corrects grazing terminators, whose correction is largely
+    // tangential). The lift is then capped RELATIVE TO THE LOCAL TRIANGLE SIZE: a well-tessellated
+    // smooth surface has sagitta/edge ~= pi/(4N) << kLiftEdgeFrac (passes untouched -> full fix),
+    // while a coarse patch whose shading normals over-claim curvature has lift/edge ~ O(0.1..0.5)
+    // and gets clamped, preventing the origin from sliding into/through adjacent geometry (the
+    // false-occlusion AND light-leak artifacts of the raw reconstruction). This cap is
+    // view-INDEPENDENT and geometry-relative: identical meshes get identical treatment at any depth
+    // (unlike a camera-distance cap). Stored SEPARATELY from hit.position: only direct-light shadow
+    // rays use it; the true hit point drives the BSDF continuation ray and all shading. It never
+    // touches the BSDF / OpenPBR math.
+    {
+        float3 t0 = hit.position - min(0.0, dot(hit.position - p0, n0)) * n0;
+        float3 t1 = hit.position - min(0.0, dot(hit.position - p1, n1)) * n1;
+        float3 t2 = hit.position - min(0.0, dot(hit.position - p2, n2)) * n2;
+        float3 lift = (t0 * b0 + t1 * b1 + t2 * b2) - hit.position;
+        const float kLiftEdgeFrac = 0.15;
+        float avgEdge = (length(p1 - p0) + length(p2 - p1) + length(p0 - p2)) * (1.0 / 3.0);
+        float maxLift = kLiftEdgeFrac * avgEdge;
+        float liftLen = length(lift);
+        if (liftLen > maxLift) {
+            lift *= maxLift / liftLen;
+        }
+        hit.smoothPosition = hit.position + lift;
+    }
     hit.uv = v0.uv * b0 + v1.uv * b1 + v2.uv * b2;
 
     // UV-aligned tangent from triangle position/UV deltas (Lengyel's method).
@@ -95,6 +126,7 @@ HitInfo makeSphereHit(SphereIntersectionAttributes attr)
     hit.position = WorldRayOrigin() + WorldRayDirection() * attr.t;
     hit.geoNormal = normalize(hit.position - center);
     hit.normal = hit.geoNormal;
+    hit.smoothPosition = hit.position; // analytic sphere: exact normals, no terminator lift needed
 
     float phi = atan2(hit.geoNormal.z, hit.geoNormal.x);
     float theta = acos(clamp(hit.geoNormal.y, -1.0, 1.0));
@@ -305,6 +337,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     // share the identical unidirectional Monte-Carlo estimator.
     SurfaceHit surf;
     surf.position  = hit.position;
+    surf.shadowPos = hit.smoothPosition;
     surf.normal    = N;
     surf.geoNormal = geoN;
     surf.T = T; surf.B = B;
