@@ -259,47 +259,13 @@ cd build && ctest --output-on-failure
 
 ## References
 
-The following specifications, textbooks, and learning resources informed the design of Hyperion:
+Hyperion's BSDF, volumetric, color-science, and denoising references live in [Harmonia's README](../Harmonia/README.md#references) (the shared implementation). Below: path-tracer-specific references only.
 
-### Rendering & Path Tracing
 | Resource | Relevance |
 |----------|-----------|
-| [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path tracing, BSDF sampling, MIS balance heuristic (§13.4.3), emissive area light NEE (§12.4), env map importance sampling via 2D separable CDF (§12.5) |
-| [Veach — "Robust Monte Carlo Methods for Light Transport Simulation" (1997)](http://graphics.stanford.edu/papers/veach_thesis/) | Multiple Importance Sampling (MIS) — balance and power heuristics (§9.2); theoretical foundation for combining BSDF and NEE pdf estimates |
+| [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path-tracer-specific usage: MIS balance heuristic (§13.4.3), emissive area light NEE (§12.4), env map importance sampling via 2D separable CDF (§12.5) |
 | [Shirley, Wang & Zimmerman — "Monte Carlo Techniques for Direct Lighting Calculations" (1996)](https://www.cs.utah.edu/~shirley/papers/tog96.pdf) | Uniform area sampling of triangles via sqrt-folding barycentric coordinates; area-to-solid-angle PDF conversion |
-| [Henyey & Greenstein — "Diffuse Radiation in the Galaxy" (1941)](https://articles.adsabs.harvard.edu/pdf/1941ApJ....93...70H) | Henyey-Greenstein phase function for the subsurface / transmission volumetric random walk |
-| [Wilkie, Nawaz, Droske, Weidlich & Hanika — "Hero Wavelength Spectral Sampling" (EGSR 2014)](https://cgg.mff.cuni.cz/~wilkie/Website/EGSR_14_files/WNDWH14.pdf) | Hero-wavelength spectral-MIS estimator for chromatic (per-channel) subsurface / transmission media |
-| [Novák, Georgiev, Hanika & Jarosz — "Monte Carlo Methods for Volumetric Light Transport Simulation" (Eurographics STAR 2018)](https://cs.dartmouth.edu/~wjarosz/publications/novak18monte.html) | Free-flight distance sampling, collision estimators, and transmittance for the medium walk |
-| [Ray Tracing Gems I & II](https://www.realtimerendering.com/raytracinggems/) (Haines et al., Marrs et al.) | Shadow ray precision, NEE techniques, ray tracing best practices |
-| [Ray Tracing in One Weekend series](https://raytracing.github.io/) (Shirley et al.) | Introductory path-tracer architecture |
-
-### Vulkan & Ray Tracing API
-| Resource | Relevance |
-|----------|-----------|
 | [Vulkan Specification 1.4](https://registry.khronos.org/vulkan/specs/latest/html/) | `VK_KHR_ray_tracing_pipeline`, `VK_KHR_acceleration_structure`, descriptor indexing |
-| [Khronos — Ray Tracing in Vulkan](https://www.khronos.org/blog/ray-tracing-in-vulkan) | Pipeline setup, SBT layout, shader stages |
-| [NVIDIA — Ray Tracing Learning Library](https://developer.nvidia.com/rtx/ray-tracing) | Algorithm-level ray tracing techniques (implementation uses Khronos extensions only — no vendor-specific extensions) |
 | [Slang Shading Language](https://shader-slang.com/) | `[raypayload]` semantic, `TraceRay`, Vulkan binding annotations |
-
-### Material Model
-| Resource | Relevance |
-|----------|-----------|
-| [OpenPBR Surface Specification v1.1.1](https://academysoftwarefoundation.github.io/OpenPBR/) | Material layer stack, parameter naming (base/specular/coat/fuzz/emission/transmission) |
-| [MaterialX Standard Surface](https://materialx.org/) | Cross-reference for PBR parameter vocabulary |
-| [Blender Principled BSDF](https://docs.blender.org/manual/en/latest/render/shader_nodes/shader/principled.html) | Cross-reference for PBR parameter vocabulary |
-| [Harmonia README — Surface BSDF references](https://github.com/McNopper/Harmonia#references) | Full citations for the shared BSDF closures (thin-film, sheen/LTC, MS-comp, conductor Fresnel) implemented in `bsdf_shared.slang` |
-
-### Color Science
-| Resource | Relevance |
-|----------|-----------|
-| [OpenColorIO](https://opencolorio.org/) | Color space transforms, ACES RRT/ODT, tonemapping nomenclature |
-| [AgX by Troy Sobotka](https://github.com/sobotka/AgX) | AgX tone-mapping matrices and S-curve (MIT) |
-| [ITU-R BT.2100](https://www.itu.int/rec/R-REC-BT.2100/) | PQ/ST2084 and HLG OETF for HDR display output |
-| [IEC 61966-2-1 (sRGB)](https://www.color.org/srgb.xalter) | sRGB EOTF for SDR display output |
-
-### Scene & Asset Formats
-| Resource | Relevance |
-|----------|-----------|
-| [OpenUSD](https://openusd.org/release/api/index.html) | Naming conventions: Prim, Xform, Mesh, Material, Light, Camera, Instance |
-| [glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html) | PBR material and scene graph conventions |
 | [Wavefront OBJ](http://paulbourke.net/dataformats/obj/) | Geometry-only OBJ import (no MTL — materials are assigned in the scene TOML) |
+| [OpenPBR Surface Specification v1.1.1](https://academysoftwarefoundation.github.io/OpenPBR/) | Material layer stack & parameter naming — full shared BSDF implementation cited in Harmonia's README |
