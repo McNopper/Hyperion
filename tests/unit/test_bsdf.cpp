@@ -406,7 +406,7 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     return (lobeSingle + lobeMS) * Math::kInvPi;
 }
 
-[[nodiscard]] float mx_ggx_dir_albedo(float nDotV, float alpha) noexcept {
+[[nodiscard]] sm::float2 mx_ggx_dir_albedo_ab(float nDotV, float alpha) noexcept {
     const float x = std::clamp(nDotV, 0.0F, 1.0F);
     const float y = std::clamp(alpha, 0.0F, 1.0F);
     const float x2 = x * x;
@@ -420,9 +420,20 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
                         sm::float4(-26.44F, 1.436F, -36.11F, 54.9F) * x2 * y +
                         sm::float4(19.99F, 0.2913F, 15.86F, 300.2F) * x * y2 +
                         sm::float4(-5.448F, 0.6286F, 33.37F, -285.1F) * x2 * y2;
-    const float a = std::clamp(r.x / r.z, 0.0F, 1.0F);
-    const float b = std::clamp(r.y / r.w, 0.0F, 1.0F);
-    return std::clamp(a + b, 0.0F, 1.0F);
+    return sm::float2(std::clamp(r.x / r.z, 0.0F, 1.0F), std::clamp(r.y / r.w, 0.0F, 1.0F));
+}
+
+[[nodiscard]] float mx_ggx_dir_albedo(float nDotV, float alpha) noexcept {
+    const sm::float2 ab = mx_ggx_dir_albedo_ab(nDotV, alpha);
+    return std::clamp(ab.x + ab.y, 0.0F, 1.0F);
+}
+
+// Fresnel-weighted GGX directional albedo (mirrors Harmonia bsdf_shared.slang
+// `fresnelGgxDirAlbedo`): F0*A + F90*B with F90 = 1 (MaterialX mx_ggx_dir_albedo). The previous
+// Schlick form ignored alpha; this honors roughness via the rational fit.
+[[nodiscard]] float fresnelGgxDirAlbedo(float nDotV, float f0, float alpha) noexcept {
+    const sm::float2 ab = mx_ggx_dir_albedo_ab(nDotV, alpha);
+    return std::clamp(f0 * ab.x + ab.y, 0.0F, 1.0F);
 }
 
 // OpenPBR sheen oracle — Zeltner et al. 2022 LTC sheen, mirroring Harmonia bsdf_shared.slang
@@ -479,7 +490,9 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
 
 [[nodiscard]] sm::float3 ggxMultiScatterCompensation(const sm::float3& F0, float nDotV, float alpha) noexcept {
     const float Ess = mx_ggx_dir_albedo(nDotV, alpha);
-    return sm::float3(1.0F) + F0 * ((1.0F / std::max(Ess, 1.0e-3F)) - 1.0F);
+    // MaterialX mx_ggx_energy_compensation: 1 + Fss*(1-Ess)/Ess, Fss = F0 + (F90-F0)/21, F90=1.
+    const sm::float3 Fss = F0 + (sm::float3(1.0F) - F0) * (1.0F / 21.0F);
+    return sm::float3(1.0F) + Fss * (1.0F - Ess) / std::max(Ess, 1.0e-3F);
 }
 
 [[nodiscard]] sm::float3 evalReflectionMicrofacet(const sm::float3& F0,
@@ -974,16 +987,55 @@ TEST(Bsdf, GgxMultiScatterCompensationRecoversMetalEnergy) {
     }
 }
 
-TEST(Bsdf, GgxMultiScatterCompensationIsNegligibleForDielectric) {
-    // For a low-F0 dielectric specular lobe the compensation must be a tiny correction
-    // (the thin specular layer barely multiple-scatters), so the multiplier stays ~1.
+TEST(Bsdf, GgxMultiScatterCompensationUsesFssNotF0) {
+    // MaterialX-correct dielectric compensation uses Fss = F0 + (F90-F0)/21 (F90=1), not bare F0.
+    // For a dielectric F0=0.04 that is Fss=0.0857 (~2x). The compensation stays small (the layer
+    // is thin) but is materially larger than the legacy bare-F0 form, and bounded.
     const sm::float3 dielectricF0(0.04F);
+    const sm::float3 Fss = dielectricF0 + (sm::float3(1.0F) - dielectricF0) * (1.0F / 21.0F);
+    EXPECT_NEAR(Fss.x, 0.04F + 0.96F / 21.0F, 1.0e-5F);
     for (const float roughness : {0.2F, 0.5F, 0.9F}) {
         const float alpha = std::max(roughness * roughness, 0.001F);
         const sm::float3 comp = ggxMultiScatterCompensation(dielectricF0, 0.7F, alpha);
-        EXPECT_GE(comp.x, 1.0F);
-        EXPECT_LT(comp.x, 1.05F) << "roughness=" << roughness;
+        const float Ess = mx_ggx_dir_albedo(0.7F, alpha);
+        const float expected = 1.0F + Fss.x * (1.0F - Ess) / std::max(Ess, 1.0e-3F);
+        EXPECT_NEAR(comp.x, expected, 1.0e-5F) << "roughness=" << roughness;
+        EXPECT_GE(comp.x, 1.0F) << "roughness=" << roughness;
+        EXPECT_LT(comp.x, 1.10F) << "roughness=" << roughness; // bounded for a thin dielectric layer
+        // And it must exceed the legacy bare-F0 form (proving Fss, not F0, is wired in).
+        const float legacy = 1.0F + dielectricF0.x * (1.0F - Ess) / std::max(Ess, 1.0e-3F);
+        EXPECT_GT(comp.x, legacy) << "roughness=" << roughness;
     }
+}
+
+TEST(Bsdf, FresnelGgxDirAlbedoHonorsAlphaAndMatchesMaterialx) {
+    // The Fresnel-weighted GGX directional albedo must (a) equal the MaterialX construction
+    // F0*A + F90*B (F90=1) from the SAME rational fit as mx_ggx_dir_albedo, (b) honor alpha
+    // (differ from the alpha-independent Schlick form `f0+(1-f0)*(1-NdotV)^5` at non-trivial
+    // roughness), and (c) approach Schlick as alpha->0 (smooth dielectric ≈ Fresnel reflectance).
+    // For a dielectric (f0=0.04) the albedo DECREASES with roughness: the white-furnace `A` term
+    // drops with roughness (masking-shadowing) faster than the `B` (F90) term compensates, so a
+    // rough dielectric layer reflects less → more energy reaches the diffuse substrate.
+    const float f0 = 0.04F;
+    constexpr float kNoV = 0.7F;
+    const float smooth = fresnelGgxDirAlbedo(kNoV, f0, 0.04F);
+    const float rough = fresnelGgxDirAlbedo(kNoV, f0, 0.81F);
+
+    // (a) exact MaterialX construction F0*A + 1*B from the shared fit:
+    const sm::float2 abSmooth = mx_ggx_dir_albedo_ab(kNoV, 0.04F);
+    const sm::float2 abRough = mx_ggx_dir_albedo_ab(kNoV, 0.81F);
+    EXPECT_NEAR(smooth, f0 * abSmooth.x + abSmooth.y, 1.0e-5F);
+    EXPECT_NEAR(rough, f0 * abRough.x + abRough.y, 1.0e-5F);
+
+    // (b) honors alpha: at high roughness it diverges from the alpha-independent Schlick form.
+    const float schlick = f0 + (1.0F - f0) * std::pow(1.0F - kNoV, 5.0F);
+    EXPECT_NEAR(fresnelGgxDirAlbedo(kNoV, f0, 0.02F), schlick, 2.0e-3F); // (c) smooth ≈ Schlick
+    EXPECT_GT(std::abs(rough - schlick), 0.01F) << "rough form must differ from Schlick (alpha honored)";
+
+    // (d) range + monotonic direction (decreasing with roughness for a dielectric).
+    EXPECT_GE(smooth, 0.0F); EXPECT_LE(smooth, 1.0F);
+    EXPECT_GE(rough, 0.0F); EXPECT_LE(rough, 1.0F);
+    EXPECT_LT(rough, smooth) << "dielectric Fresnel-weighted albedo decreases with roughness";
 }
 
 TEST(Bsdf, ThinFilmGuardReturnsBaseWhenInactive) {
