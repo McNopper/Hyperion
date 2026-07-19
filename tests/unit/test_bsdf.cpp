@@ -47,13 +47,14 @@ constexpr float kEpsilon = 1.0e-5F;
 
 [[nodiscard]] float smithG2(sm::float3 l, sm::float3 v, float alpha) noexcept {
     // Height-correlated Smith masking-shadowing (Heitz 2014), matching the shader's
-    // GGX_G2 in Harmonia math.slang: 1 / (1 + Lambda(l) + Lambda(v)). This is the modern
-    // GGX form and is consistent with the MaterialX `mx_ggx_dir_albedo_analytic` fit used
-    // for multiple-scattering energy compensation. (Previously this oracle used the
-    // separable form G1(l)*G1(v), which diverged from the shader and from that fit at the
-    // grazing + high-roughness corner — surfaced by the V0 GGX-albedo conformance test.)
-    const float lambdaL = smithLambdaGgx(std::max(l.z, 0.0F), alpha);
-    const float lambdaV = smithLambdaGgx(std::max(v.z, 0.0F), alpha);
+    // GGX_G2 in Harmonia math.slang: 1 / (1 + Lambda(l) + Lambda(v)). GGX_Lambda is sign-symmetric
+    // (uses |v.z|), so this is correct for BOTH reflection (l,v same hemisphere) and transmission
+    // (l,v opposite hemispheres) — previously max(.,0) zeroed the transmitted leg. Consistent with
+    // the MaterialX `mx_ggx_dir_albedo_analytic` fit used for multiple-scattering energy
+    // compensation. (Earlier this oracle used the separable G1(l)*G1(v) form, which diverged from
+    // the shader at the grazing + high-roughness corner — surfaced by the V0 GGX-albedo test.)
+    const float lambdaL = smithLambdaGgx(std::abs(l.z), alpha);
+    const float lambdaV = smithLambdaGgx(std::abs(v.z), alpha);
     return 1.0F / (1.0F + lambdaL + lambdaV);
 }
 
@@ -534,21 +535,69 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
                                                    float alphaY,
                                                    const sm::float3& wo,
                                                    const sm::float3& wi) noexcept {
+    // PBRT-v4 DielectricBxDF rough transmission (Radiance transport). Mirrors Harmonia
+    // bsdf_shared.slang evalTransmissionMicrofacet.
     if (wo.z * wi.z >= 0.0F) {
         return sm::float3(0.0F);
     }
+    const float cosTheta_o = wo.z;
+    const float cosTheta_i = wi.z;
+    const float etap = cosTheta_o > 0.0F ? eta : (1.0F / eta);
+    sm::float3 wm = wi * etap + wo;
+    if (sm::dot(wm, wm) < 1.0e-12F) {
+        return sm::float3(0.0F);
+    }
+    wm = sm::normalize(wm);
+    if (wm.z < 0.0F) {
+        wm = -wm;
+    }
+    if (sm::dot(wm, wi) * cosTheta_i < 0.0F || sm::dot(wm, wo) * cosTheta_o < 0.0F) {
+        return sm::float3(0.0F);
+    }
 
-    const float F = fresnelDielectric(std::abs(wo.z), eta);
-    const sm::float3 h = sm::normalize((-wo * (wo.z > 0.0F ? (1.0F / eta) : eta)) + wi);
-    const float NoH = std::max(h.z, 0.0F);
+    const float NoH = std::max(wm.z, 0.0F);
     const float D = ggxD(NoH, alphaX);
     const float G = smithG2(wi, wo, alphaX);
-    const float denom = 4.0F * std::abs(wo.z) * std::abs(wi.z);
-    // Transmission MS compensation (Step 2): mirror bsdf_shared.slang 1/Ess boost.
+    const float F = fresnelDielectric(std::abs(sm::dot(wo, wm)), eta);
+    float denom = sm::dot(wi, wm) + sm::dot(wo, wm) / etap;
+    denom = denom * denom * std::abs(cosTheta_i) * std::abs(cosTheta_o);
+    float ft = D * (1.0F - F) * G * std::abs(sm::dot(wi, wm) * sm::dot(wo, wm)) / std::max(denom, 1.0e-12F);
+    ft /= (etap * etap);   // Radiance transport (camera paths)
+
     const float msAlpha = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
     const float msComp = 1.0F / std::max(mx_ggx_dir_albedo(std::abs(wo.z), msAlpha), 1.0e-3F);
     const sm::float3 absorption = sm::exp(-std::max(depth, 0.001F) * (sm::float3(1.0F) - sm::clamp(color, sm::float3(0.0F), sm::float3(1.0F))));
-    return absorption * color * (((D * G) / std::max(denom, 1.0e-5F)) * (1.0F - F) * msComp);
+    return absorption * color * (ft * msComp);
+}
+
+// Solid-angle pdf of the refracted ray (PBRT-v4 DielectricBxDF::PDF). Mirrors Harmonia
+// bsdf_shared.slang transmissionPdf.
+[[nodiscard]] float transmissionPdf(float eta, float alphaX, float alphaY,
+                                    const sm::float3& wo, const sm::float3& wi) noexcept {
+    if (wo.z * wi.z >= 0.0F) {
+        return 0.0F;
+    }
+    const float cosTheta_o = wo.z;
+    const float cosTheta_i = wi.z;
+    const float etap = cosTheta_o > 0.0F ? eta : (1.0F / eta);
+    sm::float3 wm = wi * etap + wo;
+    if (sm::dot(wm, wm) < 1.0e-12F) {
+        return 0.0F;
+    }
+    wm = sm::normalize(wm);
+    if (wm.z < 0.0F) {
+        wm = -wm;
+    }
+    if (sm::dot(wm, wi) * cosTheta_i < 0.0F || sm::dot(wm, wo) * cosTheta_o < 0.0F) {
+        return 0.0F;
+    }
+    const float alpha = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
+    const float D = ggxD(std::max(wm.z, 0.0F), alpha);
+    const float G1wo = smithG1(std::max(wo.z, 0.0F), alpha);
+    const float pdf_h = G1wo * D * std::abs(sm::dot(wo, wm)) / std::max(std::abs(wo.z), 1.0e-5F);
+    const float denom = sm::dot(wi, wm) + sm::dot(wo, wm) / etap;
+    const float dwm_dwi = std::abs(sm::dot(wi, wm)) / std::max(denom * denom, 1.0e-12F);
+    return pdf_h * dwm_dwi;
 }
 
 [[nodiscard]] sm::float3 evalBSDF(const GpuMaterial& mat,
@@ -1036,6 +1085,48 @@ TEST(Bsdf, FresnelGgxDirAlbedoHonorsAlphaAndMatchesMaterialx) {
     EXPECT_GE(smooth, 0.0F); EXPECT_LE(smooth, 1.0F);
     EXPECT_GE(rough, 0.0F); EXPECT_LE(rough, 1.0F);
     EXPECT_LT(rough, smooth) << "dielectric Fresnel-weighted albedo decreases with roughness";
+}
+
+TEST(Bsdf, TransmissionEvalPdfWeightMatchesPbrt) {
+    // A3: with tint=1 and depth=0, the transmission throughput weight f*|NoL|/pdf must equal the
+    // PBRT-v4 DielectricBxDF Radiance-mode weight (1-F)*(G/G1)/etap² times the MS 1/Ess boost.
+    // This is the exact eval/pdf consistency invariant the old reflection-denom form violated
+    // (it was off by ~(VoH+eta*LoH)²/(4*VoH), ~1.56x at normal incidence, eta 1.5). wi is built by
+    // refracting wo through the macro normal N=(0,0,1) — a valid in-support transmitted direction.
+    const sm::float3 one(1.0F);
+    for (const float eta : {1.2F, 1.5F, 2.0F}) {
+        for (const float rough : {0.08F, 0.3F, 0.7F}) {
+            const float alpha = std::max(rough * rough, 0.001F);
+            for (const float cosO : {0.25F, 0.6F, 0.95F}) {
+                const sm::float3 wo = sm::normalize(sm::float3(0.35F, 0.2F, cosO));
+                const float sin2O = std::max(0.0F, 1.0F - wo.z * wo.z);
+                const float sin2T = sin2O / (eta * eta);
+                if (sin2T >= 1.0F) continue; // macro TIR — skip
+                const float cosT = std::sqrt(1.0F - sin2T);
+                const sm::float3 wi = sm::normalize(sm::float3(-wo.x / eta, -wo.y / eta, -cosT));
+                if (wo.z * wi.z >= 0.0F) continue; // sanity: opposite hemispheres
+
+                const sm::float3 f = evalTransmissionMicrofacet(one, 0.0F, eta, alpha, alpha, wo, wi);
+                const float pdf = transmissionPdf(eta, alpha, alpha, wo, wi);
+                ASSERT_GT(pdf, 0.0F) << "eta=" << eta << " rough=" << rough << " cosO=" << cosO;
+                ASSERT_GT(f.x, 0.0F);
+
+                // Independently recompute wm, F, G, G1, etap, msComp.
+                const float etap = wo.z > 0.0F ? eta : (1.0F / eta);
+                sm::float3 wm = sm::normalize(wi * etap + wo);
+                if (wm.z < 0.0F) wm = -wm;
+                const float F = fresnelDielectric(std::abs(sm::dot(wo, wm)), eta);
+                const float G = smithG2(wi, wo, alpha);
+                const float G1wo = smithG1(std::max(wo.z, 0.0F), alpha);
+                const float Ess = mx_ggx_dir_albedo(std::abs(wo.z), alpha);
+                const float msComp = 1.0F / std::max(Ess, 1.0e-3F);
+                const float expected = (1.0F - F) * (G / std::max(G1wo, 1.0e-6F)) / (etap * etap) * msComp;
+                const float weight = f.x * std::abs(wi.z) / pdf;
+                EXPECT_NEAR(weight, expected, 5.0e-3F * expected + 1.0e-4F)
+                    << "eta=" << eta << " rough=" << rough << " cosO=" << cosO;
+            }
+        }
+    }
 }
 
 TEST(Bsdf, ThinFilmGuardReturnsBaseWhenInactive) {
