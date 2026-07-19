@@ -39,10 +39,15 @@ HitInfo makeTriangleHit(BuiltInTriangleIntersectionAttributes attr)
     float3x3 normalMat = transpose((float3x3)WorldToObject3x4());
 
 #ifdef POSITION_FETCH_ENABLED
-    // Hardware-supplied positions are already in world space (post-instance-transform).
-    float3 p0 = getHitTriangleVertexPosition(0);
-    float3 p1 = getHitTriangleVertexPosition(1);
-    float3 p2 = getHitTriangleVertexPosition(2);
+    // Hardware-supplied triangle positions are OBJECT-space (Vulkan spec,
+    // VK_KHR_ray_tracing_position_fetch: HitTriangleVertexPositionsKHR) — transform
+    // by the instance matrix exactly like the SSBO path below. Treating them as
+    // world-space made geoNormal/tangent object-space on every TLAS-rotated
+    // instance, silently desynchronizing them from the correctly-transformed
+    // shading normal (the long-standing self-shadow artifact).
+    float3 p0 = mul(o2w, float4(getHitTriangleVertexPosition(0), 1.0));
+    float3 p1 = mul(o2w, float4(getHitTriangleVertexPosition(1), 1.0));
+    float3 p2 = mul(o2w, float4(getHitTriangleVertexPosition(2), 1.0));
 #else
     float3 p0 = mul(o2w, float4(v0.position, 1.0));
     float3 p1 = mul(o2w, float4(v1.position, 1.0));
@@ -65,11 +70,10 @@ HitInfo makeTriangleHit(BuiltInTriangleIntersectionAttributes attr)
         hit.normal = -hit.normal;
     }
 
-    // Shadow-terminator handling uses the Chiang 2019 shadowing factor (applied in
-    // path_integrator.slang's NEE), NOT a position lift — a lift needs a per-object
-    // offset (Cycles/Arnold) to avoid over-lifting flat surfaces at grazing view.
-    // The Chiang factor is parameter-free and reduces to a no-op on flat surfaces.
-    // smoothPosition is kept == position (no lift).
+    // Shadow-terminator handling is the Chiang 2019 shadowing factor, applied by the
+    // shared estimator (see Harmonia bsdf_shared.slang for the scheme + why the
+    // Hanika origin lift was rejected: its magnitude scales with triangle size).
+    // smoothPosition stays == position (hook kept for renderer-specific schemes).
     hit.smoothPosition = hit.position;
     hit.uv = v0.uv * b0 + v1.uv * b1 + v2.uv * b2;
 
