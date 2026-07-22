@@ -107,7 +107,11 @@ transport). Thin-walled subsurface keeps a diffuse reflection/transmission sheet
 **Transmission scattering** reuses the same volumetric walk: when `transmission_scatter` is set,
 the smooth dielectric interior becomes a genuine scattering medium (milky/cloudy liquids) rather
 than a fixed tint, while `transmission_color` / `transmission_depth` provide the Beer–Lambert
-absorption.
+absorption. For pure absorbers (`transmission_scatter = 0`) the walk applies **exact deterministic
+per-channel Beer–Lambert transmittance** at the boundary (ratio-tracking degenerate case — zero
+walk variance), and dielectric exits are **side-correct**: interior rays refract with the inverted
+IOR and undergo genuine total internal reflection, matching the MaterialX `dielectric_bsdf` /
+PBRT-v4 `DielectricBxDF` convention.
 
 ### Color pipeline
 - Scene-referred rendering in a selectable **working color space**: linear **Rec.2020**

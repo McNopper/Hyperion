@@ -10,6 +10,14 @@ void backgroundMiss(inout RayPayload payload)
     // subsurface medium — a real scattering event occurs at the sampled point. This is NOT
     // an environment miss (the ray never left the object), so skip env lookup entirely.
     if (payload.insideMedium) {
+        // Pure absorber (albedo == 0): no free-flight was sampled (raygen TMax = kInf), so a
+        // miss means the ray left the geometry without striking a boundary (non-watertight
+        // escape). The medium is then effectively unbounded along the ray and the exact
+        // transmittance is exp(-σ_t·∞) = 0 — the path is fully absorbed.
+        if (max(payload.mediumAlbedo.x, max(payload.mediumAlbedo.y, payload.mediumAlbedo.z)) == 0.0) {
+            payload.terminated = true;
+            return;
+        }
         float3 scatterPos = WorldRayOrigin() + WorldRayDirection() * payload.mediumFreeDist;
         float3 newDir = sampleHenyeyGreenstein(WorldRayDirection(), payload.mediumG, randFloat2(payload.seed));
 

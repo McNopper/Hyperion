@@ -14,10 +14,16 @@ implementation is **MaterialX** (`mx_*` genGLSL nodes). Hyperion's BSDF (the sha
 improving spec-correctness, fix it here first, regenerate references, then align Theia. It
 implements the full OpenPBR 1.1.1 layer stack — LTC sheen, GGX multiple-scattering compensation,
 thin-film iridescence, dispersion, and a **chromatic volumetric subsurface / transmission random
-walk** (per-channel extinction, hero-wavelength spectral MIS). Theia mirrors the same shared walk
-in its RT-GI compute path; Hyperion remains the ground truth where the full offline light transport
-(dispersion, multi-bounce glass, unbounded walks) is exact — still cross-check parameters/behaviour
-against MaterialX.
+walk** (per-channel extinction, hero-wavelength spectral MIS). The dielectric interface is
+**side-correct** (`SurfaceHit.backface` → `exiting` → inverted relative IOR: Fresnel/Snell/TIR
+on exit; `geometry_thin_walled` exempt — a thin film has no bulk, so its crossings never TIR).
+Transmission absorption follows **MaterialX tint semantics** (BTDF tinted by `transmission_color`
+at depth 0, white at depth > 0 with the color realized volumetrically by the walk,
+σ_t = −ln(color)/depth); pure absorbers (single-scatter albedo = 0) use **exact deterministic
+Beer–Lambert transmittance** at the boundary (ratio-tracking degenerate case — zero walk
+variance). Theia mirrors the same shared walk in its RT-GI compute path; Hyperion remains the
+ground truth where the full offline light transport (dispersion, multi-bounce glass, unbounded
+walks) is exact — still cross-check parameters/behaviour against MaterialX.
 
 Pipeline (dependency direction):
 

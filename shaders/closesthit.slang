@@ -161,18 +161,25 @@ void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
     float3 rayDir = normalize(WorldRayDirection());
     float3 outwardN = hit.geoNormal;
 
-    // G5/G6 spectral boundary factor: the ray reached the boundary at t_hit before the sampled
-    // flight distance. Apply the per-channel transmittance to the boundary divided by the
-    // hero-wavelength "reach the boundary" pdf (balance heuristic):
-    //   T_b = exp(-σ_t·t_hit),  pdf_surf = (1/3)·Σ_c T_b_c.
-    // For achromatic σ_t this is exactly 1 (the old scalar walk applied no boundary factor).
+    // G5/G6 spectral boundary factor: the ray reached the boundary at t_hit. For a SCATTERING
+    // medium (albedo > 0) the analog walk sampled a free-flight distance first, so apply the
+    // per-channel transmittance divided by the hero-wavelength "reach the boundary" pdf
+    // (balance heuristic):  T_b = exp(-σ_t·t_hit),  pdf_surf = Σ_c chProb_c·T_b_c.
+    // For a PURE ABSORBER (albedo == 0) no free-flight was sampled (raygen TMax = kInf):
+    // extinction is entirely absorption, so the exact Beer-Lambert transmittance applies
+    // directly — deterministic, zero-variance, and exact for every path length (ratio-tracking
+    // degenerate case; the analog form would converge to the same mean with binary variance).
     {
         float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
         float3 Tb = exp(-st * RayTCurrent());
-        // A3(c) synergy: σ_t-importance boundary pdf — matches chProb in raygen.slang/miss.slang.
-        float3 chProb = st / (st.x + st.y + st.z);
-        float pdfSurf = dot(chProb, Tb);
-        payload.throughput *= Tb / max(pdfSurf, 1.0e-8);
+        if (max(payload.mediumAlbedo.x, max(payload.mediumAlbedo.y, payload.mediumAlbedo.z)) > 0.0) {
+            // A3(c) synergy: σ_t-importance boundary pdf — matches chProb in raygen.slang/miss.slang.
+            float3 chProb = st / (st.x + st.y + st.z);
+            float pdfSurf = dot(chProb, Tb);
+            payload.throughput *= Tb / max(pdfSurf, 1.0e-8);
+        } else {
+            payload.throughput *= Tb;
+        }
     }
 
     // The ray is INSIDE the medium travelling toward the boundary, so this is a medium→air
@@ -320,6 +327,10 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     surf.shadowPos = hit.smoothPosition;
     surf.normal    = N;
     surf.geoNormal = geoN;
+    // C7: side flag from the RAW (outward-winding) geometric normal, BEFORE the face-wo
+    // flip — true when the ray hit the back side (it is inside the dielectric), so the
+    // BSDF takes the exit branch (inverted eta: Fresnel/Snell/TIR side-correct).
+    surf.backface  = dot(wo, hit.geoNormal) < 0.0;
     surf.T = T; surf.B = B;
     surf.coatN = coatN; surf.coatT = coatT; surf.coatB = coatB;
     surf.mat = mat;
