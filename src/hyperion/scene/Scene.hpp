@@ -34,24 +34,14 @@ struct GpuInstance {
 static_assert(std::is_trivially_copyable_v<GpuInstance>);
 static_assert(sizeof(GpuInstance) == 32);
 
-class SceneBuilder;
-
 class Scene : public harmonia::SceneBase {
   public:
-    using Builder = SceneBuilder;
+    // addMaterial / addTexture / addInstance / addMesh / build are inherited concrete from SceneBase.
 
-    // addMaterial / addTexture / addInstance are inherited concrete from SceneBase.
-
-    [[nodiscard]] uint32_t addMesh(const DeviceContext& ctx,
-                                    const CommandPool& pool,
-                                    MeshData&& data,
-                                    std::string_view name = "") override;
     [[nodiscard]] uint32_t addSphereMesh(const DeviceContext& ctx,
                                          const CommandPool& pool,
                                          float radius,
                                          std::string_view name = "") override;
-
-    VkResult build(const DeviceContext& ctx, const CommandPool& pool);
 
     [[nodiscard]] VkAccelerationStructureKHR tlas() const noexcept { return m_tlas.handle(); }
     [[nodiscard]] VkDeviceAddress tlasAddress() const noexcept { return m_tlasAddress; }
@@ -75,8 +65,8 @@ class Scene : public harmonia::SceneBase {
         float    sphereRadius = 0.0f;
     };
 
-    VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool);
-    VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool);
+    VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool) override;
+    VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool) override;
 
     std::vector<MeshGpu>     m_meshGpu;       ///< per-mesh GPU ranges
     std::vector<GpuInstance> m_gpuInstances;  ///< per-instance GPU rows (built at build)

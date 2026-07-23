@@ -1,5 +1,6 @@
 import common;
 import math;
+import medium_walk;
 
 [shader("raygeneration")]
 void pathTracingRaygen()
@@ -52,12 +53,10 @@ void pathTracingRaygen()
         payload.mediumFreeDist = 0.0;
 
         // Surface-bounce budget vs volumetric-walk budget are SEPARATE. A dense subsurface/
-        // transmission medium has a tiny mean free path, so a single surface bounce can expand
-        // into hundreds of internal scatter/boundary segments; charging each against maxDepth
-        // would starve the surrounding light transport (paths die inside the medium → the object
-        // goes dark). Instead, medium segments consume their own large budget (kMaxMediumWalk)
-        // and do NOT advance payload.depth, so only genuine SURFACE interactions count toward
-        // maxDepth. A global iteration cap guarantees termination.
+        // transmission medium has a tiny mean free path, so one surface bounce can expand into
+        // hundreds of internal segments; charging each against maxDepth would starve the
+        // surrounding light transport. Medium segments consume their own budget and do NOT advance
+        // payload.depth; a global iteration cap guarantees termination.
         const uint kMaxMediumWalk = 256u;
         uint surfaceBounces = 0u;
         uint totalIters = 0u;
@@ -69,30 +68,8 @@ void pathTracingRaygen()
             ray.Direction = payload.direction;
             ray.TMin = wasInMedium ? kMediumEpsilon : kRayEpsilon;
             if (wasInMedium) {
-                if (max(payload.mediumAlbedo.x, max(payload.mediumAlbedo.y, payload.mediumAlbedo.z)) > 0.0) {
-                    // G5/G6 hero-wavelength free-flight sampling: σ_t-importance-weighted channel
-                    // selection (A3(c) synergy: unbiased, matches Theia's gi.comp.slang). chProb is
-                    // proportional to extinction so near-transparent channels aren't over-sampled.
-                    // pdfColl/pdfSurf in miss.slang/closesthit.slang use the same chProb so the
-                    // balance-heuristic estimator is exactly unbiased. σ_t clamped to 1e-6 above.
-                    float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
-                    float3 chProb = st / (st.x + st.y + st.z);
-                    float chSel = randFloat(payload.seed);
-                    float sigmaHero = chSel < chProb.x ? st.x : (chSel < chProb.x + chProb.y ? st.y : st.z);
-                    float u = randFloat(payload.seed);
-                    payload.mediumFreeDist = -log(max(1.0 - u, 1.0e-6)) / max(sigmaHero, 1.0e-6);
-                    ray.TMax = payload.mediumFreeDist;
-                } else {
-                    // Pure absorber (single-scatter albedo Λ = 0 — e.g. OpenPBR transmission with
-                    // transmission_depth>0 and transmission_scatter=0): NO collision events exist,
-                    // extinction is entirely absorption. The transmittance to the boundary is
-                    // exactly exp(-σ_t·d), so the correct estimator is deterministic per-channel
-                    // Beer-Lambert (the ratio-tracking degenerate case): trace all the way to the
-                    // boundary and apply the exact transmittance there (closesthit.slang). Analog
-                    // free-flight sampling would only add binary kill/survive variance around the
-                    // same mean.
-                    ray.TMax = kInf;
-                }
+                payload.mediumFreeDist = mediumSampleFreeFlight(payload.mediumSigmaT, payload.mediumAlbedo, payload.seed);
+                ray.TMax = payload.mediumFreeDist;
             } else {
                 ray.TMax = kInf;
             }

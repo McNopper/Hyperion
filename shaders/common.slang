@@ -75,8 +75,6 @@ struct SphereIntersectionAttributes {
     float t;
 };
 
-static const float kMediumEpsilon = 1.0e-5; ///< Epsilon for volumetric walk segments (much smaller than kRayEpsilon).
-
 [[vk::binding(0, 0)]] uniform RaytracingAccelerationStructure tlas;
 [[vk::binding(1, 0)]] RWTexture2D<float4> hdrTarget;
 [[vk::binding(2, 0)]] ConstantBuffer<CameraData> camera;

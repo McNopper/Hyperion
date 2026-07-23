@@ -3,6 +3,8 @@ import math;
 import bsdf;
 import env;
 import path_integrator;
+import medium_walk;
+import surface;
 
 #ifdef POSITION_FETCH_ENABLED
 /// Fetch the object-space position of a hit-triangle vertex via
@@ -64,27 +66,20 @@ HitInfo makeTriangleHit(BuiltInTriangleIntersectionAttributes attr)
     float b0 = 1.0 - b1 - b2;
 
     hit.position = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
-    hit.geoNormal = normalize(cross(p1 - p0, p2 - p0));
-    hit.normal = normalize(n0 * b0 + n1 * b1 + n2 * b2);
-    if (dot(hit.normal, hit.geoNormal) < 0.0) {
-        hit.normal = -hit.normal;
-    }
+
+    // Shared geometry reconstruction (geoNormal / shading normal / Lengyel tangent / UV).
+    TriangleGeometry g = reconstructTriangleGeometry(p0, p1, p2, n0, n1, n2, v0.uv, v1.uv, v2.uv,
+                                                      float3(b0, b1, b2));
+    hit.geoNormal = g.geoNormal;
+    hit.normal    = g.shadingNormal;
 
     // Shadow-terminator handling is the Chiang 2019 shadowing factor, applied by the
     // shared estimator (see Harmonia bsdf_shared.slang for the scheme + why the
     // Hanika origin lift was rejected: its magnitude scales with triangle size).
     // smoothPosition stays == position (hook kept for renderer-specific schemes).
     hit.smoothPosition = hit.position;
-    hit.uv = v0.uv * b0 + v1.uv * b1 + v2.uv * b2;
-
-    // UV-aligned tangent from triangle position/UV deltas (Lengyel's method).
-    // Computed per-hit so normal mapping does not depend on baked vertex tangents.
-    float2 duv1 = v1.uv - v0.uv;
-    float2 duv2 = v2.uv - v0.uv;
-    float3 dp1  = p1 - p0;
-    float3 dp2  = p2 - p0;
-    float  det  = duv1.x * duv2.y - duv2.x * duv1.y;
-    hit.tangent = abs(det) > 1.0e-8 ? (dp1 * duv2.y - dp2 * duv1.y) / det : float3(1.0, 0.0, 0.0);
+    hit.uv = g.uv;
+    hit.tangent = g.tangent;
 
     hit.instanceIndex = instanceIndex;
     hit.primitiveIndex = primitiveIndex;
@@ -119,15 +114,13 @@ HitInfo makeSphereHit(SphereIntersectionAttributes attr)
     return hit;
 }
 
-/// Sentinel: material texture slot holds no texture (matches kNoTexture on the host).
-static const uint kNoTexture = 0xFFFFFFFFu;
-
-/// Sample a bindless texture (mip 0) by its descriptor index.
-float4 sampleBindless(uint idx, float2 uv)
-{
-    return bindlessTextures[NonUniformResourceIndex(idx)]
-        .SampleLevel(bindlessSamplers[NonUniformResourceIndex(idx)], uv, 0.0);
-}
+/// Bindless-texture fetcher for the shared surface-frame populator (mip 0).
+struct HyperionTextureSampler : ISurfaceTextureSampler {
+    float4 sampleTex(uint idx, float2 uv) {
+        return bindlessTextures[NonUniformResourceIndex(idx)]
+            .SampleLevel(bindlessSamplers[NonUniformResourceIndex(idx)], uv, 0.0);
+    }
+};
 
 /// Shadow-ray tracer for the shared path integrator (ITracer).
 /// Returns true when origin→direction*tMax is unoccluded (the shadow miss shader fired).
@@ -150,65 +143,26 @@ struct HyperionTracer : ITracer {
 }
 
 /// Step 3 (bulk subsurface random walk): handle a ray that struck geometry while inside the
-/// medium — a boundary crossing. Stochastically exits (Fresnel transmittance) or totally
-/// internally reflects (continues the walk), using the SAME dielectric-interface convention
-/// as the specular/transmission lobes (bsdf_shared `fresnelDielectric`, the material's
-/// `specular_ior` carried in `payload.mediumEta`). Uses the GEOMETRIC normal (interpolated
-/// shading normals can fake a wrong-sided interface on smooth-shaded meshes). hit.geoNormal
-/// points OUTWARD from OBJ winding regardless of which side the ray struck.
+/// medium — a boundary crossing. All walk math (transmittance, Fresnel exit/TIR) lives in the
+/// shared `medium_walk` module; this thin shim just maps RayPayload <-> the helpers. Uses the
+/// GEOMETRIC normal (interpolated shading normals can fake a wrong-sided interface); hit.geoNormal
+/// is the RAW outward-winding normal (dielectric-sidedness contract).
 void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
 {
-    float3 rayDir = normalize(WorldRayDirection());
     float3 outwardN = hit.geoNormal;
 
-    // G5/G6 spectral boundary factor: the ray reached the boundary at t_hit. For a SCATTERING
-    // medium (albedo > 0) the analog walk sampled a free-flight distance first, so apply the
-    // per-channel transmittance divided by the hero-wavelength "reach the boundary" pdf
-    // (balance heuristic):  T_b = exp(-σ_t·t_hit),  pdf_surf = Σ_c chProb_c·T_b_c.
-    // For a PURE ABSORBER (albedo == 0) no free-flight was sampled (raygen TMax = kInf):
-    // extinction is entirely absorption, so the exact Beer-Lambert transmittance applies
-    // directly — deterministic, zero-variance, and exact for every path length (ratio-tracking
-    // degenerate case; the analog form would converge to the same mean with binary variance).
-    {
-        float3 st = max(payload.mediumSigmaT, 1.0e-6.xxx);
-        float3 Tb = exp(-st * RayTCurrent());
-        if (max(payload.mediumAlbedo.x, max(payload.mediumAlbedo.y, payload.mediumAlbedo.z)) > 0.0) {
-            // A3(c) synergy: σ_t-importance boundary pdf — matches chProb in raygen.slang/miss.slang.
-            float3 chProb = st / (st.x + st.y + st.z);
-            float pdfSurf = dot(chProb, Tb);
-            payload.throughput *= Tb / max(pdfSurf, 1.0e-8);
-        } else {
-            payload.throughput *= Tb;
-        }
+    mediumBoundaryTransmittance(payload.throughput, payload.mediumSigmaT,
+                                mediumIsPureAbsorber(payload.mediumAlbedo), RayTCurrent());
+
+    float3 outOrigin, outDir;
+    bool exited = mediumResolveExit(payload.seed, payload.mediumEta,
+                                    WorldRayDirection(), outwardN, hit.position,
+                                    outOrigin, outDir);
+    payload.direction = outDir;
+    payload.origin    = outOrigin;
+    if (exited) {
+        payload.insideMedium = false;
     }
-
-    // The ray is INSIDE the medium travelling toward the boundary, so this is a medium→air
-    // crossing. fresnelDielectric selects the medium→air branch (ei=eta, et=1, and reports
-    // TIR when the angle exceeds the critical angle) only for a NEGATIVE cosine, so pass the
-    // negated incidence cosine — passing abs() would wrongly evaluate the air→medium branch
-    // and never report total internal reflection.
-    float cosI = abs(dot(rayDir, outwardN));
-    float F = fresnelDielectric(-cosI, payload.mediumEta);
-
-    // Refract to exit; refract() returns 0 on total internal reflection. F==1 in that case, so
-    // the reflect branch below is taken with probability 1 — but guard the exit branch too so a
-    // near-critical numerical miss reflects and STAYS inside rather than leaking out unrefracted.
-    float3 refracted = refract(rayDir, -outwardN, payload.mediumEta);
-    bool tir = dot(refracted, refracted) < 1.0e-9;
-
-    if (tir || randFloat(payload.seed) < F) {
-        // (Total) internal reflection — chosen with probability F (=1 under TIR); the stochastic
-        // branch selection carries the Fresnel weight, so no throughput scaling is applied.
-        payload.direction = reflect(rayDir, outwardN);
-        payload.origin = hit.position - outwardN * kMediumEpsilon;
-        return;
-    }
-
-    // Exit into the exterior (air, eta=1) and resume ordinary shading on the next bounce. The
-    // (1-F) transmittance is already accounted for by the stochastic branch selection.
-    payload.direction = normalize(refracted);
-    payload.insideMedium = false;
-    payload.origin = hit.position + outwardN * kMediumEpsilon;
 }
 
 void shadeSurface(inout RayPayload payload, HitInfo hit)
@@ -222,100 +176,13 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
 
     GpuInstance instance = instances[hit.instanceIndex];
     GpuMaterial mat = materials[instance.materialIndex];
-
-    // ── Texture maps (bindless) — each slot is applied only when bound. ──────────
-    // Slot layout: [0] base_color, [1] normal, [2] ORM, [3] emission.
-    // Colour maps (base/emission) are pre-converted to linear Rec.2020 at load;
-    // data maps (normal/ORM) are raw.
-
-    // [0] base_color — replaces base_color tint.
-    if (mat.textureIndices.x != kNoTexture) {
-        mat.baseColorWeight.xyz = sampleBindless(mat.textureIndices.x, hit.uv).rgb;
-    }
-    // [2] ORM — glTF packing: G = roughness, B = metalness (R = occlusion, unused here).
-    if (mat.textureIndices.z != kNoTexture) {
-        float3 orm = sampleBindless(mat.textureIndices.z, hit.uv).rgb;
-        mat.specularRoughAnisoIor.x = orm.g;   // specular_roughness
-        mat.baseMetalnessDiffRough.x = orm.b;  // base_metalness
-    }
-    // [3] emission — modulates emission_color.
-    if (mat.textureIndices.w != kNoTexture) {
-        mat.emissionColorLum.xyz *= sampleBindless(mat.textureIndices.w, hit.uv).rgb;
-    }
-
     float3 wo = -normalize(WorldRayDirection());
-    float3 N = dot(wo, hit.normal) >= 0.0 ? hit.normal : -hit.normal;
-    float3 geoN = dot(wo, hit.geoNormal) >= 0.0 ? hit.geoNormal : -hit.geoNormal;
 
-    // [1] normal map — perturb the shading normal in a UV-aligned tangent frame.
-    if (mat.textureIndices.y != kNoTexture) {
-        float3 nTex = sampleBindless(mat.textureIndices.y, hit.uv).xyz * 2.0 - 1.0;
-        float3 Tt = hit.tangent - N * dot(N, hit.tangent);
-        if (dot(Tt, Tt) > 1.0e-12) {
-            Tt = normalize(Tt);
-            float3 Bt = cross(N, Tt);
-            float3 Np = normalize(Tt * nTex.x + Bt * nTex.y + N * nTex.z);
-            N = dot(wo, Np) >= 0.0 ? Np : N; // keep the perturbed normal on the visible side
-        }
-    }
-
-    float3x3 tbn = buildTBN(N);
-    float3 T = tbn[0];
-    float3 B = tbn[1];
-
-    // geometry_tangent [slot 5] — reorient the anisotropy frame. The map stores a
-    // tangent direction (xy) in the UV-aligned tangent plane; rotate T/B accordingly.
-    if (mat.textureIndices2.y != kNoTexture) {
-        float2 tDir = sampleBindless(mat.textureIndices2.y, hit.uv).xy * 2.0 - 1.0;
-        float3 Tuv = hit.tangent - N * dot(N, hit.tangent);
-        if (dot(Tuv, Tuv) > 1.0e-12 && dot(tDir, tDir) > 1.0e-12) {
-            Tuv = normalize(Tuv);
-            float3 Buv = cross(N, Tuv);
-            float3 Tn = normalize(Tuv * tDir.x + Buv * tDir.y);
-            T = Tn - N * dot(N, Tn);
-            if (dot(T, T) > 1.0e-12) {
-                T = normalize(T);
-                B = cross(N, T);
-            } else {
-                T = tbn[0];
-                B = tbn[1];
-            }
-        }
-    }
-
-    // ── Coat frame (geometry_coat_normal [4], geometry_coat_tangent [6]) ──────────
-    // Defaults to the base frame (incl. any geometry_tangent rotation) so unbound
-    // slots reproduce the shared-frame result exactly.
-    float3 coatN = N;
-    float3 coatT = T;
-    float3 coatB = B;
-    if (mat.textureIndices2.x != kNoTexture) {
-        float3 nTex = sampleBindless(mat.textureIndices2.x, hit.uv).xyz * 2.0 - 1.0;
-        float3 Tt = hit.tangent - N * dot(N, hit.tangent);
-        if (dot(Tt, Tt) > 1.0e-12) {
-            Tt = normalize(Tt);
-            float3 Bt = cross(N, Tt);
-            float3 Np = normalize(Tt * nTex.x + Bt * nTex.y + N * nTex.z);
-            coatN = dot(wo, Np) >= 0.0 ? Np : N;
-            float3x3 coatTbn = buildTBN(coatN);
-            coatT = coatTbn[0];
-            coatB = coatTbn[1];
-        }
-    }
-    if (mat.textureIndices2.z != kNoTexture) {
-        float2 tDir = sampleBindless(mat.textureIndices2.z, hit.uv).xy * 2.0 - 1.0;
-        float3 Tuv = hit.tangent - coatN * dot(coatN, hit.tangent);
-        if (dot(Tuv, Tuv) > 1.0e-12 && dot(tDir, tDir) > 1.0e-12) {
-            Tuv = normalize(Tuv);
-            float3 Buv = cross(coatN, Tuv);
-            float3 Tn = normalize(Tuv * tDir.x + Buv * tDir.y);
-            float3 cT = Tn - coatN * dot(coatN, Tn);
-            if (dot(cT, cT) > 1.0e-12) {
-                coatT = normalize(cT);
-                coatB = cross(coatN, coatT);
-            }
-        }
-    }
+    // ── Texture maps + shading frame (shared OpenPBR populator) ─────────────────
+    // Base/ORM/emission unpack, normal mapping, geometry_tangent anisotropy reorientation
+    // and the coat frame all live in Harmonia's `surface` module (shared 1:1 with Theia).
+    HyperionTextureSampler tex;
+    SurfaceFrame f = applyOpenPbrTextureMaps(mat, tex, wo, hit.normal, hit.geoNormal, hit.tangent, hit.uv);
 
     // ── Shared surface estimator ─────────────────────────────────────────────────
     // Emission guard, stochastic opacity gate, emissive-triangle + environment NEE,
@@ -325,14 +192,11 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     SurfaceHit surf;
     surf.position  = hit.position;
     surf.shadowPos = hit.smoothPosition;
-    surf.normal    = N;
-    surf.geoNormal = geoN;
-    // C7: side flag from the RAW (outward-winding) geometric normal, BEFORE the face-wo
-    // flip — true when the ray hit the back side (it is inside the dielectric), so the
-    // BSDF takes the exit branch (inverted eta: Fresnel/Snell/TIR side-correct).
-    surf.backface  = dot(wo, hit.geoNormal) < 0.0;
-    surf.T = T; surf.B = B;
-    surf.coatN = coatN; surf.coatT = coatT; surf.coatB = coatB;
+    surf.normal    = f.normal;
+    surf.geoNormal = f.geoNormal;
+    surf.backface  = f.backface;
+    surf.T = f.T; surf.B = f.B;
+    surf.coatN = f.coatN; surf.coatT = f.coatT; surf.coatB = f.coatB;
     surf.mat = mat;
     surf.wo  = wo;
 
