@@ -1,11 +1,9 @@
 // Module tests: ShaderBindingTable spec compliance.
 //
-// Regression: VUID-vkCmdTraceRaysKHR-size-04023 requires the raygen SBT region
-// size to equal stride (always exactly 1 raygen shader). We previously computed
-// size = alignUp(stride, baseAlignment) = 64 while stride = 32, violating the spec.
-// The validation layer silently tolerated this; the bare driver crashed.
-//
-// Fix: use stride for both size and stride of the raygen VkStridedDeviceAddressRegionKHR.
+// The raygen SBT region must satisfy VUID-vkCmdTraceRaysKHR-size-04023: its size must equal
+// the stride (always exactly 1 raygen shader), not alignUp(stride, baseAlignment). The
+// validation layer tolerates an over-sized region; a bare driver does not.
+// Use stride for both size and stride of the raygen VkStridedDeviceAddressRegionKHR.
 
 #include <volk/volk.h>
 
@@ -68,9 +66,8 @@ class SbtFixture : public RtFixture {
     std::unique_ptr<ShaderBindingTable> m_sbt;
 };
 
-// Regression: VUID-vkCmdTraceRaysKHR-size-04023
-// Raygen region size MUST equal stride (there is always exactly one raygen shader).
-// Previous bug: size = alignUp(stride * 1, baseAlignment) = 64 (stride = 32).
+// VUID-vkCmdTraceRaysKHR-size-04023: the raygen region size MUST equal stride
+// (there is always exactly one raygen shader) — not alignUp(stride, baseAlignment).
 TEST_F(SbtFixture, ShaderBindingTable_RaygenSizeEqualsStride) {
     const auto& raygen = m_sbt->raygenRegion();
     EXPECT_EQ(raygen.size, raygen.stride) << "Raygen region: size (" << raygen.size << ") != stride (" << raygen.stride

@@ -4,8 +4,8 @@
 // under the mesh/instance model (unique meshes registered once; instances placed
 // with a transform) and returns a non-null TLAS handle.
 //
-// Regression target: VK_ERROR_DEVICE_LOST from scene.build() in Debug without
-// the validation layer, caused by invalid Vulkan usage that the layer masked.
+// Scene::build() must be valid Vulkan usage even when the validation layer is absent —
+// the layer can mask invalid usage that otherwise surfaces as VK_ERROR_DEVICE_LOST in Debug.
 
 #include <slang-math/slang-math.hpp>
 

@@ -287,7 +287,7 @@ Hyperion's BSDF, volumetric, color-science, and denoising references live in [Ha
 | Resource | Relevance |
 |----------|-----------|
 | [Physically Based Rendering: From Theory To Implementation, 4th ed.](https://www.pbrt.org/) (Pharr, Jakob, Humphreys) | Path-tracer-specific usage: MIS balance heuristic (§13.4.3), emissive area light NEE (§12.4), env map importance sampling via 2D separable CDF (§12.5) |
-| [Shirley, Wang & Zimmerman — "Monte Carlo Techniques for Direct Lighting Calculations" (1996)](https://www.cs.utah.edu/~shirley/papers/tog96.pdf) | Uniform area sampling of triangles via sqrt-folding barycentric coordinates; area-to-solid-angle PDF conversion |
+| [Shirley, Wang & Zimmerman — "Monte Carlo Techniques for Direct Lighting Calculations" (J. Graphics Tools 1(1), 1996)](https://doi.org/10.1080/10867651.1996.10487479) | Uniform area sampling of triangles via sqrt-folding barycentric coordinates; area-to-solid-angle PDF conversion |
 | [Vulkan Specification 1.4](https://registry.khronos.org/vulkan/specs/latest/html/) | `VK_KHR_ray_tracing_pipeline`, `VK_KHR_acceleration_structure`, descriptor indexing |
 | [Slang Shading Language](https://shader-slang.com/) | `[raypayload]` semantic, `TraceRay`, Vulkan binding annotations |
 | [Wavefront OBJ](http://paulbourke.net/dataformats/obj/) | Geometry-only OBJ import (no MTL — materials are assigned in the scene TOML) |

@@ -49,10 +49,9 @@ constexpr float kEpsilon = 1.0e-5F;
     // Height-correlated Smith masking-shadowing (Heitz 2014), matching the shader's
     // GGX_G2 in Harmonia math.slang: 1 / (1 + Lambda(l) + Lambda(v)). GGX_Lambda is sign-symmetric
     // (uses |v.z|), so this is correct for BOTH reflection (l,v same hemisphere) and transmission
-    // (l,v opposite hemispheres) — previously max(.,0) zeroed the transmitted leg. Consistent with
-    // the MaterialX `mx_ggx_dir_albedo_analytic` fit used for multiple-scattering energy
-    // compensation. (Earlier this oracle used the separable G1(l)*G1(v) form, which diverged from
-    // the shader at the grazing + high-roughness corner — surfaced by the V0 GGX-albedo test.)
+    // (l,v opposite hemispheres); a max(.,0) on the cosine would wrongly zero the transmitted leg.
+    // Consistent with the MaterialX `mx_ggx_dir_albedo_analytic` fit used for multiple-scattering
+    // energy compensation.
     const float lambdaL = smithLambdaGgx(std::abs(l.z), alpha);
     const float lambdaV = smithLambdaGgx(std::abs(v.z), alpha);
     return 1.0F / (1.0F + lambdaL + lambdaV);
@@ -1276,8 +1275,8 @@ TEST(Bsdf, OpenPbrV0_GeneralizedSchlickF82IsF0AtNormalAndRisesToGrazing) {
     //  * at normal incidence reflectance == F0 (a dielectric with F0=0.04 reflects ~4%, NOT ~96%);
     //  * it rises monotonically toward ~1 at grazing;
     //  * with an F82 tint < 1 it dips below plain Schlick near the 82-degree peak.
-    // (Regression guard for the fixed oracle Fresnel, which previously used mix(F0,F82,1-F) and
-    // returned ~0.96 at normal for F82=1, turning full-specular dielectrics into mirrors.)
+    // (A naive mix(F0,F82,1-F) fit would return ~0.96 at normal incidence for F82=1, wrongly
+    // turning a full-specular dielectric into a mirror — the F82 fit must equal F0 at normal.)
     const sm::float3 f0(0.04F);
     const sm::float3 whiteTint(1.0F);
     const sm::float3 atNormal = mx_fresnel_F82(f0, whiteTint, 1.0F);
@@ -1702,8 +1701,8 @@ TEST(Bsdf, OpenPbrV0_MediumExitFresnelReportsTirAboveCriticalAngle) {
     // Locks the Step 3/4 medium-boundary exit convention (closesthit.slang shadeMediumBoundary):
     // an inside→outside (medium→air) crossing must be evaluated with a NEGATED incidence cosine
     // so fresnelDielectric takes the medium→air branch and reports total internal reflection
-    // beyond the critical angle. The original bug passed abs(cos), which always evaluated the
-    // air→medium branch and NEVER reported TIR — letting light escape supercritically.
+    // beyond the critical angle. Passing abs(cos) would always take the air→medium branch and
+    // never report TIR, letting light escape supercritically — so the signed cosine matters.
     for (const float eta : {1.33F, 1.5F, 1.8F}) {
         // Critical angle: sin(theta_c) = 1/eta  =>  cos(theta_c) = sqrt(1 - 1/eta^2).
         const float cosCrit = std::sqrt(std::max(0.0F, 1.0F - 1.0F / (eta * eta)));
@@ -1717,9 +1716,9 @@ TEST(Bsdf, OpenPbrV0_MediumExitFresnelReportsTirAboveCriticalAngle) {
         const float cosBelow = std::min(1.0F, cosCrit + 0.05F);
         EXPECT_LT(fresnelDielectricSigned(-cosBelow, eta), 1.0F) << "eta=" << eta;
 
-        // Just GRAZING past critical (smaller |cos|): medium→air must be TIR (F == 1) — the
-        // exact case the abs() bug missed. The buggy air→medium branch (positive cosine) must
-        // NOT report TIR at the same angle, which is why the sign matters.
+        // Just GRAZING past critical (smaller |cos|): medium→air must be TIR (F == 1) — the case
+        // abs(cos) misses. The air→medium branch (positive cosine) must NOT report TIR at the same
+        // angle, which is why the sign matters.
         const float cosAbove = std::max(0.0F, cosCrit - 0.05F);
         EXPECT_FLOAT_EQ(fresnelDielectricSigned(-cosAbove, eta), 1.0F) << "eta=" << eta;
         EXPECT_LT(fresnelDielectricSigned(cosAbove, eta), 1.0F)
