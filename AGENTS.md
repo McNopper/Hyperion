@@ -41,8 +41,8 @@ subclass injecting `harmonia::IRenderer`.
 
 ```powershell
 build/hyperion.exe --scene cornell_classic --output out.exr            # headless EXR+PNG
-build/hyperion.exe --scene fixture_ibl --spp 256 --output ref.exr      # clean IBL reference
-build/hyperion.exe meadow_scene                                        # interactive window
+build/hyperion.exe --scene dragon_teapot --spp 256 --output ref.exr    # clean IBL reference
+build/hyperion.exe shaderball_base                                     # interactive window
 ```
 
 CLI flags: all common Harmonia flags (`--scene/-s`, `--output/-o`, `--width`, `--height`,
@@ -61,9 +61,9 @@ CLI flags: all common Harmonia flags (`--scene/-s`, `--output/-o`, `--width`, `-
   Aether tree. Editing `C:\Development\GitHub\Aether\assets` does nothing unless you also
   update the `_deps` copy or build with `-DFETCHCONTENT_SOURCE_DIR_AETHER=...`. Symptom:
   two "different" renders give byte-identical metrics. See Aether/AGENTS.md.
-- **spp for parity:** scenes using `alignment_16spp_8bounce.render.toml` render at only
-  16 spp (noisy under IBL). Pass `--spp 256` when producing a parity reference, or the diff
-  measures Monte-Carlo noise, not a real discrepancy.
+- **spp for parity:** the meadow IBL scenes reference 64–128 spp presets (noisy under IBL).
+  Pass `--spp 256` when producing a parity reference, or the diff measures Monte-Carlo
+  noise, not a real discrepancy.
 - **Emissive winding:** emissive-triangle normals derive from OBJ winding
   (`cross(edge1,edge2)`); back-facing emitters are skipped in NEE. OBJs must be
   outward-facing (CCW-from-outside) or they render black.
