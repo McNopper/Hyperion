@@ -108,7 +108,7 @@ SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides opene
 
 **Acceleration structure builds — device-side only (Khronos deprecation compliant):**
 - All BLAS builds: `vkCmdBuildAccelerationStructuresKHR` (Harmonia `Geometry::buildBlas`).
-- All TLAS builds: `vkCmdBuildAccelerationStructuresKHR` (`Scene::buildTlas`).
+- All TLAS builds: `vkCmdBuildAccelerationStructuresKHR` (`SceneBase::buildTlas`).
 - `vkBuildAccelerationStructuresKHR` (host-side) is **never used** — deprecated per the
   [Khronos RT AS deprecation blog](https://www.khronos.org/blog/vulkan-ray-tracing-deprecating-host-side-acceleration-structure-builds).
 - `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` is the future

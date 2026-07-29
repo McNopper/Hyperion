@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(hyperion VERSION 0.7.1 LANGUAGES C CXX)
+project(hyperion VERSION 0.7.2 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -193,16 +193,16 @@ endif()
 # development against working copies, override FETCHCONTENT_SOURCE_DIR_AETHER /
 # FETCHCONTENT_SOURCE_DIR_HARMONIA.
 # Aether is declared first so Harmonia reuses this same declaration (dedup by
-# name). Aether and Harmonia are pinned to the shared release tag v0.7.1.
+# name). Aether and Harmonia are pinned to the shared release tag v0.7.2.
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v0.7.1
+    GIT_TAG v0.7.2
 )
 FetchContent_Declare(
     harmonia
     GIT_REPOSITORY https://github.com/McNopper/Harmonia.git
-    GIT_TAG v0.7.1
+    GIT_TAG v0.7.2
 )
 
 FetchContent_MakeAvailable(aether harmonia)
