@@ -34,7 +34,8 @@ Checks: >
   -modernize-use-ranges,
   -modernize-avoid-c-style-cast,
   -modernize-use-nodiscard,
-  -modernize-use-std-numbers
+  -modernize-use-std-numbers,
+  -modernize-use-std-print
 
 WarningsAsErrors: >
   clang-diagnostic-*,

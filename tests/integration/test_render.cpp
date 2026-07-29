@@ -53,7 +53,7 @@ struct WindowDeleter {
 
 [[nodiscard]] std::filesystem::path shaderRoot() {
 #ifdef HYPERION_SHADER_DIR
-    return std::filesystem::path(HYPERION_SHADER_DIR);
+    return {HYPERION_SHADER_DIR};
 #else
     return std::filesystem::path("build") / "shaders";
 #endif

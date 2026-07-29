@@ -36,11 +36,11 @@ ShaderBindingTable::create(const DeviceContext& ctx,
     }
 
     const VkDeviceSize raygenOffset = 0;
-    const VkDeviceSize raygenSize = alignUp(stride * raygenCount, baseAlignment);
+    const VkDeviceSize raygenSize = alignUp(static_cast<VkDeviceSize>(stride) * raygenCount, baseAlignment);
     const VkDeviceSize missOffset = alignUp(raygenOffset + raygenSize, baseAlignment);
-    const VkDeviceSize missSize = alignUp(stride * missCount, baseAlignment);
+    const VkDeviceSize missSize = alignUp(static_cast<VkDeviceSize>(stride) * missCount, baseAlignment);
     const VkDeviceSize hitOffset = alignUp(missOffset + missSize, baseAlignment);
-    const VkDeviceSize hitSize = alignUp(stride * hitCount, baseAlignment);
+    const VkDeviceSize hitSize = alignUp(static_cast<VkDeviceSize>(stride) * hitCount, baseAlignment);
     const VkDeviceSize totalSize = hitOffset + hitSize;
 
     std::vector<std::byte> sbtBytes(static_cast<size_t>(totalSize), std::byte{0});

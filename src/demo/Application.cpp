@@ -20,7 +20,7 @@ namespace {
     // Prefer the compile-time output dir (build/shaders) over any source-tree
     // "shaders/" that lacks .spv files.
 #ifdef HYPERION_SHADER_DIR
-    const std::filesystem::path builtDir = HYPERION_SHADER_DIR;
+    std::filesystem::path builtDir = HYPERION_SHADER_DIR;
     if (std::filesystem::exists(builtDir)) {
         Logger::info("Using shader dir (built): {}", builtDir.string());
         return builtDir;
@@ -166,7 +166,8 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
     }
     Logger::info("Descriptors updated");
 
-    const bool hasIbl = iblProbe().has_value() && iblProbe()->isValid();
+    const auto& probe = iblProbe();
+    const bool hasIbl = probe.has_value() && probe->isValid();
     auto tracer = PathTracer::create(deviceContext(),
                                      swapchain().extent(),
                                      m_pipeline,
@@ -177,8 +178,8 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
                                          .maxDepth = m_demoConfig.maxDepth,
                                          .envLuminance = envLuminance,
                                          .hasEnvMap = hasIbl ? 1u : 0u,
-                                         .envImportanceWidth = hasIbl ? iblProbe()->cdfWidth() : 0u,
-                                         .envImportanceHeight = hasIbl ? iblProbe()->cdfHeight() : 0u,
+                                         .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,
+                                         .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
                                          .tonemapper = tonemapper(),
                                          .workingColorSpace = static_cast<uint32_t>(workingColorSpace()),
                                          .serEnabled = deviceContext().serSupported,

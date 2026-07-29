@@ -16,7 +16,7 @@ constexpr float kEpsilon = 1.0e-5F;
     const float z = u1;
     const float r = std::sqrt(std::max(0.0F, 1.0F - (z * z)));
     const float phi = Math::k2Pi * u2;
-    return sm::float3(r * std::cos(phi), r * std::sin(phi), z);
+    return {r * std::cos(phi), r * std::sin(phi), z};
 }
 
 [[nodiscard]] float ggxD(float nDotH, float alpha) noexcept {
@@ -138,12 +138,12 @@ struct LobeWeights {
     const float z = 1.0F - (2.0F * u1);
     const float r = std::sqrt(std::max(0.0F, 1.0F - (z * z)));
     const float phi = Math::k2Pi * u2;
-    return sm::float3(r * std::cos(phi), r * std::sin(phi), z);
+    return {r * std::cos(phi), r * std::sin(phi), z};
 }
 
 [[nodiscard]] sm::float3
 toLocal(const sm::float3& v, const sm::float3& T, const sm::float3& B, const sm::float3& N) noexcept {
-    return sm::float3(sm::dot(v, T), sm::dot(v, B), sm::dot(v, N));
+    return {sm::dot(v, T), sm::dot(v, B), sm::dot(v, N)};
 }
 
 void orientFrame(const sm::float3& wo,
@@ -192,7 +192,7 @@ void orientFrame(const sm::float3& wo,
     const float a = std::clamp(anisotropy, 0.0F, 0.98F);
     const float alphaX = std::max(r * r * std::sqrt(2.0F / (1.0F + ((1.0F - a) * (1.0F - a)))), 0.001F);
     const float alphaY = std::max((1.0F - a) * alphaX, 0.001F);
-    return sm::float2(alphaX, alphaY);
+    return {alphaX, alphaY};
 }
 
 [[nodiscard]] sm::float3 iorToF0(float eta) noexcept {
@@ -214,9 +214,9 @@ void orientFrame(const sm::float3& wo,
 }
 
 [[nodiscard]] sm::float3 mx_xyz_to_rgb(sm::float3 v) noexcept {
-    return sm::float3(sm::dot(sm::float3(2.3706743F, -0.9000405F, -0.4706338F), v),
-                      sm::dot(sm::float3(-0.5138850F, 1.4253036F, 0.0885814F), v),
-                      sm::dot(sm::float3(0.0052982F, -0.0146949F, 1.0093968F), v));
+    return {sm::dot(sm::float3(2.3706743F, -0.9000405F, -0.4706338F), v),
+            sm::dot(sm::float3(-0.5138850F, 1.4253036F, 0.0885814F), v),
+            sm::dot(sm::float3(0.0052982F, -0.0146949F, 1.0093968F), v)};
 }
 
 [[nodiscard]] sm::float3 mx_f0_to_ior(sm::float3 f0) noexcept {
@@ -440,7 +440,7 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
         sm::float4(29.34F, 1.424F, 28.96F, 13.08F) * x2 + sm::float4(-8.245F, -0.7684F, -7.507F, 41.26F) * y2 +
         sm::float4(-26.44F, 1.436F, -36.11F, 54.9F) * x2 * y + sm::float4(19.99F, 0.2913F, 15.86F, 300.2F) * x * y2 +
         sm::float4(-5.448F, 0.6286F, 33.37F, -285.1F) * x2 * y2;
-    return sm::float2(std::clamp(r.x / r.z, 0.0F, 1.0F), std::clamp(r.y / r.w, 0.0F, 1.0F));
+    return {std::clamp(r.x / r.z, 0.0F, 1.0F), std::clamp(r.y / r.w, 0.0F, 1.0F)};
 }
 
 [[nodiscard]] float mx_ggx_dir_albedo(float nDotV, float alpha) noexcept {

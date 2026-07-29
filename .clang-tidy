@@ -69,6 +69,7 @@ Checks: >
   -modernize-avoid-c-style-cast,
   -modernize-use-nodiscard,
   -modernize-use-std-numbers,
+  -modernize-use-std-print,
   -bugprone-easily-swappable-parameters,
   -bugprone-exception-escape
 
