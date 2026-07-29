@@ -3,6 +3,7 @@
 
 #include <volk/volk.h>
 
+#include <cstdint>
 #include <filesystem>
 
 #include "harmonia/app/App.hpp"
@@ -24,8 +25,8 @@
 class Application final : public harmonia::App, public harmonia::IRenderer {
   public:
     struct DemoConfig {
-        uint32_t spp = 4;
-        uint32_t maxDepth = 8;
+        std::uint32_t spp = 4;
+        std::uint32_t maxDepth = 8;
         bool sppExplicit = false; ///< true if --spp was given on the command line
         std::filesystem::path shaderDir;
     };
@@ -51,7 +52,7 @@ class Application final : public harmonia::App, public harmonia::IRenderer {
     void onSceneUnload() override;
     bool onEvent(const SDL_Event& event) override;
     void onResized(VkExtent2D extent) override;
-    [[nodiscard]] uint32_t offscreenFrameCount() const noexcept override { return m_demoConfig.spp; }
+    [[nodiscard]] std::uint32_t offscreenFrameCount() const noexcept override { return m_demoConfig.spp; }
 
   private:
     [[nodiscard]] bool createGBuffers(VkExtent2D extent);

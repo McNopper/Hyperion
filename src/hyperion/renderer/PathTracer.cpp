@@ -1,9 +1,11 @@
 #include "hyperion/renderer/PathTracer.hpp"
 
 #include <array>
+#include <cstdint>
 
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
+#include "hyperion/renderer/PathTracer.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "hyperion/scene/Scene.hpp"
 
@@ -72,7 +74,7 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
                             const Image& hdrImage,
                             const Image& gNormal,
                             const Image& gDepth,
-                            uint32_t frameIndex) noexcept {
+                            std::uint32_t frameIndex) noexcept {
     if (cmd == VK_NULL_HANDLE || scene.tlas() == VK_NULL_HANDLE) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
@@ -177,7 +179,7 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
                            VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
                            m_pipelineLayout,
                            0,
-                           static_cast<uint32_t>(writes.size()),
+                           static_cast<std::uint32_t>(writes.size()),
                            writes.data());
     vkCmdBindDescriptorSets(
         cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipelineLayout, 1, 1, &m_sceneSet, 0, nullptr);

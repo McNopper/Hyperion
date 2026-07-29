@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <span>
 #include <vector>
 
 #include "harmonia/renderer/Pipeline.hpp"
+#include "hyperion/renderer/ShaderBindingTable.hpp"
 
 namespace {
 [[nodiscard]] constexpr VkDeviceSize alignUp(VkDeviceSize value, VkDeviceSize alignment) noexcept {
@@ -18,17 +20,17 @@ std::expected<ShaderBindingTable, VkResult>
 ShaderBindingTable::create(const DeviceContext& ctx,
                            const Pipeline& pipeline,
                            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps) {
-    constexpr uint32_t groupCount = 5;
-    constexpr uint32_t raygenCount = 1;
-    constexpr uint32_t missCount = 2;
-    constexpr uint32_t hitCount = 2;
+    constexpr std::uint32_t groupCount = 5;
+    constexpr std::uint32_t raygenCount = 1;
+    constexpr std::uint32_t missCount = 2;
+    constexpr std::uint32_t hitCount = 2;
 
-    const uint32_t handleSize = rtProps.shaderGroupHandleSize;
-    const uint32_t handleAlignment = rtProps.shaderGroupHandleAlignment;
-    const uint32_t baseAlignment = rtProps.shaderGroupBaseAlignment;
-    const uint32_t stride = static_cast<uint32_t>(alignUp(handleSize, handleAlignment));
+    const std::uint32_t handleSize = rtProps.shaderGroupHandleSize;
+    const std::uint32_t handleAlignment = rtProps.shaderGroupHandleAlignment;
+    const std::uint32_t baseAlignment = rtProps.shaderGroupBaseAlignment;
+    const std::uint32_t stride = static_cast<std::uint32_t>(alignUp(handleSize, handleAlignment));
 
-    std::vector<std::byte> handles(static_cast<size_t>(groupCount) * handleSize);
+    std::vector<std::byte> handles(static_cast<std::size_t>(groupCount) * handleSize);
     if (const VkResult result = vkGetRayTracingShaderGroupHandlesKHR(
             ctx.device, pipeline.rtPipeline(), 0, groupCount, handles.size(), handles.data());
         result != VK_SUCCESS) {
@@ -43,10 +45,10 @@ ShaderBindingTable::create(const DeviceContext& ctx,
     const VkDeviceSize hitSize = alignUp(static_cast<VkDeviceSize>(stride) * hitCount, baseAlignment);
     const VkDeviceSize totalSize = hitOffset + hitSize;
 
-    std::vector<std::byte> sbtBytes(static_cast<size_t>(totalSize), std::byte{0});
-    auto copyHandle = [&](uint32_t groupIndex, VkDeviceSize dstOffset) {
-        std::memcpy(sbtBytes.data() + static_cast<size_t>(dstOffset),
-                    handles.data() + static_cast<size_t>(groupIndex) * handleSize,
+    std::vector<std::byte> sbtBytes(static_cast<std::size_t>(totalSize), std::byte{0});
+    auto copyHandle = [&](std::uint32_t groupIndex, VkDeviceSize dstOffset) {
+        std::memcpy(sbtBytes.data() + static_cast<std::size_t>(dstOffset),
+                    handles.data() + static_cast<std::size_t>(groupIndex) * handleSize,
                     handleSize);
     };
     copyHandle(0, raygenOffset);

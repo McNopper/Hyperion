@@ -2,10 +2,12 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <format>
 #include <slang-math/slang-math.hpp>
 #include <utility>
 
+#include "demo/Application.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 
@@ -181,7 +183,7 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
                                          .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,
                                          .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
                                          .tonemapper = tonemapper(),
-                                         .workingColorSpace = static_cast<uint32_t>(workingColorSpace()),
+                                         .workingColorSpace = static_cast<std::uint32_t>(workingColorSpace()),
                                          .serEnabled = deviceContext().serSupported,
                                          .indirectRt2Enabled = deviceContext().indirectRt2Supported,
                                      });

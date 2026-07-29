@@ -1,6 +1,7 @@
 // Diagnostic: tests SDL3 + Vulkan init step by step to pinpoint crashes.
 // Each step prints a line before and after so we can see exactly where it stops.
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 
@@ -143,7 +144,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     // ------------------------------------------------------------------
     std::puts("DIAG: enumerating physical devices...");
     std::fflush(stdout);
-    uint32_t deviceCount = 0;
+    std::uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
     std::printf("DIAG: found %u physical device(s)\n", deviceCount);
     std::fflush(stdout);

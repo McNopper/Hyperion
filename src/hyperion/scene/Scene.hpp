@@ -24,13 +24,13 @@
 /// Object→world placement comes from the TLAS instance transform (read in-shader via
 /// ObjectToWorld3x4), so no matrix is stored here.
 struct GpuInstance {
-    uint32_t meshIndex = 0; ///< references the unique mesh (for debugging)
-    uint32_t materialIndex = 0;
-    uint32_t vertexOffset = 0; ///< mesh's first vertex in the global vertex buffer
-    uint32_t indexOffset = 0;  ///< mesh's first index in the global index buffer
-    uint32_t geometryKind = 0; ///< 0 = triangle mesh, 1 = analytic sphere
+    std::uint32_t meshIndex = 0; ///< references the unique mesh (for debugging)
+    std::uint32_t materialIndex = 0;
+    std::uint32_t vertexOffset = 0; ///< mesh's first vertex in the global vertex buffer
+    std::uint32_t indexOffset = 0;  ///< mesh's first index in the global index buffer
+    std::uint32_t geometryKind = 0; ///< 0 = triangle mesh, 1 = analytic sphere
     float sphereRadius = 0.0f;
-    uint32_t _pad[2] = {};
+    std::uint32_t _pad[2] = {};
 };
 static_assert(std::is_trivially_copyable_v<GpuInstance>);
 static_assert(sizeof(GpuInstance) == 32);
@@ -39,7 +39,7 @@ class Scene : public harmonia::SceneBase {
   public:
     // addMaterial / addTexture / addInstance / addMesh / build are inherited concrete from SceneBase.
 
-    [[nodiscard]] uint32_t
+    [[nodiscard]] std::uint32_t
     addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name = "") override;
 
     [[nodiscard]] VkAccelerationStructureKHR tlas() const noexcept { return m_tlas.handle(); }
@@ -51,16 +51,18 @@ class Scene : public harmonia::SceneBase {
     [[nodiscard]] const Buffer& lightBuffer() const noexcept { return m_lightBuffer; }
     [[nodiscard]] const Buffer& emissiveTriangleBuffer() const noexcept { return m_emissiveTriangleBuffer; }
     [[nodiscard]] const Buffer& emissiveCdfBuffer() const noexcept { return m_emissiveCdfBuffer; }
-    [[nodiscard]] uint32_t instanceCount() const noexcept { return static_cast<uint32_t>(m_instances.size()); }
-    [[nodiscard]] uint32_t lightCount() const noexcept { return static_cast<uint32_t>(m_lights.size()); }
-    [[nodiscard]] uint32_t emissiveTriangleCount() const noexcept { return m_emissiveTriangleCount; }
+    [[nodiscard]] std::uint32_t instanceCount() const noexcept {
+        return static_cast<std::uint32_t>(m_instances.size());
+    }
+    [[nodiscard]] std::uint32_t lightCount() const noexcept { return static_cast<std::uint32_t>(m_lights.size()); }
+    [[nodiscard]] std::uint32_t emissiveTriangleCount() const noexcept { return m_emissiveTriangleCount; }
 
   private:
     /// Per-mesh GPU layout computed in buildSceneBuffers (parallel to m_meshes).
     struct MeshGpu {
-        uint32_t vertexOffset = 0;
-        uint32_t indexOffset = 0;
-        uint32_t geometryKind = 0; ///< 0 = triangle mesh, 1 = analytic sphere
+        std::uint32_t vertexOffset = 0;
+        std::uint32_t indexOffset = 0;
+        std::uint32_t geometryKind = 0; ///< 0 = triangle mesh, 1 = analytic sphere
         float sphereRadius = 0.0f;
     };
 
@@ -76,7 +78,7 @@ class Scene : public harmonia::SceneBase {
     Buffer m_lightBuffer{};
     Buffer m_emissiveTriangleBuffer{};
     Buffer m_emissiveCdfBuffer{};
-    uint32_t m_emissiveTriangleCount = 0;
+    std::uint32_t m_emissiveTriangleCount = 0;
     AccelerationStructure m_tlas{};
     VkDeviceAddress m_tlasAddress{};
 };

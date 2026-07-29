@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <limits>
 #include <random>
@@ -94,7 +95,7 @@ struct LobeWeights {
     LobeWeights weights{};
 
     const float opacity = std::clamp(mat.opacityFlagsPad.x, 0.0F, 1.0F);
-    const uint32_t flags = static_cast<uint32_t>(mat.opacityFlagsPad.y);
+    const std::uint32_t flags = static_cast<std::uint32_t>(mat.opacityFlagsPad.y);
     const bool glassMode = (flags == 2u);
 
     const float baseWeight = std::clamp(mat.baseColorWeight.w, 0.0F, 1.0F);
@@ -1454,7 +1455,7 @@ TEST(Bsdf, OpenPbrV0_SingleLobeMaterialsConserveEnergy) {
     fuzz.fuzzRoughPad = sm::float4(0.4F, 0.0F, 0.0F, 0.0F);
     mats.push_back(fuzz);
 
-    for (size_t i = 0; i < mats.size(); ++i) {
+    for (std::size_t i = 0; i < mats.size(); ++i) {
         for (const sm::float3& wo : views) {
             const double energy = estimateWhiteFurnaceEnergy(mats[i], wo, 20000);
             ASSERT_TRUE(std::isfinite(energy)) << "material " << i;
@@ -1552,7 +1553,7 @@ TEST(Bsdf, OpenPbrV0_FullBsdfIsReciprocalForOpaqueCompositions) {
     specDiffuse.specularRoughAnisoIor = sm::float4(0.35F, 0.0F, 1.5F, 0.0F);
     mats.push_back(specDiffuse);
 
-    for (size_t i = 0; i < mats.size(); ++i) {
+    for (std::size_t i = 0; i < mats.size(); ++i) {
         for (const sm::float3& wo : dirs) {
             for (const sm::float3& wi : dirs) {
                 const sm::float3 a = evalCompositeReflection(mats[i], wo, wi);

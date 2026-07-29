@@ -11,7 +11,7 @@ int main(int argc, char* argv[]) {
     const IMATH_NAMESPACE::Box2i dw = file.dataWindow();
     const int width = dw.max.x - dw.min.x + 1;
     const int height = dw.max.y - dw.min.y + 1;
-    std::vector<Rgba> pixels(static_cast<size_t>(width * height));
+    std::vector<Rgba> pixels(static_cast<std::size_t>(width * height));
     file.setFrameBuffer(pixels.data() - dw.min.x - dw.min.y * width, 1, width);
     file.readPixels(dw.min.y, dw.max.y);
     long long nanCount = 0, infCount = 0, negCount = 0;

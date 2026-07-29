@@ -171,34 +171,35 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     Scene scene;
-    const uint32_t floorMaterial = scene.addMaterial(Material::diffuse(sm::float3(0.8F), 1.0F));
-    const uint32_t sphereMaterial = scene.addMaterial(Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
+    const std::uint32_t floorMaterial = scene.addMaterial(Material::diffuse(sm::float3(0.8F), 1.0F));
+    const std::uint32_t sphereMaterial = scene.addMaterial(Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
     // Emissive sphere as area light: replaces the removed procedural sky.
     // 50 000 cd/m² at EV100=0 (exposure≈0.833) → display-space ≈ 41 667, clamped to 100
     // by kMaxDisplayLuminance.  At r=1.5, d=6.5 → P(hit)≈1.7 % → average luminance ≫ 1e-3.
-    const uint32_t lightMaterial = scene.addMaterial(Material::emissive(sm::float3(1.0F), 50000.0F));
+    const std::uint32_t lightMaterial = scene.addMaterial(Material::emissive(sm::float3(1.0F), 50000.0F));
 
     MeshData floorMesh = ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
-    const uint32_t floorMeshIdx =
+    const std::uint32_t floorMeshIdx =
         scene.addMesh(context->deviceContext(), *commandPool, std::move(floorMesh), "test.floor");
-    if (floorMeshIdx == std::numeric_limits<uint32_t>::max() ||
+    if (floorMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
         scene.addInstance(floorMeshIdx, Xform{.translation = {0.0F, -1.5F, 0.0F}}, floorMaterial) ==
-            std::numeric_limits<uint32_t>::max()) {
+            std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload floor mesh";
     }
 
-    const uint32_t sphereMeshIdx = scene.addSphereMesh(context->deviceContext(), *commandPool, 1.0F, "test.sphere");
-    if (sphereMeshIdx == std::numeric_limits<uint32_t>::max() ||
+    const std::uint32_t sphereMeshIdx =
+        scene.addSphereMesh(context->deviceContext(), *commandPool, 1.0F, "test.sphere");
+    if (sphereMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
         scene.addInstance(sphereMeshIdx, Xform{.translation = {0.0F, -0.25F, 0.5F}}, sphereMaterial) ==
-            std::numeric_limits<uint32_t>::max()) {
+            std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload sphere";
     }
 
     // Emissive sphere positioned above scene, fully visible from camera.
-    const uint32_t lightMeshIdx = scene.addSphereMesh(context->deviceContext(), *commandPool, 1.5F, "test.light");
-    if (lightMeshIdx == std::numeric_limits<uint32_t>::max() ||
+    const std::uint32_t lightMeshIdx = scene.addSphereMesh(context->deviceContext(), *commandPool, 1.5F, "test.light");
+    if (lightMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
         scene.addInstance(lightMeshIdx, Xform{.translation = {0.0F, 5.0F, 0.0F}}, lightMaterial) ==
-            std::numeric_limits<uint32_t>::max()) {
+            std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload light sphere";
     }
 
@@ -303,8 +304,8 @@ TEST(PathTracer, CornellBoxNonBlack) {
     ASSERT_NE(pixels, nullptr);
 
     double averageLuminance = 0.0;
-    const size_t pixelCount = static_cast<size_t>(renderExtent.width) * renderExtent.height;
-    for (size_t i = 0; i < pixelCount; ++i) {
+    const std::size_t pixelCount = static_cast<std::size_t>(renderExtent.width) * renderExtent.height;
+    for (std::size_t i = 0; i < pixelCount; ++i) {
         averageLuminance += Math::luminance(sm::max(sm::float3(pixels[i]), sm::float3(0.0F)));
     }
     averageLuminance /= static_cast<double>(pixelCount);

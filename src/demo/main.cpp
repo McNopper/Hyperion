@@ -1,9 +1,11 @@
+#include <cstdint>
+
 #include "demo/Application.hpp"
 #include "harmonia/app/App.hpp"
 #include "harmonia/core/Logger.hpp"
 
 namespace {
-bool consumeValue(int& index, int argc, char* const argv[], std::string_view option, uint32_t& outValue) {
+bool consumeValue(int& index, int argc, char* const argv[], std::string_view option, std::uint32_t& outValue) {
     std::string_view arg = argv[index];
     if (arg.starts_with(option) && arg.size() > option.size() && arg[option.size()] == '=') {
         return harmonia::App::parseUint32(arg.substr(option.size() + 1), outValue);
@@ -27,7 +29,7 @@ int main(int argc, char* const argv[]) {
     Application::DemoConfig demoConfig;
 
     for (int i = 1; i < argc; ++i) {
-        uint32_t value = 0;
+        std::uint32_t value = 0;
         if (consumeValue(i, argc, argv, "--spp", value)) {
             demoConfig.spp = value;
             demoConfig.sppExplicit = true;

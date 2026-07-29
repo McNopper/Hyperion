@@ -19,13 +19,14 @@
 #include "harmonia/scene/EmissiveBuilder.hpp"
 #include "harmonia/scene/Geometry.hpp"
 
-uint32_t Scene::addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name) {
-    const uint32_t meshIndex = static_cast<uint32_t>(m_meshes.size());
+std::uint32_t
+Scene::addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name) {
+    const std::uint32_t meshIndex = static_cast<std::uint32_t>(m_meshes.size());
     const std::string debugName = name.empty() ? std::string{"sphere."} + std::to_string(meshIndex) : std::string{name};
 
     auto sphere = Sphere::create(ctx, pool, radius, debugName);
     if (!sphere) {
-        return std::numeric_limits<uint32_t>::max();
+        return std::numeric_limits<std::uint32_t>::max();
     }
     m_meshes.push_back(std::move(*sphere));
     return meshIndex;
@@ -33,7 +34,7 @@ uint32_t Scene::addSphereMesh(const DeviceContext& ctx, const CommandPool& pool,
 
 VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool) {
     std::vector<GpuMaterial> gpuMaterials;
-    gpuMaterials.reserve(std::max<size_t>(m_materials.size(), 1));
+    gpuMaterials.reserve(std::max<std::size_t>(m_materials.size(), 1));
     for (const Material& material : m_materials) {
         gpuMaterials.push_back(material.gpu());
     }
@@ -44,22 +45,22 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     // Lay out the global vertex/index buffers from the unique meshes (object space),
     // recording each mesh's range for the per-instance GpuInstance rows.
     std::vector<GpuVertex> vertices;
-    std::vector<uint32_t> indices;
+    std::vector<std::uint32_t> indices;
     m_meshGpu.assign(m_meshes.size(), MeshGpu{});
 
-    for (size_t mi = 0; mi < m_meshes.size(); ++mi) {
+    for (std::size_t mi = 0; mi < m_meshes.size(); ++mi) {
         if (const auto* mesh = dynamic_cast<const TriangleMesh*>(m_meshes[mi].get())) {
             MeshGpu& gpu = m_meshGpu[mi];
-            gpu.vertexOffset = static_cast<uint32_t>(vertices.size());
-            gpu.indexOffset = static_cast<uint32_t>(indices.size());
+            gpu.vertexOffset = static_cast<std::uint32_t>(vertices.size());
+            gpu.indexOffset = static_cast<std::uint32_t>(indices.size());
             gpu.geometryKind = 0;
             vertices.insert(vertices.end(), mesh->data().vertices.begin(), mesh->data().vertices.end());
-            for (uint32_t index : mesh->data().indices) {
+            for (std::uint32_t index : mesh->data().indices) {
                 indices.push_back(index + gpu.vertexOffset);
             }
         } else if (const auto* sphere = dynamic_cast<const Sphere*>(m_meshes[mi].get())) {
             MeshGpu& gpu = m_meshGpu[mi];
-            gpu.vertexOffset = static_cast<uint32_t>(vertices.size());
+            gpu.vertexOffset = static_cast<std::uint32_t>(vertices.size());
             gpu.indexOffset = 0;
             gpu.geometryKind = 1;
             gpu.sphereRadius = sphere->radius();
@@ -130,7 +131,7 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
 
     auto indexBuf = Buffer::upload(ctx,
                                    pool,
-                                   std::as_bytes(std::span<const uint32_t>(indices.data(), indices.size())),
+                                   std::as_bytes(std::span<const std::uint32_t>(indices.data(), indices.size())),
                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                                    "scene.indices");
     if (!indexBuf) {
@@ -144,7 +145,7 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
 
     // Light buffer — always upload at least one sentinel entry so the binding is valid.
     std::vector<GpuLight> gpuLights;
-    gpuLights.reserve(std::max<size_t>(m_lights.size(), 1));
+    gpuLights.reserve(std::max<std::size_t>(m_lights.size(), 1));
     for (const auto& light : m_lights) {
         gpuLights.push_back(light->toGpu());
     }
@@ -164,7 +165,7 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     // Build emissive triangle buffer via the shared harmonia utility.
     harmonia::EmissiveData emissiveData = harmonia::buildEmissiveData(m_meshes, m_instances, m_materials, gpuMaterials);
 
-    m_emissiveTriangleCount = static_cast<uint32_t>(emissiveData.triangles.size());
+    m_emissiveTriangleCount = static_cast<std::uint32_t>(emissiveData.triangles.size());
     Logger::info("Scene: built {} emissive triangle(s) for NEE", m_emissiveTriangleCount);
     if (emissiveData.triangles.empty()) {
         emissiveData.triangles.push_back(GpuEmissiveTriangle{}); // sentinel — keeps the binding valid
@@ -201,9 +202,9 @@ VkResult Scene::buildTlas(const DeviceContext& ctx, const CommandPool& pool) {
     // and carrying that instance's object→world transform. Hyperion uses the default
     // instance mask (makeInstance); Theia stamps emissive/transparent/opaque masks.
     std::vector<VkAccelerationStructureInstanceKHR> instances(m_instances.size());
-    for (size_t i = 0; i < m_instances.size(); ++i) {
+    for (std::size_t i = 0; i < m_instances.size(); ++i) {
         const InstanceRecord& inst = m_instances[i];
-        instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<uint32_t>(i), inst.xform);
+        instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<std::uint32_t>(i), inst.xform);
     }
     return harmonia::buildTlas(ctx, pool, instances, m_tlas, m_tlasAddress);
 }
