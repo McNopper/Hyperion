@@ -20,13 +20,11 @@ class ShaderBindingTable {
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& raygenRegion() const noexcept { return m_raygen; }
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& missRegion() const noexcept { return m_miss; }
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& hitRegion() const noexcept { return m_hit; }
-    [[nodiscard]] const VkStridedDeviceAddressRegionKHR& callableRegion() const noexcept { return m_callable; }
 
   private:
     Buffer m_sbtBuffer{};
     VkStridedDeviceAddressRegionKHR m_raygen{};
     VkStridedDeviceAddressRegionKHR m_miss{};
     VkStridedDeviceAddressRegionKHR m_hit{};
-    VkStridedDeviceAddressRegionKHR m_callable{};
 };
 #endif // HYPERION_RENDERER_SHADERBINDINGTABLE_HPP

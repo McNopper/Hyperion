@@ -22,6 +22,7 @@
 #include "harmonia/scene/ProceduralGeometry.hpp"
 #include "harmonia/utils/Math.hpp"
 #include "harmonia/vulkan_init/Context.hpp"
+#include "hyperion/ShaderPaths.hpp"
 #include "hyperion/renderer/PathTracer.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "hyperion/scene/Scene.hpp"
@@ -59,17 +60,6 @@ struct WindowDeleter {
 #endif
 }
 
-[[nodiscard]] Pipeline::ShaderPaths makeShaderPaths(const std::filesystem::path& root) {
-    return Pipeline::ShaderPaths{
-        .raygen = root / "raygen.spv",
-        .closesthitTriangle = root / "closesthit.spv",
-        .closesthitSphere = root / "closesthit.spv",
-        .intersection = root / "intersection.spv",
-        .miss = root / "miss.spv",
-        .shadowMiss = root / "shadow_miss.spv",
-    };
-}
-
 [[nodiscard]] bool shadersExist(const Pipeline::ShaderPaths& paths) {
     return std::filesystem::exists(paths.raygen) && std::filesystem::exists(paths.closesthitTriangle) &&
            std::filesystem::exists(paths.closesthitSphere) && std::filesystem::exists(paths.intersection) &&
@@ -103,7 +93,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "No Vulkan RT-capable device/context available: VkResult=" << static_cast<int>(context.error());
     }
 
-    const auto shaderPaths = makeShaderPaths(shaderRoot());
+    const auto shaderPaths = makeHyperionShaderPaths(shaderRoot());
     if (!shadersExist(shaderPaths)) {
         GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();
     }

@@ -14,13 +14,10 @@
 using PFN_vkCmdSetRayTracingInvocationReorderModeEXT =
     void(VKAPI_PTR*)(VkCommandBuffer commandBuffer, VkRayTracingInvocationReorderModeEXT reorderMode);
 
-std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
-                                                       VkExtent2D renderExtent,
-                                                       const Pipeline& pipeline,
-                                                       const ShaderBindingTable& sbt,
-                                                       const Descriptors& descriptors) {
-    return create(ctx, renderExtent, pipeline, sbt, descriptors, Config{});
-}
+namespace {
+constexpr std::uint32_t kLcgMultiplier = 1664525u;
+constexpr std::uint32_t kLcgIncrement = 1013904223u;
+} // namespace
 
 std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
                                                        VkExtent2D renderExtent,
@@ -63,7 +60,6 @@ std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
     tracer.m_raygen = sbt.raygenRegion();
     tracer.m_miss = sbt.missRegion();
     tracer.m_hit = sbt.hitRegion();
-    tracer.m_callable = sbt.callableRegion();
     tracer.updateIndirectBuffer();
     return tracer;
 }
@@ -210,7 +206,7 @@ void PathTracer::pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std
     const PushConstants pushConstants{
         .frameIndex = frameIndex,
         .maxDepth = m_config.maxDepth,
-        .rngSeed = frameIndex * 1664525u + 1013904223u,
+        .rngSeed = frameIndex * kLcgMultiplier + kLcgIncrement,
         .envLuminanceScale = m_config.envLuminance,
         .lightCount = scene.lightCount(),
         .outputColorSpace = static_cast<std::uint32_t>(m_config.outputColorSpace),

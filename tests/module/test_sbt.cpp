@@ -13,6 +13,7 @@
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
+#include "hyperion/ShaderPaths.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 
 namespace {
@@ -23,17 +24,6 @@ namespace {
     return std::filesystem::path("build") / "shaders";
 #endif
 }
-
-[[nodiscard]] Pipeline::ShaderPaths makeShaderPaths(const std::filesystem::path& root) {
-    return Pipeline::ShaderPaths{
-        .raygen = root / "raygen.spv",
-        .closesthitTriangle = root / "closesthit.spv",
-        .closesthitSphere = root / "closesthit.spv",
-        .intersection = root / "intersection.spv",
-        .miss = root / "miss.spv",
-        .shadowMiss = root / "shadow_miss.spv",
-    };
-}
 } // namespace
 
 // Fixture that creates Descriptors + Pipeline + SBT once per test.
@@ -42,7 +32,7 @@ class SbtFixture : public RtFixture {
     void SetUp() override {
         RtFixture::SetUp();
 
-        const auto paths = makeShaderPaths(shaderRoot());
+        const auto paths = makeHyperionShaderPaths(shaderRoot());
         if (!std::filesystem::exists(paths.raygen) || !std::filesystem::exists(paths.miss) ||
             !std::filesystem::exists(paths.closesthitTriangle) || !std::filesystem::exists(paths.intersection)) {
             GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();

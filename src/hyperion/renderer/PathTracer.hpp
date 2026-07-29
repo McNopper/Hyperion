@@ -42,12 +42,6 @@ class PathTracer {
                                                                     const Descriptors& descriptors,
                                                                     const Config& config);
 
-    [[nodiscard]] static std::expected<PathTracer, VkResult> create(const DeviceContext& ctx,
-                                                                    VkExtent2D renderExtent,
-                                                                    const Pipeline& pipeline,
-                                                                    const ShaderBindingTable& sbt,
-                                                                    const Descriptors& descriptors);
-
     VkResult render(VkCommandBuffer cmd,
                     const Scene& scene,
                     const Camera& camera,

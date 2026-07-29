@@ -7,9 +7,9 @@
 #include <slang-math/slang-math.hpp>
 #include <utility>
 
-#include "demo/Application.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "hyperion/ShaderPaths.hpp"
 
 namespace {
 
@@ -52,16 +52,12 @@ bool Application::onInitialize() {
                  deviceContext().indirectRt2Supported ? "enabled" : "disabled");
 
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
-    const std::filesystem::path closestHitPath =
-        m_positionFetchSupported ? m_shaderDir / "closesthit_pf.spv" : m_shaderDir / "closesthit.spv";
-    const Pipeline::ShaderPaths shaderPaths{
-        .raygen = m_shaderDir / "raygen.spv",
-        .closesthitTriangle = closestHitPath,
-        .closesthitSphere = closestHitPath,
-        .intersection = m_shaderDir / "intersection.spv",
-        .miss = m_shaderDir / "miss.spv",
-        .shadowMiss = m_shaderDir / "shadow_miss.spv",
-    };
+    Pipeline::ShaderPaths shaderPaths = makeHyperionShaderPaths(m_shaderDir);
+    if (m_positionFetchSupported) {
+        const std::filesystem::path closestHitPath = m_shaderDir / "closesthit_pf.spv";
+        shaderPaths.closesthitTriangle = closestHitPath;
+        shaderPaths.closesthitSphere = closestHitPath;
+    }
     auto pipeline = Pipeline::create(deviceContext(), descriptors(), shaderPaths, m_demoConfig.maxDepth);
     if (!pipeline) {
         Logger::error("Pipeline creation failed: VkResult {}", static_cast<int>(pipeline.error()));
@@ -219,8 +215,9 @@ void Application::record(VkCommandBuffer cmd, const harmonia::RenderTarget& targ
         transitionTargetsOnFirstUse(cmd);
     }
 
-    if (m_pathTracer.render(cmd, m_scene, m_camera, hdrImage(), m_gNormal, m_gDepth, frameIndex()) != VK_SUCCESS) {
-        Logger::error("PathTracer render failed");
+    if (const VkResult r = m_pathTracer.render(cmd, m_scene, m_camera, hdrImage(), m_gNormal, m_gDepth, frameIndex());
+        r != VK_SUCCESS) {
+        Logger::error("PathTracer render failed: VkResult {}", static_cast<std::int32_t>(r));
     }
 }
 
@@ -260,10 +257,6 @@ void Application::onResize(VkExtent2D extent) noexcept {
     }
     m_camera.setAspect(static_cast<float>(extent.width) / static_cast<float>(extent.height));
     m_pathTracer.onResize(extent);
-}
-
-void Application::onResized(VkExtent2D extent) {
-    static_cast<void>(extent);
 }
 
 bool Application::onEvent(const SDL_Event& event) {

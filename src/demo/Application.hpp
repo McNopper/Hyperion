@@ -51,7 +51,6 @@ class Application final : public harmonia::App, public harmonia::IRenderer {
     [[nodiscard]] bool onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) override;
     void onSceneUnload() override;
     bool onEvent(const SDL_Event& event) override;
-    void onResized(VkExtent2D extent) override;
     [[nodiscard]] std::uint32_t offscreenFrameCount() const noexcept override { return m_demoConfig.spp; }
 
   private:
