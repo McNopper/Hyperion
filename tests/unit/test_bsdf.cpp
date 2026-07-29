@@ -353,7 +353,7 @@ void tfConductorPhasePolarized(float cosTheta,
     sm::float3 Rsp = (T121p * T121p * R23p) / sm::max(sm::float3(1.0F) - sm::float3(R12p) * R23p, sm::float3(1.0e-4F));
     I += sm::float3(R12p) + Rsp;
     Cm = Rsp - sm::float3(T121p);
-    for (int m = 1; m <= 2; ++m) {
+    for (std::int32_t m = 1; m <= 2; ++m) {
         Cm *= r123p;
         Sm = 2.0F *
              mx_eval_sensitivity(static_cast<float>(m) * opd, static_cast<float>(m) * (phi23p + sm::float3(phi21p)));
@@ -363,7 +363,7 @@ void tfConductorPhasePolarized(float cosTheta,
     sm::float3 Rss = (T121s * T121s * R23s) / sm::max(sm::float3(1.0F) - sm::float3(R12s) * R23s, sm::float3(1.0e-4F));
     I += sm::float3(R12s) + Rss;
     Cm = Rss - sm::float3(T121s);
-    for (int m = 1; m <= 2; ++m) {
+    for (std::int32_t m = 1; m <= 2; ++m) {
         Cm *= r123s;
         Sm = 2.0F *
              mx_eval_sensitivity(static_cast<float>(m) * opd, static_cast<float>(m) * (phi23s + sm::float3(phi21s)));
@@ -778,7 +778,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     return sm::max(result, sm::float3(0.0F));
 }
 
-[[nodiscard]] double estimateWhiteFurnaceEnergy(const GpuMaterial& mat, const sm::float3& wo, int sampleCount) {
+[[nodiscard]] double estimateWhiteFurnaceEnergy(const GpuMaterial& mat, const sm::float3& wo, std::size_t sampleCount) {
     std::mt19937 rng(12345U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
     const sm::float3 N(0.0F, 0.0F, 1.0F);
@@ -786,7 +786,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     const sm::float3 B(0.0F, 1.0F, 0.0F);
 
     double sum = 0.0;
-    for (int i = 0; i < sampleCount; ++i) {
+    for (std::size_t i = 0; i < sampleCount; ++i) {
         const sm::float3 wi = sampleUniformSphere(dist(rng), dist(rng));
         const sm::float3 f = evalBSDF(mat, wo, wi, N, T, B, N, T, B);
         sum += static_cast<double>(Math::luminance(f) * std::abs(wi.z) * (4.0 * Math::kPi));
@@ -868,12 +868,12 @@ singleScatterMicrofacet(float f0, const sm::float3& wo, const sm::float3& wi, fl
 
 TEST(Bsdf, GgxDNormalization) {
     constexpr float roughness = 0.5F;
-    constexpr int sampleCount = 50000;
+    constexpr std::size_t sampleCount = 50000;
     std::mt19937 rng(123U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
 
     double integral = 0.0;
-    for (int i = 0; i < sampleCount; ++i) {
+    for (std::size_t i = 0; i < sampleCount; ++i) {
         const sm::float3 m = sampleUniformHemisphere(dist(rng), dist(rng));
         integral += ggxD(m.z, roughness) * m.z / Math::kInv2Pi;
     }
@@ -887,7 +887,7 @@ TEST(Bsdf, GgxSmithG2IsSymmetric) {
     std::mt19937 rng(456U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
 
-    for (int i = 0; i < 2000; ++i) {
+    for (std::size_t i = 0; i < 2000; ++i) {
         const sm::float3 l = sampleUniformHemisphere(dist(rng), dist(rng));
         const sm::float3 v = sampleUniformHemisphere(dist(rng), dist(rng));
         EXPECT_NEAR(smithG2(l, v, roughness), smithG2(v, l, roughness), 1.0e-6F);
@@ -896,7 +896,7 @@ TEST(Bsdf, GgxSmithG2IsSymmetric) {
 
 TEST(Bsdf, FresnelEnergyRemainsInUnitRange) {
     constexpr float f0 = 0.04F;
-    for (int i = 0; i <= 1000; ++i) {
+    for (std::size_t i = 0; i <= 1000; ++i) {
         const float cosTheta = static_cast<float>(i) / 1000.0F;
         const float value = fresnelSchlick(f0, cosTheta);
         EXPECT_GE(value, 0.0F);
@@ -905,7 +905,7 @@ TEST(Bsdf, FresnelEnergyRemainsInUnitRange) {
 }
 
 TEST(Bsdf, DiffuseEonReflectanceDoesNotExceedOne) {
-    constexpr int sampleCount = 20000;
+    constexpr std::size_t sampleCount = 20000;
     std::mt19937 rng(789U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
     const std::array outgoingDirections{
@@ -917,7 +917,7 @@ TEST(Bsdf, DiffuseEonReflectanceDoesNotExceedOne) {
     for (const float roughness : {0.0F, 0.25F, 0.5F, 0.9F}) {
         for (const sm::float3 wo : outgoingDirections) {
             double reflectance = 0.0;
-            for (int i = 0; i < sampleCount; ++i) {
+            for (std::size_t i = 0; i < sampleCount; ++i) {
                 const sm::float3 wi = sampleUniformHemisphere(dist(rng), dist(rng));
                 const float brdf = orenNayarDiffuse(wo, wi, roughness, 1.0F);
                 reflectance += brdf * wi.z / Math::kInv2Pi;
@@ -1195,7 +1195,7 @@ TEST(Bsdf, ThinFilmGuardReturnsBaseWhenInactive) {
         const sm::float3 base = baseF0 + (sm::float3(1.0F) - baseF0) * std::pow(1.0F - cosT, 5.0F);
         const sm::float3 offThickness = applyThinFilm(baseF0, cosT, 0.0F, 1.5F, 1.0F);
         const sm::float3 offWeight = applyThinFilm(baseF0, cosT, 500.0F, 1.5F, 0.0F);
-        for (int c = 0; c < 3; ++c) {
+        for (std::int32_t c = 0; c < 3; ++c) {
             EXPECT_NEAR(offThickness[c], base[c], 1.0e-5F) << "cosT=" << cosT << " (thickness 0)";
             EXPECT_NEAR(offWeight[c], base[c], 1.0e-5F) << "cosT=" << cosT << " (weight 0)";
         }
@@ -1298,13 +1298,13 @@ TEST(Bsdf, OpenPbrV0_GgxDirAlbedoFitMatchesVndfIntegration) {
     // the true integral across the (NdotV, roughness) domain.
     std::mt19937 rng(0xC0FFEEU);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
-    constexpr int kSamples = 200000;
+    constexpr std::size_t kSamples = 200000;
     for (const float nDotV : {0.2F, 0.5F, 0.85F}) {
         const sm::float3 V(std::sqrt(std::max(0.0F, 1.0F - (nDotV * nDotV))), 0.0F, nDotV);
         for (const float alpha : {0.3F, 0.6F, 1.0F}) {
             const float g1v = smithG1(V.z, alpha);
             double sum = 0.0;
-            for (int i = 0; i < kSamples; ++i) {
+            for (std::size_t i = 0; i < kSamples; ++i) {
                 const sm::float3 H = sampleGgxVndf(V, alpha, dist(rng), dist(rng));
                 const sm::float3 L = sm::normalize((2.0F * sm::dot(V, H) * H) - V);
                 if (L.z <= 0.0F || g1v <= 0.0F) {
@@ -1356,12 +1356,12 @@ TEST(Bsdf, OpenPbrV0_ZeltnerSheenLtcIsEnergyNormalized) {
     // the LTC coefficient fits (aInv/bInv) were wrong, this integral would drift from 1.
     std::mt19937 rng(0x5EED01U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
-    constexpr int kSamples = 400000;
+    constexpr std::size_t kSamples = 400000;
     for (const float nDotV : {0.15F, 0.5F, 0.9F}) {
         const sm::float3 V(std::sqrt(std::max(0.0F, 1.0F - (nDotV * nDotV))), 0.0F, nDotV);
         for (const float rough : {0.2F, 0.5F, 0.9F}) {
             double sum = 0.0;
-            for (int i = 0; i < kSamples; ++i) {
+            for (std::size_t i = 0; i < kSamples; ++i) {
                 const sm::float3 L = sampleUniformHemisphere(dist(rng), dist(rng));
                 // mx_zeltner_sheen_brdf already includes the cosine; uniform-hemisphere pdf = 1/2pi.
                 sum += static_cast<double>(mx_zeltner_sheen_brdf(V, L, rough)) * (2.0 * Math::kPi);
@@ -1707,10 +1707,10 @@ TEST(Bsdf, OpenPbrV0_HenyeyGreensteinMeanCosineMatchesAnisotropyG) {
     std::mt19937 rng(0xA55A5EEDU);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
     const sm::float3 wi = sm::normalize(sm::float3(0.3F, -0.6F, 0.74F));
-    constexpr int kSamples = 200000;
+    constexpr std::size_t kSamples = 200000;
     for (const float g : {-0.7F, -0.2F, 0.0F, 0.3F, 0.8F}) {
         double sum = 0.0;
-        for (int i = 0; i < kSamples; ++i) {
+        for (std::size_t i = 0; i < kSamples; ++i) {
             const sm::float3 wo = sampleHenyeyGreenstein(wi, g, sm::float2(dist(rng), dist(rng)));
             ASSERT_TRUE(std::isfinite(wo.x) && std::isfinite(wo.y) && std::isfinite(wo.z)) << "g=" << g;
             sum += static_cast<double>(sm::dot(wo, wi));
