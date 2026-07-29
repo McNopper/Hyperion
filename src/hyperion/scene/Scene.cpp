@@ -1,6 +1,5 @@
 #include "hyperion/scene/Scene.hpp"
 
-#include <slang-math/slang-math.hpp>
 #include <volk/volk.h>
 
 #include <algorithm>
@@ -8,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <slang-math/slang-math.hpp>
 #include <span>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
@@ -15,17 +15,13 @@
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/renderer/TlasBuilder.hpp"
 #include "harmonia/scene/EmissiveBuilder.hpp"
 #include "harmonia/scene/Geometry.hpp"
-#include "harmonia/renderer/TlasBuilder.hpp"
 
-uint32_t Scene::addSphereMesh(const DeviceContext& ctx,
-                              const CommandPool& pool,
-                              float radius,
-                              std::string_view name) {
+uint32_t Scene::addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name) {
     const uint32_t meshIndex = static_cast<uint32_t>(m_meshes.size());
-    const std::string debugName =
-        name.empty() ? std::string{"sphere."} + std::to_string(meshIndex) : std::string{name};
+    const std::string debugName = name.empty() ? std::string{"sphere."} + std::to_string(meshIndex) : std::string{name};
 
     auto sphere = Sphere::create(ctx, pool, radius, debugName);
     if (!sphere) {
@@ -173,12 +169,12 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     if (emissiveData.triangles.empty()) {
         emissiveData.triangles.push_back(GpuEmissiveTriangle{}); // sentinel — keeps the binding valid
     }
-    auto emissiveBuf = Buffer::upload(
-        ctx,
-        pool,
-        std::as_bytes(std::span<const GpuEmissiveTriangle>(emissiveData.triangles.data(), emissiveData.triangles.size())),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        "scene.emissiveTriangles");
+    auto emissiveBuf = Buffer::upload(ctx,
+                                      pool,
+                                      std::as_bytes(std::span<const GpuEmissiveTriangle>(
+                                          emissiveData.triangles.data(), emissiveData.triangles.size())),
+                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                      "scene.emissiveTriangles");
     if (!emissiveBuf) {
         return emissiveBuf.error();
     }
@@ -187,12 +183,11 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     // Power-proportional selection CDF for emissive-triangle NEE (shared helper —
     // identical across renderers, so the NEE sampling CDF cannot drift).
     const std::vector<float> emissiveCdf = harmonia::buildEmissiveCdf(emissiveData.power);
-    auto emissiveCdfBuf = Buffer::upload(
-        ctx,
-        pool,
-        std::as_bytes(std::span<const float>(emissiveCdf.data(), emissiveCdf.size())),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        "scene.emissiveCdf");
+    auto emissiveCdfBuf = Buffer::upload(ctx,
+                                         pool,
+                                         std::as_bytes(std::span<const float>(emissiveCdf.data(), emissiveCdf.size())),
+                                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                         "scene.emissiveCdf");
     if (!emissiveCdfBuf) {
         return emissiveCdfBuf.error();
     }

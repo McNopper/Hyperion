@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HYPERION_RENDERER_PATHTRACER_HPP
+#define HYPERION_RENDERER_PATHTRACER_HPP
 
 #include <volk/volk.h>
 
@@ -29,7 +30,7 @@ class PathTracer {
         /// space (0 = linear Rec.2020, 1 = linear Rec.709); forwarded to the
         /// tonemap push constant.
         uint32_t workingColorSpace = 0;
-        bool serEnabled = false;      ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
+        bool serEnabled = false;         ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
         bool indirectRt2Enabled = false; ///< Use vkCmdTraceRaysIndirect2KHR when supported.
     };
 
@@ -72,3 +73,4 @@ class PathTracer {
     VkStridedDeviceAddressRegionKHR m_hit{};
     VkStridedDeviceAddressRegionKHR m_callable{};
 };
+#endif // HYPERION_RENDERER_PATHTRACER_HPP

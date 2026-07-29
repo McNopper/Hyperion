@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HYPERION_RENDERER_SHADERBINDINGTABLE_HPP
+#define HYPERION_RENDERER_SHADERBINDINGTABLE_HPP
 
 #include <volk/volk.h>
 
@@ -12,7 +13,9 @@ class Pipeline;
 class ShaderBindingTable {
   public:
     [[nodiscard]] static std::expected<ShaderBindingTable, VkResult>
-    create(const DeviceContext& ctx, const Pipeline& pipeline, const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps);
+    create(const DeviceContext& ctx,
+           const Pipeline& pipeline,
+           const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps);
 
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& raygenRegion() const noexcept { return m_raygen; }
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& missRegion() const noexcept { return m_miss; }
@@ -26,3 +29,4 @@ class ShaderBindingTable {
     VkStridedDeviceAddressRegionKHR m_hit{};
     VkStridedDeviceAddressRegionKHR m_callable{};
 };
+#endif // HYPERION_RENDERER_SHADERBINDINGTABLE_HPP

@@ -7,10 +7,9 @@
 // Scene::build() must be valid Vulkan usage even when the validation layer is absent —
 // the layer can mask invalid usage that otherwise surfaces as VK_ERROR_DEVICE_LOST in Debug.
 
-#include <slang-math/slang-math.hpp>
-
 #include <gtest/gtest.h>
 #include <limits>
+#include <slang-math/slang-math.hpp>
 
 #include "fixtures/VulkanTestFixture.hpp"
 #include "harmonia/scene/Material.hpp"

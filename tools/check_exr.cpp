@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
     using namespace OPENEXR_IMF_NAMESPACE;
     RgbaInputFile file(path);
     const IMATH_NAMESPACE::Box2i dw = file.dataWindow();
-    const int width  = dw.max.x - dw.min.x + 1;
+    const int width = dw.max.x - dw.min.x + 1;
     const int height = dw.max.y - dw.min.y + 1;
     std::vector<Rgba> pixels(static_cast<size_t>(width * height));
     file.setFrameBuffer(pixels.data() - dw.min.x - dw.min.y * width, 1, width);
@@ -18,10 +18,14 @@ int main(int argc, char* argv[]) {
     float maxFinite = 0.0f;
     for (const auto& px : pixels) {
         for (float v : {(float)px.r, (float)px.g, (float)px.b}) {
-            if (std::isnan(v))       ++nanCount;
-            else if (std::isinf(v))  ++infCount;
-            else if (v < 0.0f)       ++negCount;
-            else maxFinite = std::max(maxFinite, v);
+            if (std::isnan(v))
+                ++nanCount;
+            else if (std::isinf(v))
+                ++infCount;
+            else if (v < 0.0f)
+                ++negCount;
+            else
+                maxFinite = std::max(maxFinite, v);
         }
     }
     std::printf("Size      : %d x %d\n", width, height);

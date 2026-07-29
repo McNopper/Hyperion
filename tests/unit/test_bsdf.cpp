@@ -1,11 +1,10 @@
-#include <slang-math/slang-math.hpp>
-
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <gtest/gtest.h>
 #include <limits>
 #include <random>
+#include <slang-math/slang-math.hpp>
 
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/utils/Math.hpp"
@@ -126,8 +125,8 @@ struct LobeWeights {
         weights.diffuseTransWeight = ssFull * 0.5F * (1.0F + gss);
     }
 
-    const float total = weights.diffuseWeight + weights.subsurfaceWeight + weights.specularWeight + weights.metalWeight +
-                        weights.transmissionWeight + weights.coatWeight + weights.fuzzWeight +
+    const float total = weights.diffuseWeight + weights.subsurfaceWeight + weights.specularWeight +
+                        weights.metalWeight + weights.transmissionWeight + weights.coatWeight + weights.fuzzWeight +
                         weights.diffuseTransWeight;
     if (total <= 0.0F || opacity < 0.0F) {
         return {};
@@ -142,12 +141,18 @@ struct LobeWeights {
     return sm::float3(r * std::cos(phi), r * std::sin(phi), z);
 }
 
-[[nodiscard]] sm::float3 toLocal(const sm::float3& v, const sm::float3& T, const sm::float3& B, const sm::float3& N) noexcept {
+[[nodiscard]] sm::float3
+toLocal(const sm::float3& v, const sm::float3& T, const sm::float3& B, const sm::float3& N) noexcept {
     return sm::float3(sm::dot(v, T), sm::dot(v, B), sm::dot(v, N));
 }
 
-void orientFrame(const sm::float3& wo, const sm::float3& N, const sm::float3& T, const sm::float3& B,
-                 sm::float3& Ns, sm::float3& Ts, sm::float3& Bs) noexcept {
+void orientFrame(const sm::float3& wo,
+                 const sm::float3& N,
+                 const sm::float3& T,
+                 const sm::float3& B,
+                 sm::float3& Ns,
+                 sm::float3& Ts,
+                 sm::float3& Bs) noexcept {
     if (sm::dot(wo, N) >= 0.0F) {
         Ns = N;
         Ts = T;
@@ -201,17 +206,17 @@ void orientFrame(const sm::float3& wo, const sm::float3& N, const sm::float3& T,
     const sm::float3 val(5.4856e-13F, 4.4201e-13F, 5.2481e-13F);
     const sm::float3 pos(1.6810e+06F, 1.7953e+06F, 2.2084e+06F);
     const sm::float3 var(4.3278e+09F, 9.3046e+09F, 6.6121e+09F);
-    sm::float3 xyz = val * sm::sqrt(2.0F * Math::kPi * var) * sm::cos(pos * phase + shift) *
-                    sm::exp(-var * phase * phase);
-    xyz.x += 9.7470e-14F * std::sqrt(2.0F * Math::kPi * 4.5282e+09F) *
-             std::cos(2.2399e+06F * phase + shift.x) * std::exp(-4.5282e+09F * phase * phase);
+    sm::float3 xyz =
+        val * sm::sqrt(2.0F * Math::kPi * var) * sm::cos(pos * phase + shift) * sm::exp(-var * phase * phase);
+    xyz.x += 9.7470e-14F * std::sqrt(2.0F * Math::kPi * 4.5282e+09F) * std::cos(2.2399e+06F * phase + shift.x) *
+             std::exp(-4.5282e+09F * phase * phase);
     return xyz / 1.0685e-7F;
 }
 
 [[nodiscard]] sm::float3 mx_xyz_to_rgb(sm::float3 v) noexcept {
     return sm::float3(sm::dot(sm::float3(2.3706743F, -0.9000405F, -0.4706338F), v),
-                     sm::dot(sm::float3(-0.5138850F, 1.4253036F, 0.0885814F), v),
-                     sm::dot(sm::float3(0.0052982F, -0.0146949F, 1.0093968F), v));
+                      sm::dot(sm::float3(-0.5138850F, 1.4253036F, 0.0885814F), v),
+                      sm::dot(sm::float3(0.0052982F, -0.0146949F, 1.0093968F), v));
 }
 
 [[nodiscard]] sm::float3 mx_f0_to_ior(sm::float3 f0) noexcept {
@@ -269,7 +274,11 @@ void tfConductorPolarized(float cosTheta, sm::float3 n, sm::float3 k, sm::float3
     Rp = Rs * (t3 - t4) / sm::max(t3 + t4, sm::float3(1.0e-6F));
 }
 
-void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::float3 kappa2, sm::float3& phiP,
+void tfConductorPhasePolarized(float cosTheta,
+                               float eta1,
+                               sm::float3 eta2,
+                               sm::float3 kappa2,
+                               sm::float3& phiP,
                                sm::float3& phiS) noexcept {
     const sm::float3 k2 = kappa2 / eta2;
     const float s2 = 1.0F - cosTheta * cosTheta;
@@ -290,8 +299,14 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     phiP = atan2v(num, den);
 }
 
-[[nodiscard]] sm::float3 mx_fresnel_airy(float cosTheta, bool isConductor, sm::float3 F0, sm::float3 F82, sm::float3 nCond,
-                                     sm::float3 kCond, float tfThicknessNm, float tfIor) noexcept {
+[[nodiscard]] sm::float3 mx_fresnel_airy(float cosTheta,
+                                         bool isConductor,
+                                         sm::float3 F0,
+                                         sm::float3 F82,
+                                         sm::float3 nCond,
+                                         sm::float3 kCond,
+                                         float tfThicknessNm,
+                                         float tfIor) noexcept {
     const float eta1 = 1.0F;
     const float eta2 = std::max(tfIor, eta1);
     const float ct = std::clamp(cosTheta, 0.0F, 1.0F);
@@ -318,8 +333,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
         R23p = f;
         R23s = f;
         const sm::float3 eta3 = mx_f0_to_ior(F0);
-        phi23p = sm::float3(eta3.x < eta2 ? Math::kPi : 0.0F, eta3.y < eta2 ? Math::kPi : 0.0F,
-                           eta3.z < eta2 ? Math::kPi : 0.0F);
+        phi23p = sm::float3(
+            eta3.x < eta2 ? Math::kPi : 0.0F, eta3.y < eta2 ? Math::kPi : 0.0F, eta3.z < eta2 ? Math::kPi : 0.0F);
         phi23s = phi23p;
     }
 
@@ -340,8 +355,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     Cm = Rsp - sm::float3(T121p);
     for (int m = 1; m <= 2; ++m) {
         Cm *= r123p;
-        Sm = 2.0F * mx_eval_sensitivity(static_cast<float>(m) * opd,
-                                        static_cast<float>(m) * (phi23p + sm::float3(phi21p)));
+        Sm = 2.0F *
+             mx_eval_sensitivity(static_cast<float>(m) * opd, static_cast<float>(m) * (phi23p + sm::float3(phi21p)));
         I += Cm * Sm;
     }
 
@@ -350,8 +365,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     Cm = Rss - sm::float3(T121s);
     for (int m = 1; m <= 2; ++m) {
         Cm *= r123s;
-        Sm = 2.0F * mx_eval_sensitivity(static_cast<float>(m) * opd,
-                                        static_cast<float>(m) * (phi23s + sm::float3(phi21s)));
+        Sm = 2.0F *
+             mx_eval_sensitivity(static_cast<float>(m) * opd, static_cast<float>(m) * (phi23s + sm::float3(phi21s)));
         I += Cm * Sm;
     }
 
@@ -360,10 +375,16 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
 }
 
 // Schlick-base wrapper used by the dielectric thin-film tests below.
-[[nodiscard]] sm::float3 thinFilmIridescentReflectance(sm::float3 baseF0, float cosTheta1, float thicknessNm,
-                                                      float filmIor) noexcept {
-    return mx_fresnel_airy(cosTheta1, false, baseF0, sm::float3(1.0F), sm::float3(0.0F), sm::float3(0.0F), thicknessNm,
-                        std::max(filmIor, 1.0F));
+[[nodiscard]] sm::float3
+thinFilmIridescentReflectance(sm::float3 baseF0, float cosTheta1, float thicknessNm, float filmIor) noexcept {
+    return mx_fresnel_airy(cosTheta1,
+                           false,
+                           baseF0,
+                           sm::float3(1.0F),
+                           sm::float3(0.0F),
+                           sm::float3(0.0F),
+                           thicknessNm,
+                           std::max(filmIor, 1.0F));
 }
 
 [[nodiscard]] float diffuseDirAlbedoFujii(float cosTheta, float roughness) noexcept {
@@ -383,7 +404,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     return A * (1.0F + (kFujiiC2 * roughness));
 }
 
-[[nodiscard]] sm::float3 evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, const sm::float3& wi) noexcept {
+[[nodiscard]] sm::float3
+evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, const sm::float3& wi) noexcept {
     if (wo.z <= 0.0F || wi.z <= 0.0F) {
         return sm::float3(0.0F);
     }
@@ -399,9 +421,10 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     const float dAlbedoV = diffuseDirAlbedoFujii(NdotV, roughness);
     const float dAlbedoL = diffuseDirAlbedoFujii(NdotL, roughness);
     const float avgA = diffuseAvgAlbedoFujii(roughness);
-    const sm::float3 colorMS = (color * color * avgA) / sm::max(sm::float3(0.0001F), sm::float3(1.0F) - color * std::max(0.0F, 1.0F - avgA));
+    const sm::float3 colorMS =
+        (color * color * avgA) / sm::max(sm::float3(0.0001F), sm::float3(1.0F) - color * std::max(0.0F, 1.0F - avgA));
     const sm::float3 lobeMS = colorMS * std::max(1.0e-4F, 1.0F - dAlbedoV) * std::max(1.0e-4F, 1.0F - dAlbedoL) /
-                             std::max(1.0e-4F, 1.0F - avgA);
+                              std::max(1.0e-4F, 1.0F - avgA);
 
     return (lobeSingle + lobeMS) * Math::kInvPi;
 }
@@ -411,15 +434,12 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     const float y = std::clamp(alpha, 0.0F, 1.0F);
     const float x2 = x * x;
     const float y2 = y * y;
-    const sm::float4 r = sm::float4(0.1003F, 0.9345F, 1.0F, 1.0F) +
-                        sm::float4(-0.6303F, -2.323F, -1.765F, 0.2281F) * x +
-                        sm::float4(9.748F, 2.229F, 8.263F, 15.94F) * y +
-                        sm::float4(-2.038F, -3.748F, 11.53F, -55.83F) * x * y +
-                        sm::float4(29.34F, 1.424F, 28.96F, 13.08F) * x2 +
-                        sm::float4(-8.245F, -0.7684F, -7.507F, 41.26F) * y2 +
-                        sm::float4(-26.44F, 1.436F, -36.11F, 54.9F) * x2 * y +
-                        sm::float4(19.99F, 0.2913F, 15.86F, 300.2F) * x * y2 +
-                        sm::float4(-5.448F, 0.6286F, 33.37F, -285.1F) * x2 * y2;
+    const sm::float4 r =
+        sm::float4(0.1003F, 0.9345F, 1.0F, 1.0F) + sm::float4(-0.6303F, -2.323F, -1.765F, 0.2281F) * x +
+        sm::float4(9.748F, 2.229F, 8.263F, 15.94F) * y + sm::float4(-2.038F, -3.748F, 11.53F, -55.83F) * x * y +
+        sm::float4(29.34F, 1.424F, 28.96F, 13.08F) * x2 + sm::float4(-8.245F, -0.7684F, -7.507F, 41.26F) * y2 +
+        sm::float4(-26.44F, 1.436F, -36.11F, 54.9F) * x2 * y + sm::float4(19.99F, 0.2913F, 15.86F, 300.2F) * x * y2 +
+        sm::float4(-5.448F, 0.6286F, 33.37F, -285.1F) * x2 * y2;
     return sm::float2(std::clamp(r.x / r.z, 0.0F, 1.0F), std::clamp(r.y / r.w, 0.0F, 1.0F));
 }
 
@@ -453,8 +473,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
 }
 
 [[nodiscard]] float mx_zeltner_sheen_ltc_bInv(float x, float y) noexcept {
-    return std::sqrt(std::max(0.0F, 1.0F - x)) * (y - 1.0F) * y * y * y
-         / (0.0000254053F + 1.71228F * x - 1.71506F * x * y + 1.34174F * y * y);
+    return std::sqrt(std::max(0.0F, 1.0F - x)) * (y - 1.0F) * y * y * y /
+           (0.0000254053F + 1.71228F * x - 1.71506F * x * y + 1.34174F * y * y);
 }
 
 [[nodiscard]] float mx_zeltner_sheen_brdf(const sm::float3& wo, const sm::float3& wi, float roughness) noexcept {
@@ -478,7 +498,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     return dO * k * k;
 }
 
-[[nodiscard]] sm::float3 evalSheen(const sm::float3& color, float roughness, const sm::float3& wo, const sm::float3& wi) noexcept {
+[[nodiscard]] sm::float3
+evalSheen(const sm::float3& color, float roughness, const sm::float3& wo, const sm::float3& wi) noexcept {
     if (wo.z <= 0.0F || wi.z <= 0.0F) {
         return sm::float3(0.0F);
     }
@@ -496,11 +517,11 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
 }
 
 [[nodiscard]] sm::float3 evalReflectionMicrofacet(const sm::float3& F0,
-                                                 const sm::float3& F82,
-                                                 const sm::float3& wo,
-                                                 const sm::float3& wi,
-                                                 float alphaX,
-                                                 float alphaY) noexcept {
+                                                  const sm::float3& F82,
+                                                  const sm::float3& wo,
+                                                  const sm::float3& wi,
+                                                  float alphaX,
+                                                  float alphaY) noexcept {
     if (wo.z <= 0.0F || wi.z <= 0.0F) {
         return sm::float3(0.0F);
     }
@@ -528,12 +549,12 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
 }
 
 [[nodiscard]] sm::float3 evalTransmissionMicrofacet(const sm::float3& color,
-                                                   float depth,
-                                                   float eta,
-                                                   float alphaX,
-                                                   float alphaY,
-                                                   const sm::float3& wo,
-                                                   const sm::float3& wi) noexcept {
+                                                    float depth,
+                                                    float eta,
+                                                    float alphaX,
+                                                    float alphaY,
+                                                    const sm::float3& wo,
+                                                    const sm::float3& wi) noexcept {
     // PBRT-v4 DielectricBxDF rough transmission (Radiance transport). Mirrors Harmonia
     // bsdf_shared.slang evalTransmissionMicrofacet.
     if (wo.z * wi.z >= 0.0F) {
@@ -561,18 +582,19 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     float denom = sm::dot(wi, wm) + sm::dot(wo, wm) / etap;
     denom = denom * denom * std::abs(cosTheta_i) * std::abs(cosTheta_o);
     float ft = D * (1.0F - F) * G * std::abs(sm::dot(wi, wm) * sm::dot(wo, wm)) / std::max(denom, 1.0e-12F);
-    ft /= (etap * etap);   // Radiance transport (camera paths)
+    ft /= (etap * etap); // Radiance transport (camera paths)
 
     const float msAlpha = std::sqrt(std::max(alphaX * alphaY, 1.0e-8F));
     const float msComp = 1.0F / std::max(mx_ggx_dir_albedo(std::abs(wo.z), msAlpha), 1.0e-3F);
-    const sm::float3 absorption = sm::exp(-std::max(depth, 0.001F) * (sm::float3(1.0F) - sm::clamp(color, sm::float3(0.0F), sm::float3(1.0F))));
+    const sm::float3 absorption =
+        sm::exp(-std::max(depth, 0.001F) * (sm::float3(1.0F) - sm::clamp(color, sm::float3(0.0F), sm::float3(1.0F))));
     return absorption * color * (ft * msComp);
 }
 
 // Solid-angle pdf of the refracted ray (PBRT-v4 DielectricBxDF::PDF). Mirrors Harmonia
 // bsdf_shared.slang transmissionPdf.
-[[nodiscard]] float transmissionPdf(float eta, float alphaX, float alphaY,
-                                    const sm::float3& wo, const sm::float3& wi) noexcept {
+[[nodiscard]] float
+transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, const sm::float3& wi) noexcept {
     if (wo.z * wi.z >= 0.0F) {
         return 0.0F;
     }
@@ -600,14 +622,14 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
 }
 
 [[nodiscard]] sm::float3 evalBSDF(const GpuMaterial& mat,
-                                 const sm::float3& wo,
-                                 const sm::float3& wi,
-                                 const sm::float3& N,
-                                 const sm::float3& T,
-                                 const sm::float3& B,
-                                 const sm::float3& cN,
-                                 const sm::float3& cT,
-                                 const sm::float3& cB) noexcept {
+                                  const sm::float3& wo,
+                                  const sm::float3& wi,
+                                  const sm::float3& N,
+                                  const sm::float3& T,
+                                  const sm::float3& B,
+                                  const sm::float3& cN,
+                                  const sm::float3& cT,
+                                  const sm::float3& cB) noexcept {
     (void)cN;
     (void)cT;
     (void)cB;
@@ -624,8 +646,10 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     const float opacity = std::clamp(mat.opacityFlagsPad.x, 0.0F, 1.0F);
     const sm::float3 baseColor = sm::clamp(sm::float3(mat.baseColorWeight), sm::float3(0.0F), sm::float3(1.0F));
     const sm::float3 specColor = sm::clamp(sm::float3(mat.specularColorWeight), sm::float3(0.0F), sm::float3(1.0F));
-    const sm::float3 transColor = sm::clamp(sm::float3(mat.transmissionColorWeight), sm::float3(0.0F), sm::float3(1.0F));
-    const sm::float3 subsurfaceColor = sm::clamp(sm::float3(mat.subsurfaceColorWeight), sm::float3(0.0F), sm::float3(1.0F));
+    const sm::float3 transColor =
+        sm::clamp(sm::float3(mat.transmissionColorWeight), sm::float3(0.0F), sm::float3(1.0F));
+    const sm::float3 subsurfaceColor =
+        sm::clamp(sm::float3(mat.subsurfaceColorWeight), sm::float3(0.0F), sm::float3(1.0F));
     const sm::float3 coatColor = sm::clamp(sm::float3(mat.coatColorWeight), sm::float3(0.0F), sm::float3(1.0F));
     const sm::float3 fuzzColor = sm::clamp(sm::float3(mat.fuzzColorWeight), sm::float3(0.0F), sm::float3(1.0F));
 
@@ -642,7 +666,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     }
     const float etaS = std::lerp(specIorRaw, etaRatioG3, std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F));
     const float f0sqrtG3 = (etaS - 1.0F) / (etaS + 1.0F);
-    const float scaledF0G3 = std::clamp(std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F) * f0sqrtG3 * f0sqrtG3, 0.0F, 0.99999F);
+    const float scaledF0G3 =
+        std::clamp(std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F) * f0sqrtG3 * f0sqrtG3, 0.0F, 0.99999F);
     const float epsG3 = (etaS >= 1.0F ? 1.0F : -1.0F) * std::sqrt(scaledF0G3);
     const float eta = (1.0F + epsG3) / std::max(1.0F - epsG3, 1.0e-4F);
     const float diffuseRough = std::clamp(mat.baseMetalnessDiffRough.y, 0.0F, 1.0F);
@@ -651,9 +676,10 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     // G4 (mirror of bsdf_shared.slang openpbrEffectiveSpecularRoughness): the coat roughens the
     // specular base in roughness space, then computeAlpha — NOT an alpha-space combine.
     const float coatWeightG4 = std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F);
-    const float effSpecRough = std::lerp(baseRough,
-        std::pow(std::min(1.0F, 2.0F * std::pow(coatRough, 4.0F) + std::pow(baseRough, 4.0F)), 0.25F),
-        coatWeightG4);
+    const float effSpecRough =
+        std::lerp(baseRough,
+                  std::pow(std::min(1.0F, 2.0F * std::pow(coatRough, 4.0F) + std::pow(baseRough, 4.0F)), 0.25F),
+                  coatWeightG4);
     const sm::float2 alpha = computeAlpha(effSpecRough, 0.0F);
     const sm::float2 coatAlpha = computeAlpha(coatRough, 0.0F);
     const float alphaX = alpha.x;
@@ -666,37 +692,52 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
     const float coatF0v = std::pow((coatEta - 1.0F) / (coatEta + 1.0F), 2.0F);
     const float Kcoat = 1.0F - (1.0F - coatF0v) / std::max(coatEta * coatEta, 1.0e-4F);
     const sm::float3 Emetal = baseColor * std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F);
-    const sm::float3 Edielectric = sm::lerp(baseColor, subsurfaceColor, std::clamp(mat.subsurfaceColorWeight.w, 0.0F, 1.0F));
-    const sm::float3 Ebase = sm::clamp(sm::lerp(Edielectric, Emetal, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F)), sm::float3(0.0F), sm::float3(1.0F));
-    const sm::float3 darkening = sm::lerp(sm::float3(1.0F),
-        sm::float3(1.0F - Kcoat) / sm::max(sm::float3(1.0F) - Ebase * Kcoat, sm::float3(1.0e-4F)),
-        std::clamp(weights.coatWeight * coatDark, 0.0F, 1.0F));
+    const sm::float3 Edielectric =
+        sm::lerp(baseColor, subsurfaceColor, std::clamp(mat.subsurfaceColorWeight.w, 0.0F, 1.0F));
+    const sm::float3 Ebase =
+        sm::clamp(sm::lerp(Edielectric, Emetal, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F)),
+                  sm::float3(0.0F),
+                  sm::float3(1.0F));
+    const sm::float3 darkening =
+        sm::lerp(sm::float3(1.0F),
+                 sm::float3(1.0F - Kcoat) / sm::max(sm::float3(1.0F) - Ebase * Kcoat, sm::float3(1.0e-4F)),
+                 std::clamp(weights.coatWeight * coatDark, 0.0F, 1.0F));
     const sm::float3 coatAtten = sm::lerp(sm::float3(1.0F), coatColor, std::clamp(weights.coatWeight, 0.0F, 1.0F));
     // G8: fuzz (topmost) attenuates both the base and the coat lobe below it.
-    const float fuzzAtten = 1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight;
+    const float fuzzAtten =
+        1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight;
     const sm::float3 baseLayerScale = darkening * coatAtten * fuzzAtten;
 
     sm::float3 result(0.0F);
     if (wiL.z > 0.0F && woL.z > 0.0F) {
         const sm::float3 dielectricF0 = iorToF0(eta);
-        sm::float3 glossyF0 = sm::lerp(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
+        sm::float3 glossyF0 =
+            sm::lerp(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
         const sm::float3 glossyF82 = specColor;
         const float specF0 = Math::luminance(dielectricF0 * specColor);
-        auto underSpec = [&](float c) { return std::clamp(1.0F - std::clamp(specF0 + (1.0F - specF0) * std::pow(1.0F - std::clamp(c, 0.0F, 1.0F), 5.0F), 0.0F, 1.0F), 0.0F, 1.0F); };
+        auto underSpec = [&](float c) {
+            return std::clamp(
+                1.0F -
+                    std::clamp(specF0 + (1.0F - specF0) * std::pow(1.0F - std::clamp(c, 0.0F, 1.0F), 5.0F), 0.0F, 1.0F),
+                0.0F,
+                1.0F);
+        };
         const float diffuseUnderSpec = underSpec(woL.z) * underSpec(wiL.z);
 
         if (weights.diffuseWeight > 0.0F) {
-            result += baseLayerScale * diffuseUnderSpec * weights.diffuseWeight * evalDiffuse(baseColor, diffuseRough, woL, wiL);
+            result += baseLayerScale * diffuseUnderSpec * weights.diffuseWeight *
+                      evalDiffuse(baseColor, diffuseRough, woL, wiL);
         }
         if (weights.subsurfaceWeight > 0.0F && mat.opacityFlagsPad.w > 0.5F) {
             // Thin-walled subsurface only (mirror of bsdf.slang): bulk subsurface is a delta
             // medium-entry handled by the volumetric random walk on the sample side, with no
             // local BRDF value here.
             const float ssScale = std::max(mat.subsurfaceRadiusScale.w, 0.001F);
-            const sm::float3 ssTint = subsurfaceColor * (1.0F / (1.0F + ssScale * (mat.subsurfaceRadiusScale.x +
-                                                                                 mat.subsurfaceRadiusScale.y +
-                                                                                 mat.subsurfaceRadiusScale.z)));
-            result += baseLayerScale * diffuseUnderSpec * weights.subsurfaceWeight * evalDiffuse(ssTint, std::clamp(0.25F + 0.5F * diffuseRough, 0.0F, 1.0F), woL, wiL);
+            const sm::float3 ssTint =
+                subsurfaceColor * (1.0F / (1.0F + ssScale * (mat.subsurfaceRadiusScale.x + mat.subsurfaceRadiusScale.y +
+                                                             mat.subsurfaceRadiusScale.z)));
+            result += baseLayerScale * diffuseUnderSpec * weights.subsurfaceWeight *
+                      evalDiffuse(ssTint, std::clamp(0.25F + 0.5F * diffuseRough, 0.0F, 1.0F), woL, wiL);
         }
         if (weights.specularWeight > 0.0F || weights.metalWeight > 0.0F) {
             result += baseLayerScale * (weights.specularWeight + weights.metalWeight) *
@@ -715,15 +756,17 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
         const sm::float3 wiC = toLocal(wi, cTs, cBs, cNs);
         if (woC.z > 0.0F && wiC.z > 0.0F) {
             const sm::float3 coatF0 = iorToF0(coatEta) * sm::max(coatColor, sm::float3(0.04F));
-            result += fuzzAtten * weights.coatWeight * evalReflectionMicrofacet(coatF0, coatColor, woC, wiC, coatAlpha.x, coatAlpha.y);
+            result += fuzzAtten * weights.coatWeight *
+                      evalReflectionMicrofacet(coatF0, coatColor, woC, wiC, coatAlpha.x, coatAlpha.y);
         }
     }
 
     if (weights.transmissionWeight > 0.0F) {
         const float transAlphaX = alphaX;
         const float transAlphaY = alphaY;
-        result += weights.transmissionWeight *
-                  evalTransmissionMicrofacet(transColor, mat.transmissionParams.x, eta, transAlphaX, transAlphaY, woL, wiL);
+        result +=
+            weights.transmissionWeight *
+            evalTransmissionMicrofacet(transColor, mat.transmissionParams.x, eta, transAlphaX, transAlphaY, woL, wiL);
     }
 
     if (weights.diffuseTransWeight > 0.0F && woL.z > 0.0F && wiL.z < 0.0F) {
@@ -787,8 +830,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
 [[nodiscard]] sm::float3 sampleGgxVndf(const sm::float3& Ve, float alpha, float u1, float u2) noexcept {
     const sm::float3 Vh = sm::normalize(sm::float3(alpha * Ve.x, alpha * Ve.y, Ve.z));
     const float lensq = (Vh.x * Vh.x) + (Vh.y * Vh.y);
-    const sm::float3 T1 = (lensq > 0.0F) ? (sm::float3(-Vh.y, Vh.x, 0.0F) / std::sqrt(lensq))
-                                        : sm::float3(1.0F, 0.0F, 0.0F);
+    const sm::float3 T1 =
+        (lensq > 0.0F) ? (sm::float3(-Vh.y, Vh.x, 0.0F) / std::sqrt(lensq)) : sm::float3(1.0F, 0.0F, 0.0F);
     const sm::float3 T2 = sm::cross(Vh, T1);
     const float r = std::sqrt(u1);
     const float phi = Math::k2Pi * u2;
@@ -802,7 +845,8 @@ void tfConductorPhasePolarized(float cosTheta, float eta1, sm::float3 eta2, sm::
 
 // Single-scatter GGX microfacet reflection term (no MS compensation), scalar F0 — used to verify
 // Helmholtz reciprocity of the underlying physical lobe.
-[[nodiscard]] float singleScatterMicrofacet(float f0, const sm::float3& wo, const sm::float3& wi, float alpha) noexcept {
+[[nodiscard]] float
+singleScatterMicrofacet(float f0, const sm::float3& wo, const sm::float3& wi, float alpha) noexcept {
     if (wo.z <= 0.0F || wi.z <= 0.0F) {
         return 0.0F;
     }
@@ -1081,8 +1125,10 @@ TEST(Bsdf, FresnelGgxDirAlbedoHonorsAlphaAndMatchesMaterialx) {
     EXPECT_GT(std::abs(rough - schlick), 0.01F) << "rough form must differ from Schlick (alpha honored)";
 
     // (d) range + monotonic direction (decreasing with roughness for a dielectric).
-    EXPECT_GE(smooth, 0.0F); EXPECT_LE(smooth, 1.0F);
-    EXPECT_GE(rough, 0.0F); EXPECT_LE(rough, 1.0F);
+    EXPECT_GE(smooth, 0.0F);
+    EXPECT_LE(smooth, 1.0F);
+    EXPECT_GE(rough, 0.0F);
+    EXPECT_LE(rough, 1.0F);
     EXPECT_LT(rough, smooth) << "dielectric Fresnel-weighted albedo decreases with roughness";
 }
 
@@ -1100,10 +1146,12 @@ TEST(Bsdf, TransmissionEvalPdfWeightMatchesPbrt) {
                 const sm::float3 wo = sm::normalize(sm::float3(0.35F, 0.2F, cosO));
                 const float sin2O = std::max(0.0F, 1.0F - wo.z * wo.z);
                 const float sin2T = sin2O / (eta * eta);
-                if (sin2T >= 1.0F) continue; // macro TIR — skip
+                if (sin2T >= 1.0F)
+                    continue; // macro TIR — skip
                 const float cosT = std::sqrt(1.0F - sin2T);
                 const sm::float3 wi = sm::normalize(sm::float3(-wo.x / eta, -wo.y / eta, -cosT));
-                if (wo.z * wi.z >= 0.0F) continue; // sanity: opposite hemispheres
+                if (wo.z * wi.z >= 0.0F)
+                    continue; // sanity: opposite hemispheres
 
                 const sm::float3 f = evalTransmissionMicrofacet(one, 0.0F, eta, alpha, alpha, wo, wi);
                 const float pdf = transmissionPdf(eta, alpha, alpha, wo, wi);
@@ -1113,7 +1161,8 @@ TEST(Bsdf, TransmissionEvalPdfWeightMatchesPbrt) {
                 // Independently recompute wm, F, G, G1, etap, msComp.
                 const float etap = wo.z > 0.0F ? eta : (1.0F / eta);
                 sm::float3 wm = sm::normalize(wi * etap + wo);
-                if (wm.z < 0.0F) wm = -wm;
+                if (wm.z < 0.0F)
+                    wm = -wm;
                 const float F = fresnelDielectric(std::abs(sm::dot(wo, wm)), eta);
                 const float G = smithG2(wi, wo, alpha);
                 const float G1wo = smithG1(std::max(wo.z, 0.0F), alpha);
@@ -1133,7 +1182,8 @@ TEST(Bsdf, ThinFilmGuardReturnsBaseWhenInactive) {
     // otherwise the base Schlick reflectance is used unchanged. Verify that contract
     // (mirrors evalReflectionMicrofacetThinFilm / the thinFilmTint guard).
     auto applyThinFilm = [](sm::float3 baseF0, float cosT, float thickness, float ior, float weight) {
-        const sm::float3 base = baseF0 + (sm::float3(1.0F) - baseF0) * std::pow(std::clamp(1.0F - cosT, 0.0F, 1.0F), 5.0F);
+        const sm::float3 base =
+            baseF0 + (sm::float3(1.0F) - baseF0) * std::pow(std::clamp(1.0F - cosT, 0.0F, 1.0F), 5.0F);
         if (weight <= 0.0F || thickness <= 0.0F) {
             return base;
         }
@@ -1362,8 +1412,7 @@ TEST(Bsdf, OpenPbrV0_SingleScatterMicrofacetIsReciprocal) {
                 for (const sm::float3& wi : dirs) {
                     const float a = singleScatterMicrofacet(f0, wo, wi, alpha);
                     const float b = singleScatterMicrofacet(f0, wi, wo, alpha);
-                    EXPECT_NEAR(a, b, std::max(1.0e-4F, 1.0e-3F * std::abs(a)))
-                        << "f0=" << f0 << " alpha=" << alpha;
+                    EXPECT_NEAR(a, b, std::max(1.0e-4F, 1.0e-3F * std::abs(a))) << "f0=" << f0 << " alpha=" << alpha;
                 }
             }
         }
@@ -1385,20 +1434,20 @@ TEST(Bsdf, OpenPbrV0_SingleLobeMaterialsConserveEnergy) {
     };
     std::vector<GpuMaterial> mats;
     for (const float rough : {0.1F, 0.5F, 0.9F}) {
-        GpuMaterial metal = makeMaterial();          // pure conductor
+        GpuMaterial metal = makeMaterial(); // pure conductor
         metal.baseColorWeight = sm::float4(0.9F, 0.85F, 0.8F, 1.0F);
         metal.baseMetalnessDiffRough = sm::float4(1.0F, 0.4F, 0.0F, 0.0F);
         metal.specularColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
         metal.specularRoughAnisoIor = sm::float4(rough, 0.0F, 1.5F, 0.0F);
         mats.push_back(metal);
 
-        GpuMaterial diff = makeMaterial();           // pure diffuse dielectric (specular off)
+        GpuMaterial diff = makeMaterial(); // pure diffuse dielectric (specular off)
         diff.baseColorWeight = sm::float4(0.9F, 0.85F, 0.8F, 1.0F);
         diff.baseMetalnessDiffRough = sm::float4(0.0F, rough, 0.0F, 0.0F);
         diff.specularColorWeight = sm::float4(0.0F, 0.0F, 0.0F, 0.0F);
         mats.push_back(diff);
     }
-    GpuMaterial fuzz = makeMaterial();               // pure fuzz/sheen
+    GpuMaterial fuzz = makeMaterial(); // pure fuzz/sheen
     fuzz.baseColorWeight = sm::float4(0.0F, 0.0F, 0.0F, 0.0F);
     fuzz.specularColorWeight = sm::float4(0.0F);
     fuzz.fuzzColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
@@ -1440,11 +1489,10 @@ TEST(Bsdf, OpenPbrV0_LayeredMaterialsConserveEnergy) {
                 }
                 for (const sm::float3& wo : views) {
                     const double energy = estimateWhiteFurnaceEnergy(mat, wo, 20000);
-                    ASSERT_TRUE(std::isfinite(energy)) << "metalness=" << metalness << " rough="
-                                                       << rough << " coated=" << coated;
+                    ASSERT_TRUE(std::isfinite(energy))
+                        << "metalness=" << metalness << " rough=" << rough << " coated=" << coated;
                     EXPECT_GE(energy, 0.0);
-                    EXPECT_LE(energy, 1.20) << "metalness=" << metalness << " rough=" << rough
-                                            << " coated=" << coated;
+                    EXPECT_LE(energy, 1.20) << "metalness=" << metalness << " rough=" << rough << " coated=" << coated;
                 }
             }
         }
@@ -1459,8 +1507,8 @@ TEST(Bsdf, OpenPbrV0_LayeredMaterialsConserveEnergy) {
 // *creates* energy versus the same base uncoated. This is the V0 gate that closes Steps 1–4: when
 // proper directional-albedo layering (Step 1) lands, the per-view bound should tighten toward 1.0.
 
-[[nodiscard]] sm::float3 evalCompositeReflection(const GpuMaterial& mat, const sm::float3& wo,
-                                                const sm::float3& wi) noexcept {
+[[nodiscard]] sm::float3
+evalCompositeReflection(const GpuMaterial& mat, const sm::float3& wo, const sm::float3& wi) noexcept {
     const sm::float3 N(0.0F, 0.0F, 1.0F);
     const sm::float3 T(1.0F, 0.0F, 0.0F);
     const sm::float3 B(0.0F, 1.0F, 0.0F);
@@ -1482,7 +1530,7 @@ TEST(Bsdf, OpenPbrV0_FullBsdfIsReciprocalForOpaqueCompositions) {
     };
     std::vector<GpuMaterial> mats;
 
-    GpuMaterial coatDielectric = makeMaterial();   // clear coat over diffuse+specular dielectric
+    GpuMaterial coatDielectric = makeMaterial(); // clear coat over diffuse+specular dielectric
     coatDielectric.baseColorWeight = sm::float4(0.8F, 0.6F, 0.4F, 1.0F);
     coatDielectric.baseMetalnessDiffRough = sm::float4(0.0F, 0.4F, 0.0F, 0.0F);
     coatDielectric.specularRoughAnisoIor = sm::float4(0.3F, 0.0F, 1.5F, 0.0F);
@@ -1490,7 +1538,7 @@ TEST(Bsdf, OpenPbrV0_FullBsdfIsReciprocalForOpaqueCompositions) {
     coatDielectric.coatRoughAnisoIorDark = sm::float4(0.15F, 0.0F, 1.5F, 0.25F);
     mats.push_back(coatDielectric);
 
-    GpuMaterial coatConductor = makeMaterial();    // clear coat over conductor
+    GpuMaterial coatConductor = makeMaterial(); // clear coat over conductor
     coatConductor.baseColorWeight = sm::float4(0.9F, 0.85F, 0.6F, 1.0F);
     coatConductor.baseMetalnessDiffRough = sm::float4(1.0F, 0.4F, 0.0F, 0.0F);
     coatConductor.specularRoughAnisoIor = sm::float4(0.25F, 0.0F, 1.5F, 0.0F);
@@ -1498,7 +1546,7 @@ TEST(Bsdf, OpenPbrV0_FullBsdfIsReciprocalForOpaqueCompositions) {
     coatConductor.coatRoughAnisoIorDark = sm::float4(0.1F, 0.0F, 1.5F, 0.25F);
     mats.push_back(coatConductor);
 
-    GpuMaterial specDiffuse = makeMaterial();      // specular + diffuse coupling
+    GpuMaterial specDiffuse = makeMaterial(); // specular + diffuse coupling
     specDiffuse.baseColorWeight = sm::float4(0.7F, 0.5F, 0.55F, 1.0F);
     specDiffuse.baseMetalnessDiffRough = sm::float4(0.0F, 0.5F, 0.0F, 0.0F);
     specDiffuse.specularRoughAnisoIor = sm::float4(0.35F, 0.0F, 1.5F, 0.0F);
@@ -1730,5 +1778,3 @@ TEST(Bsdf, OpenPbrV0_MediumExitFresnelReportsTirAboveCriticalAngle) {
         EXPECT_NEAR(F + (1.0F - F), 1.0F, 1.0e-6F) << "eta=" << eta;
     }
 }
-
-

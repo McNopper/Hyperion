@@ -1,10 +1,9 @@
 #include "demo/Application.hpp"
 
-#include <slang-math/slang-math.hpp>
-
 #include <array>
 #include <cmath>
 #include <format>
+#include <slang-math/slang-math.hpp>
 #include <utility>
 
 #include "harmonia/core/Barrier.hpp"
@@ -41,14 +40,13 @@ int Application::run(Config&& config, DemoConfig&& demoConfig) {
 bool Application::onInitialize() {
     m_positionFetchSupported = deviceContext().positionFetchSupported;
     Logger::info("VK_KHR_ray_tracing_position_fetch: {}", m_positionFetchSupported ? "enabled" : "disabled");
-    Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}",
-                 deviceContext().serSupported ? "enabled" : "disabled");
+    Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}", deviceContext().serSupported ? "enabled" : "disabled");
     Logger::info("VK_KHR_ray_tracing_maintenance1 (indirect RT2): {}",
                  deviceContext().indirectRt2Supported ? "enabled" : "disabled");
 
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
-    const std::filesystem::path closestHitPath = m_positionFetchSupported ? m_shaderDir / "closesthit_pf.spv"
-                                                                          : m_shaderDir / "closesthit.spv";
+    const std::filesystem::path closestHitPath =
+        m_positionFetchSupported ? m_shaderDir / "closesthit_pf.spv" : m_shaderDir / "closesthit.spv";
     const Pipeline::ShaderPaths shaderPaths{
         .raygen = m_shaderDir / "raygen.spv",
         .closesthitTriangle = closestHitPath,

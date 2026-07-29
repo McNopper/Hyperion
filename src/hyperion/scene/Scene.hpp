@@ -1,4 +1,5 @@
-#pragma once
+#ifndef HYPERION_SCENE_SCENE_HPP
+#define HYPERION_SCENE_SCENE_HPP
 
 #include <volk/volk.h>
 
@@ -23,13 +24,13 @@
 /// Object→world placement comes from the TLAS instance transform (read in-shader via
 /// ObjectToWorld3x4), so no matrix is stored here.
 struct GpuInstance {
-    uint32_t meshIndex     = 0;  ///< references the unique mesh (for debugging)
+    uint32_t meshIndex = 0; ///< references the unique mesh (for debugging)
     uint32_t materialIndex = 0;
-    uint32_t vertexOffset  = 0;  ///< mesh's first vertex in the global vertex buffer
-    uint32_t indexOffset   = 0;  ///< mesh's first index in the global index buffer
-    uint32_t geometryKind  = 0;  ///< 0 = triangle mesh, 1 = analytic sphere
-    float    sphereRadius  = 0.0f;
-    uint32_t _pad[2]       = {};
+    uint32_t vertexOffset = 0; ///< mesh's first vertex in the global vertex buffer
+    uint32_t indexOffset = 0;  ///< mesh's first index in the global index buffer
+    uint32_t geometryKind = 0; ///< 0 = triangle mesh, 1 = analytic sphere
+    float sphereRadius = 0.0f;
+    uint32_t _pad[2] = {};
 };
 static_assert(std::is_trivially_copyable_v<GpuInstance>);
 static_assert(sizeof(GpuInstance) == 32);
@@ -38,10 +39,8 @@ class Scene : public harmonia::SceneBase {
   public:
     // addMaterial / addTexture / addInstance / addMesh / build are inherited concrete from SceneBase.
 
-    [[nodiscard]] uint32_t addSphereMesh(const DeviceContext& ctx,
-                                         const CommandPool& pool,
-                                         float radius,
-                                         std::string_view name = "") override;
+    [[nodiscard]] uint32_t
+    addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name = "") override;
 
     [[nodiscard]] VkAccelerationStructureKHR tlas() const noexcept { return m_tlas.handle(); }
     [[nodiscard]] VkDeviceAddress tlasAddress() const noexcept { return m_tlasAddress; }
@@ -61,15 +60,15 @@ class Scene : public harmonia::SceneBase {
     struct MeshGpu {
         uint32_t vertexOffset = 0;
         uint32_t indexOffset = 0;
-        uint32_t geometryKind = 0;  ///< 0 = triangle mesh, 1 = analytic sphere
-        float    sphereRadius = 0.0f;
+        uint32_t geometryKind = 0; ///< 0 = triangle mesh, 1 = analytic sphere
+        float sphereRadius = 0.0f;
     };
 
     VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool) override;
     VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool) override;
 
-    std::vector<MeshGpu>     m_meshGpu;       ///< per-mesh GPU ranges
-    std::vector<GpuInstance> m_gpuInstances;  ///< per-instance GPU rows (built at build)
+    std::vector<MeshGpu> m_meshGpu;          ///< per-mesh GPU ranges
+    std::vector<GpuInstance> m_gpuInstances; ///< per-instance GPU rows (built at build)
     Buffer m_instanceBuffer{};
     Buffer m_materialBuffer{};
     Buffer m_vertexBuffer{};
@@ -81,3 +80,4 @@ class Scene : public harmonia::SceneBase {
     AccelerationStructure m_tlas{};
     VkDeviceAddress m_tlasAddress{};
 };
+#endif // HYPERION_SCENE_SCENE_HPP

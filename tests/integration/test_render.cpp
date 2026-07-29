@@ -2,8 +2,6 @@
 
 #include <SDL3/SDL.h>
 
-#include <slang-math/slang-math.hpp>
-
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -11,6 +9,7 @@
 #include <gtest/gtest.h>
 #include <limits>
 #include <memory>
+#include <slang-math/slang-math.hpp>
 #include <string>
 
 #include "harmonia/core/Buffer.hpp"
@@ -188,8 +187,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Failed to upload floor mesh";
     }
 
-    const uint32_t sphereMeshIdx =
-        scene.addSphereMesh(context->deviceContext(), *commandPool, 1.0F, "test.sphere");
+    const uint32_t sphereMeshIdx = scene.addSphereMesh(context->deviceContext(), *commandPool, 1.0F, "test.sphere");
     if (sphereMeshIdx == std::numeric_limits<uint32_t>::max() ||
         scene.addInstance(sphereMeshIdx, Xform{.translation = {0.0F, -0.25F, 0.5F}}, sphereMaterial) ==
             std::numeric_limits<uint32_t>::max()) {
@@ -197,8 +195,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     // Emissive sphere positioned above scene, fully visible from camera.
-    const uint32_t lightMeshIdx =
-        scene.addSphereMesh(context->deviceContext(), *commandPool, 1.5F, "test.light");
+    const uint32_t lightMeshIdx = scene.addSphereMesh(context->deviceContext(), *commandPool, 1.5F, "test.light");
     if (lightMeshIdx == std::numeric_limits<uint32_t>::max() ||
         scene.addInstance(lightMeshIdx, Xform{.translation = {0.0F, 5.0F, 0.0F}}, lightMaterial) ==
             std::numeric_limits<uint32_t>::max()) {
@@ -314,5 +311,3 @@ TEST(PathTracer, CornellBoxNonBlack) {
 
     EXPECT_GT(static_cast<float>(averageLuminance), 1.0e-3F);
 }
-
-

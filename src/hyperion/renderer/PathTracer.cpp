@@ -9,8 +9,8 @@
 
 // VK_EXT_ray_tracing_invocation_reorder runtime command. Not yet in the SDK volk/headers
 // on all toolchains, so load it dynamically and fall back to a no-op if unavailable.
-using PFN_vkCmdSetRayTracingInvocationReorderModeEXT = void(VKAPI_PTR*)(VkCommandBuffer commandBuffer,
-                                                                        VkRayTracingInvocationReorderModeEXT reorderMode);
+using PFN_vkCmdSetRayTracingInvocationReorderModeEXT =
+    void(VKAPI_PTR*)(VkCommandBuffer commandBuffer, VkRayTracingInvocationReorderModeEXT reorderMode);
 
 std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
                                                        VkExtent2D renderExtent,
@@ -37,12 +37,12 @@ std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
 
     Buffer indirectDispatchBuffer{};
     if (config.indirectRt2Enabled) {
-        auto indirectBuf = Buffer::create(ctx,
-                                          sizeof(VkTraceRaysIndirectCommand2KHR),
-                                          VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-                                              VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                          VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                          "hyperion.indirectDispatch");
+        auto indirectBuf =
+            Buffer::create(ctx,
+                           sizeof(VkTraceRaysIndirectCommand2KHR),
+                           VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                           "hyperion.indirectDispatch");
         if (!indirectBuf) {
             return std::unexpected(indirectBuf.error());
         }
@@ -237,19 +237,19 @@ void PathTracer::updateIndirectBuffer() noexcept {
         return;
     }
     VkTraceRaysIndirectCommand2KHR indirectCmd{};
-    indirectCmd.raygenShaderRecordAddress        = m_raygen.deviceAddress;
-    indirectCmd.raygenShaderRecordSize           = m_raygen.size;
-    indirectCmd.missShaderBindingTableAddress    = m_miss.deviceAddress;
-    indirectCmd.missShaderBindingTableSize       = m_miss.size;
-    indirectCmd.missShaderBindingTableStride     = m_miss.stride;
-    indirectCmd.hitShaderBindingTableAddress     = m_hit.deviceAddress;
-    indirectCmd.hitShaderBindingTableSize        = m_hit.size;
-    indirectCmd.hitShaderBindingTableStride      = m_hit.stride;
+    indirectCmd.raygenShaderRecordAddress = m_raygen.deviceAddress;
+    indirectCmd.raygenShaderRecordSize = m_raygen.size;
+    indirectCmd.missShaderBindingTableAddress = m_miss.deviceAddress;
+    indirectCmd.missShaderBindingTableSize = m_miss.size;
+    indirectCmd.missShaderBindingTableStride = m_miss.stride;
+    indirectCmd.hitShaderBindingTableAddress = m_hit.deviceAddress;
+    indirectCmd.hitShaderBindingTableSize = m_hit.size;
+    indirectCmd.hitShaderBindingTableStride = m_hit.stride;
     indirectCmd.callableShaderBindingTableAddress = m_callable.deviceAddress;
-    indirectCmd.callableShaderBindingTableSize   = m_callable.size;
+    indirectCmd.callableShaderBindingTableSize = m_callable.size;
     indirectCmd.callableShaderBindingTableStride = m_callable.stride;
-    indirectCmd.width  = m_extent.width;
+    indirectCmd.width = m_extent.width;
     indirectCmd.height = m_extent.height;
-    indirectCmd.depth  = 1;
+    indirectCmd.depth = 1;
     m_indirectDispatchBuffer.uploadData(&indirectCmd, sizeof(indirectCmd), 0);
 }
