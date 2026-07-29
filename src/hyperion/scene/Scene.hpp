@@ -4,8 +4,6 @@
 #include <volk/volk.h>
 
 #include <cstdint>
-#include <expected>
-#include <span>
 #include <string_view>
 #include <vector>
 
@@ -69,13 +67,8 @@ class Scene : public harmonia::SceneBase {
     };
 
     VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool) override;
-    VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool) override;
 
     void buildGpuInstances();
-    [[nodiscard]] static std::expected<Buffer, VkResult> uploadBuffer(const DeviceContext& ctx,
-                                                                      const CommandPool& pool,
-                                                                      std::span<const std::byte> data,
-                                                                      std::string_view name);
     VkResult uploadAllBuffers(const DeviceContext& ctx,
                               const CommandPool& pool,
                               const std::vector<GpuMaterial>& gpuMaterials,
@@ -95,7 +88,5 @@ class Scene : public harmonia::SceneBase {
     Buffer m_emissiveTriangleBuffer{};
     Buffer m_emissiveCdfBuffer{};
     std::uint32_t m_emissiveTriangleCount = 0;
-    AccelerationStructure m_tlas{};
-    VkDeviceAddress m_tlasAddress{};
 };
 #endif // HYPERION_SCENE_SCENE_HPP

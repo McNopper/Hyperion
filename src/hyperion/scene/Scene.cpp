@@ -132,14 +132,6 @@ void Scene::buildGpuInstances() {
     }
 }
 
-std::expected<Buffer, VkResult> Scene::uploadBuffer(const DeviceContext& ctx,
-                                                    const CommandPool& pool,
-                                                    std::span<const std::byte> data,
-                                                    std::string_view name) {
-    return Buffer::upload(
-        ctx, pool, data, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, name);
-}
-
 VkResult Scene::uploadAllBuffers(const DeviceContext& ctx,
                                  const CommandPool& pool,
                                  const std::vector<GpuMaterial>& gpuMaterials,
@@ -148,32 +140,43 @@ VkResult Scene::uploadAllBuffers(const DeviceContext& ctx,
                                  const std::vector<GpuLight>& gpuLights,
                                  const std::vector<GpuEmissiveTriangle>& emissiveTriangles,
                                  const std::vector<float>& emissiveCdf) {
+    constexpr VkBufferUsageFlags kStorageAddr =
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+
     auto instanceBuf =
-        uploadBuffer(ctx,
-                     pool,
-                     std::as_bytes(std::span<const GpuInstance>(m_gpuInstances.data(), m_gpuInstances.size())),
-                     "scene.instances");
+        uploadStorageBuffer(ctx,
+                            pool,
+                            std::as_bytes(std::span<const GpuInstance>(m_gpuInstances.data(), m_gpuInstances.size())),
+                            "scene.instances",
+                            kStorageAddr);
     if (!instanceBuf) {
         return instanceBuf.error();
     }
 
     auto materialBuf =
-        uploadBuffer(ctx,
-                     pool,
-                     std::as_bytes(std::span<const GpuMaterial>(gpuMaterials.data(), gpuMaterials.size())),
-                     "scene.materials");
+        uploadStorageBuffer(ctx,
+                            pool,
+                            std::as_bytes(std::span<const GpuMaterial>(gpuMaterials.data(), gpuMaterials.size())),
+                            "scene.materials",
+                            kStorageAddr);
     if (!materialBuf) {
         return materialBuf.error();
     }
 
-    auto vertexBuf = uploadBuffer(
-        ctx, pool, std::as_bytes(std::span<const GpuVertex>(vertices.data(), vertices.size())), "scene.vertices");
+    auto vertexBuf = uploadStorageBuffer(ctx,
+                                         pool,
+                                         std::as_bytes(std::span<const GpuVertex>(vertices.data(), vertices.size())),
+                                         "scene.vertices",
+                                         kStorageAddr);
     if (!vertexBuf) {
         return vertexBuf.error();
     }
 
-    auto indexBuf = uploadBuffer(
-        ctx, pool, std::as_bytes(std::span<const std::uint32_t>(indices.data(), indices.size())), "scene.indices");
+    auto indexBuf = uploadStorageBuffer(ctx,
+                                        pool,
+                                        std::as_bytes(std::span<const std::uint32_t>(indices.data(), indices.size())),
+                                        "scene.indices",
+                                        kStorageAddr);
     if (!indexBuf) {
         return indexBuf.error();
     }
@@ -183,41 +186,37 @@ VkResult Scene::uploadAllBuffers(const DeviceContext& ctx,
     m_vertexBuffer = std::move(*vertexBuf);
     m_indexBuffer = std::move(*indexBuf);
 
-    auto lightBuf = uploadBuffer(
-        ctx, pool, std::as_bytes(std::span<const GpuLight>(gpuLights.data(), gpuLights.size())), "scene.lights");
+    auto lightBuf = uploadStorageBuffer(ctx,
+                                        pool,
+                                        std::as_bytes(std::span<const GpuLight>(gpuLights.data(), gpuLights.size())),
+                                        "scene.lights",
+                                        kStorageAddr);
     if (!lightBuf) {
         return lightBuf.error();
     }
     m_lightBuffer = std::move(*lightBuf);
 
-    auto emissiveBuf = uploadBuffer(
+    auto emissiveBuf = uploadStorageBuffer(
         ctx,
         pool,
         std::as_bytes(std::span<const GpuEmissiveTriangle>(emissiveTriangles.data(), emissiveTriangles.size())),
-        "scene.emissiveTriangles");
+        "scene.emissiveTriangles",
+        kStorageAddr);
     if (!emissiveBuf) {
         return emissiveBuf.error();
     }
     m_emissiveTriangleBuffer = std::move(*emissiveBuf);
 
-    auto emissiveCdfBuf = uploadBuffer(
-        ctx, pool, std::as_bytes(std::span<const float>(emissiveCdf.data(), emissiveCdf.size())), "scene.emissiveCdf");
+    auto emissiveCdfBuf =
+        uploadStorageBuffer(ctx,
+                            pool,
+                            std::as_bytes(std::span<const float>(emissiveCdf.data(), emissiveCdf.size())),
+                            "scene.emissiveCdf",
+                            kStorageAddr);
     if (!emissiveCdfBuf) {
         return emissiveCdfBuf.error();
     }
     m_emissiveCdfBuffer = std::move(*emissiveCdfBuf);
 
     return VK_SUCCESS;
-}
-
-VkResult Scene::buildTlas(const DeviceContext& ctx, const CommandPool& pool) {
-    // One TLAS instance per InstanceRecord, each referencing its mesh's shared BLAS
-    // and carrying that instance's object→world transform. Hyperion uses the default
-    // instance mask (makeInstance); Theia stamps emissive/transparent/opaque masks.
-    std::vector<VkAccelerationStructureInstanceKHR> instances(m_instances.size());
-    for (std::size_t i = 0; i < m_instances.size(); ++i) {
-        const InstanceRecord& inst = m_instances[i];
-        instances[i] = m_meshes[inst.meshIndex]->makeInstance(static_cast<std::uint32_t>(i), inst.xform);
-    }
-    return harmonia::buildTlas(ctx, pool, instances, m_tlas, m_tlasAddress);
 }
