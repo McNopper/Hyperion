@@ -7,9 +7,12 @@
 #include <expected>
 
 #include "harmonia/DeviceContext.hpp"
+#include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/renderer/Camera.hpp"
+#include "harmonia/utils/ColorSpace.hpp"
+#include "harmonia/utils/OutputColorSpace.hpp"
 
 class Descriptors;
 class Pipeline;
@@ -22,15 +25,12 @@ class PathTracer {
         std::uint32_t samplesPerPixel = 4;
         std::uint32_t maxDepth = 8;
         float envLuminance = 1.0f;
-        std::uint32_t outputColorSpace = 0;    ///< OutputColorSpace enum value; 0 = eHDR10 (see OutputColorSpace.hpp)
+        OutputColorSpace outputColorSpace = OutputColorSpace::eHDR10;
         std::uint32_t hasEnvMap = 0;           ///< 1 = IBL env map bound at set1/binding6
         std::uint32_t envImportanceWidth = 0;  ///< CDF grid width; 0 = importance sampling disabled
         std::uint32_t envImportanceHeight = 0; ///< CDF grid height
-        std::uint32_t tonemapper = 0;          ///< Tonemapper enum value; 0 = eACES (SDR/P3 only)
-        /// ColorSpace::WorkingColorSpace value of the scene-referred working
-        /// space (0 = linear Rec.2020, 1 = linear Rec.709); forwarded to the
-        /// tonemap push constant.
-        std::uint32_t workingColorSpace = 0;
+        Tonemapper tonemapper = Tonemapper::eACES;
+        ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
         bool serEnabled = false;         ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
         bool indirectRt2Enabled = false; ///< Use vkCmdTraceRaysIndirect2KHR when supported.
     };
@@ -60,6 +60,17 @@ class PathTracer {
     void onResize(VkExtent2D newExtent) noexcept;
 
   private:
+    void writeFrameDescriptors(VkCommandBuffer cmd,
+                               const Scene& scene,
+                               const Camera& camera,
+                               std::uint32_t frameIndex,
+                               const Image& hdrImage,
+                               const Image& gNormal,
+                               const Image& gDepth) noexcept;
+    void pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std::uint32_t frameIndex) noexcept;
+    void dispatchRays(VkCommandBuffer cmd) noexcept;
+    void dispatchDirect(VkCommandBuffer cmd) noexcept;
+
     void updateIndirectBuffer() noexcept;
     const DeviceContext* m_ctx{};
     VkPipeline m_rtPipeline{VK_NULL_HANDLE};

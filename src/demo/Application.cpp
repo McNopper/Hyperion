@@ -13,6 +13,11 @@
 
 namespace {
 
+constexpr sm::float3 kCornellCamPos(278.0f, 273.0f, -800.0f);
+constexpr sm::float3 kCornellCamTarget(278.0f, 273.0f, 279.5f);
+constexpr float kCornellVfovDeg = 39.1f;
+constexpr float kCornellFocusDist = 1079.5f;
+
 [[nodiscard]] std::filesystem::path resolveShaderDir(std::filesystem::path shaderDir) {
     // Explicit user path takes priority only if it actually exists.
     if (!shaderDir.empty() && std::filesystem::exists(shaderDir)) {
@@ -118,34 +123,9 @@ void Application::onSceneUnload() {
 }
 
 bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
-    if (sceneConfig.spp && !m_demoConfig.sppExplicit) {
-        m_demoConfig.spp = *sceneConfig.spp;
-    }
-    if (sceneConfig.maxDepth) {
-        m_demoConfig.maxDepth = *sceneConfig.maxDepth;
-    }
+    applySceneOverrides(sceneConfig);
     const float envLuminance = sceneConfig.envUnitNits.value_or(1.0f);
-
-    // Build camera — fall back to Cornell box defaults when scene file omits settings.
-    Camera::PhysicalCamera physical{};
-    if (sceneConfig.cameraEv100) {
-        physical = Camera::PhysicalCamera::fromEv100(*sceneConfig.cameraEv100);
-    }
-    const sm::float3 camPos = sceneConfig.cameraPos.value_or(sm::float3(278.0f, 273.0f, -800.0f));
-    const sm::float3 camAt = sceneConfig.cameraAt.value_or(sm::float3(278.0f, 273.0f, 279.5f));
-    const auto [nearPlane, farPlane] = Camera::nearFarFromDistance(sm::length(camAt - camPos));
-    m_camera = Camera(Camera::Params{
-        .position = camPos,
-        .target = camAt,
-        .up = sceneConfig.cameraUp.value_or(sm::float3(0.0f, 1.0f, 0.0f)),
-        .vfovDeg = sceneConfig.cameraVfov.value_or(39.1f),
-        .aspectRatio = static_cast<float>(swapchain().extent().width) / static_cast<float>(swapchain().extent().height),
-        .nearPlane = nearPlane,
-        .farPlane = farPlane,
-        .lensRadius = 0.0f,
-        .focusDist = 1079.5f,
-        .physical = physical,
-    });
+    buildCamera(sceneConfig);
 
     if (const VkResult result = m_scene.build(deviceContext(), commandPool()); result != VK_SUCCESS) {
         Logger::error("Scene build failed: VkResult {}", static_cast<int>(result));
@@ -153,16 +133,7 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
     }
     Logger::info("Scene built (BLAS+TLAS)");
 
-    if (const VkResult result = descriptors().updateSceneSet(deviceContext(),
-                                                             m_scene.instanceBuffer().handle(),
-                                                             m_scene.materialBuffer().handle(),
-                                                             m_scene.vertexBuffer().handle(),
-                                                             m_scene.indexBuffer().handle(),
-                                                             m_scene.lightBuffer().handle(),
-                                                             m_scene.emissiveTriangleBuffer().handle(),
-                                                             m_scene.emissiveCdfBuffer().handle(),
-                                                             m_scene.textures());
-        result != VK_SUCCESS) {
+    if (const VkResult result = setupSceneDescriptors(); result != VK_SUCCESS) {
         Logger::error("Descriptor update failed: VkResult {}", static_cast<int>(result));
         return false;
     }
@@ -182,8 +153,8 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
                                          .hasEnvMap = hasIbl ? 1u : 0u,
                                          .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,
                                          .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
-                                         .tonemapper = tonemapper(),
-                                         .workingColorSpace = static_cast<std::uint32_t>(workingColorSpace()),
+                                         .tonemapper = static_cast<Tonemapper>(tonemapper()),
+                                         .workingColorSpace = workingColorSpace(),
                                          .serEnabled = deviceContext().serSupported,
                                          .indirectRt2Enabled = deviceContext().indirectRt2Supported,
                                      });
@@ -198,41 +169,89 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
     return true;
 }
 
+void Application::applySceneOverrides(const SceneLoader::SceneConfig& config) {
+    if (config.spp && !m_demoConfig.sppExplicit) {
+        m_demoConfig.spp = *config.spp;
+    }
+    if (config.maxDepth) {
+        m_demoConfig.maxDepth = *config.maxDepth;
+    }
+}
+
+void Application::buildCamera(const SceneLoader::SceneConfig& config) {
+    // Build camera — fall back to Cornell box defaults when scene file omits settings.
+    Camera::PhysicalCamera physical{};
+    if (config.cameraEv100) {
+        physical = Camera::PhysicalCamera::fromEv100(*config.cameraEv100);
+    }
+    const sm::float3 camPos = config.cameraPos.value_or(kCornellCamPos);
+    const sm::float3 camAt = config.cameraAt.value_or(kCornellCamTarget);
+    const auto [nearPlane, farPlane] = Camera::nearFarFromDistance(sm::length(camAt - camPos));
+    m_camera = Camera(Camera::Params{
+        .position = camPos,
+        .target = camAt,
+        .up = config.cameraUp.value_or(sm::float3(0.0f, 1.0f, 0.0f)),
+        .vfovDeg = config.cameraVfov.value_or(kCornellVfovDeg),
+        .aspectRatio = static_cast<float>(swapchain().extent().width) / static_cast<float>(swapchain().extent().height),
+        .nearPlane = nearPlane,
+        .farPlane = farPlane,
+        .lensRadius = 0.0f,
+        .focusDist = kCornellFocusDist,
+        .physical = physical,
+    });
+}
+
+VkResult Application::setupSceneDescriptors() {
+    return descriptors().updateSceneSet(deviceContext(),
+                                        m_scene.instanceBuffer().handle(),
+                                        m_scene.materialBuffer().handle(),
+                                        m_scene.vertexBuffer().handle(),
+                                        m_scene.indexBuffer().handle(),
+                                        m_scene.lightBuffer().handle(),
+                                        m_scene.emissiveTriangleBuffer().handle(),
+                                        m_scene.emissiveCdfBuffer().handle(),
+                                        m_scene.textures());
+}
+
 void Application::record(VkCommandBuffer cmd, const harmonia::RenderTarget& target) noexcept {
     static_cast<void>(target);
     if (m_targetsFirstUse) {
-        // The host hands the HDR target over with undefined contents; the
-        // renderer owns its layout — bring everything to GENERAL once.
-        const std::array barriers{
-            harmonia::imageBarrier(hdrImage().handle(),
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_GENERAL,
-                                   VK_PIPELINE_STAGE_2_NONE,
-                                   0,
-                                   VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                                   VK_ACCESS_2_SHADER_WRITE_BIT),
-            harmonia::imageBarrier(m_gNormal.handle(),
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_GENERAL,
-                                   VK_PIPELINE_STAGE_2_NONE,
-                                   0,
-                                   VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                                   VK_ACCESS_2_SHADER_WRITE_BIT),
-            harmonia::imageBarrier(m_gDepth.handle(),
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_GENERAL,
-                                   VK_PIPELINE_STAGE_2_NONE,
-                                   0,
-                                   VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                                   VK_ACCESS_2_SHADER_WRITE_BIT),
-        };
-        harmonia::pipelineBarrier(cmd, barriers);
-        m_targetsFirstUse = false;
+        transitionTargetsOnFirstUse(cmd);
     }
 
     if (m_pathTracer.render(cmd, m_scene, m_camera, hdrImage(), m_gNormal, m_gDepth, frameIndex()) != VK_SUCCESS) {
         Logger::error("PathTracer render failed");
     }
+}
+
+void Application::transitionTargetsOnFirstUse(VkCommandBuffer cmd) noexcept {
+    // The host hands the HDR target over with undefined contents; the
+    // renderer owns its layout — bring everything to GENERAL once.
+    const std::array barriers{
+        harmonia::imageBarrier(hdrImage().handle(),
+                               VK_IMAGE_LAYOUT_UNDEFINED,
+                               VK_IMAGE_LAYOUT_GENERAL,
+                               VK_PIPELINE_STAGE_2_NONE,
+                               0,
+                               VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                               VK_ACCESS_2_SHADER_WRITE_BIT),
+        harmonia::imageBarrier(m_gNormal.handle(),
+                               VK_IMAGE_LAYOUT_UNDEFINED,
+                               VK_IMAGE_LAYOUT_GENERAL,
+                               VK_PIPELINE_STAGE_2_NONE,
+                               0,
+                               VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                               VK_ACCESS_2_SHADER_WRITE_BIT),
+        harmonia::imageBarrier(m_gDepth.handle(),
+                               VK_IMAGE_LAYOUT_UNDEFINED,
+                               VK_IMAGE_LAYOUT_GENERAL,
+                               VK_PIPELINE_STAGE_2_NONE,
+                               0,
+                               VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                               VK_ACCESS_2_SHADER_WRITE_BIT),
+    };
+    harmonia::pipelineBarrier(cmd, barriers);
+    m_targetsFirstUse = false;
 }
 
 void Application::onResize(VkExtent2D extent) noexcept {

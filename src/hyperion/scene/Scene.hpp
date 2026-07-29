@@ -4,6 +4,8 @@
 #include <volk/volk.h>
 
 #include <cstdint>
+#include <expected>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -68,6 +70,20 @@ class Scene : public harmonia::SceneBase {
 
     VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool) override;
     VkResult buildTlas(const DeviceContext& ctx, const CommandPool& pool) override;
+
+    void buildGpuInstances();
+    [[nodiscard]] static std::expected<Buffer, VkResult> uploadBuffer(const DeviceContext& ctx,
+                                                                      const CommandPool& pool,
+                                                                      std::span<const std::byte> data,
+                                                                      std::string_view name);
+    VkResult uploadAllBuffers(const DeviceContext& ctx,
+                              const CommandPool& pool,
+                              const std::vector<GpuMaterial>& gpuMaterials,
+                              const std::vector<GpuVertex>& vertices,
+                              const std::vector<std::uint32_t>& indices,
+                              const std::vector<GpuLight>& gpuLights,
+                              const std::vector<GpuEmissiveTriangle>& emissiveTriangles,
+                              const std::vector<float>& emissiveCdf);
 
     std::vector<MeshGpu> m_meshGpu;          ///< per-mesh GPU ranges
     std::vector<GpuInstance> m_gpuInstances; ///< per-instance GPU rows (built at build)

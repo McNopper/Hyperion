@@ -6,9 +6,11 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <limits>
 #include <slang-math/slang-math.hpp>
 #include <span>
+#include <string_view>
 #include <utility>
 #include <vma/vk_mem_alloc.h>
 
@@ -84,6 +86,35 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
         indices.push_back(0);
     }
 
+    buildGpuInstances();
+
+    // Light buffer — always upload at least one sentinel entry so the binding is valid.
+    std::vector<GpuLight> gpuLights;
+    gpuLights.reserve(std::max<std::size_t>(m_lights.size(), 1));
+    for (const auto& light : m_lights) {
+        gpuLights.push_back(light->toGpu());
+    }
+    if (gpuLights.empty()) {
+        gpuLights.push_back(GpuLight{});
+    }
+
+    // Build emissive triangle buffer via the shared harmonia utility.
+    harmonia::EmissiveData emissiveData = harmonia::buildEmissiveData(m_meshes, m_instances, m_materials, gpuMaterials);
+
+    m_emissiveTriangleCount = static_cast<std::uint32_t>(emissiveData.triangles.size());
+    Logger::info("Scene: built {} emissive triangle(s) for NEE", m_emissiveTriangleCount);
+    if (emissiveData.triangles.empty()) {
+        emissiveData.triangles.push_back(GpuEmissiveTriangle{}); // sentinel — keeps the binding valid
+    }
+
+    // Power-proportional selection CDF for emissive-triangle NEE (shared helper —
+    // identical across renderers, so the NEE sampling CDF cannot drift).
+    const std::vector<float> emissiveCdf = harmonia::buildEmissiveCdf(emissiveData.power);
+
+    return uploadAllBuffers(ctx, pool, gpuMaterials, vertices, indices, gpuLights, emissiveData.triangles, emissiveCdf);
+}
+
+void Scene::buildGpuInstances() {
     // Build per-instance GPU rows from the instance list (mesh index + material).
     m_gpuInstances.clear();
     m_gpuInstances.reserve(m_instances.size());
@@ -99,41 +130,50 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
             ._pad = {0, 0},
         });
     }
+}
 
+std::expected<Buffer, VkResult> Scene::uploadBuffer(const DeviceContext& ctx,
+                                                    const CommandPool& pool,
+                                                    std::span<const std::byte> data,
+                                                    std::string_view name) {
+    return Buffer::upload(
+        ctx, pool, data, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, name);
+}
+
+VkResult Scene::uploadAllBuffers(const DeviceContext& ctx,
+                                 const CommandPool& pool,
+                                 const std::vector<GpuMaterial>& gpuMaterials,
+                                 const std::vector<GpuVertex>& vertices,
+                                 const std::vector<std::uint32_t>& indices,
+                                 const std::vector<GpuLight>& gpuLights,
+                                 const std::vector<GpuEmissiveTriangle>& emissiveTriangles,
+                                 const std::vector<float>& emissiveCdf) {
     auto instanceBuf =
-        Buffer::upload(ctx,
-                       pool,
-                       std::as_bytes(std::span<const GpuInstance>(m_gpuInstances.data(), m_gpuInstances.size())),
-                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                       "scene.instances");
+        uploadBuffer(ctx,
+                     pool,
+                     std::as_bytes(std::span<const GpuInstance>(m_gpuInstances.data(), m_gpuInstances.size())),
+                     "scene.instances");
     if (!instanceBuf) {
         return instanceBuf.error();
     }
 
     auto materialBuf =
-        Buffer::upload(ctx,
-                       pool,
-                       std::as_bytes(std::span<const GpuMaterial>(gpuMaterials.data(), gpuMaterials.size())),
-                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                       "scene.materials");
+        uploadBuffer(ctx,
+                     pool,
+                     std::as_bytes(std::span<const GpuMaterial>(gpuMaterials.data(), gpuMaterials.size())),
+                     "scene.materials");
     if (!materialBuf) {
         return materialBuf.error();
     }
 
-    auto vertexBuf = Buffer::upload(ctx,
-                                    pool,
-                                    std::as_bytes(std::span<const GpuVertex>(vertices.data(), vertices.size())),
-                                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                    "scene.vertices");
+    auto vertexBuf = uploadBuffer(
+        ctx, pool, std::as_bytes(std::span<const GpuVertex>(vertices.data(), vertices.size())), "scene.vertices");
     if (!vertexBuf) {
         return vertexBuf.error();
     }
 
-    auto indexBuf = Buffer::upload(ctx,
-                                   pool,
-                                   std::as_bytes(std::span<const std::uint32_t>(indices.data(), indices.size())),
-                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                   "scene.indices");
+    auto indexBuf = uploadBuffer(
+        ctx, pool, std::as_bytes(std::span<const std::uint32_t>(indices.data(), indices.size())), "scene.indices");
     if (!indexBuf) {
         return indexBuf.error();
     }
@@ -143,52 +183,25 @@ VkResult Scene::buildSceneBuffers(const DeviceContext& ctx, const CommandPool& p
     m_vertexBuffer = std::move(*vertexBuf);
     m_indexBuffer = std::move(*indexBuf);
 
-    // Light buffer — always upload at least one sentinel entry so the binding is valid.
-    std::vector<GpuLight> gpuLights;
-    gpuLights.reserve(std::max<std::size_t>(m_lights.size(), 1));
-    for (const auto& light : m_lights) {
-        gpuLights.push_back(light->toGpu());
-    }
-    if (gpuLights.empty()) {
-        gpuLights.push_back(GpuLight{});
-    }
-    auto lightBuf = Buffer::upload(ctx,
-                                   pool,
-                                   std::as_bytes(std::span<const GpuLight>(gpuLights.data(), gpuLights.size())),
-                                   VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                   "scene.lights");
+    auto lightBuf = uploadBuffer(
+        ctx, pool, std::as_bytes(std::span<const GpuLight>(gpuLights.data(), gpuLights.size())), "scene.lights");
     if (!lightBuf) {
         return lightBuf.error();
     }
     m_lightBuffer = std::move(*lightBuf);
 
-    // Build emissive triangle buffer via the shared harmonia utility.
-    harmonia::EmissiveData emissiveData = harmonia::buildEmissiveData(m_meshes, m_instances, m_materials, gpuMaterials);
-
-    m_emissiveTriangleCount = static_cast<std::uint32_t>(emissiveData.triangles.size());
-    Logger::info("Scene: built {} emissive triangle(s) for NEE", m_emissiveTriangleCount);
-    if (emissiveData.triangles.empty()) {
-        emissiveData.triangles.push_back(GpuEmissiveTriangle{}); // sentinel — keeps the binding valid
-    }
-    auto emissiveBuf = Buffer::upload(ctx,
-                                      pool,
-                                      std::as_bytes(std::span<const GpuEmissiveTriangle>(
-                                          emissiveData.triangles.data(), emissiveData.triangles.size())),
-                                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                      "scene.emissiveTriangles");
+    auto emissiveBuf = uploadBuffer(
+        ctx,
+        pool,
+        std::as_bytes(std::span<const GpuEmissiveTriangle>(emissiveTriangles.data(), emissiveTriangles.size())),
+        "scene.emissiveTriangles");
     if (!emissiveBuf) {
         return emissiveBuf.error();
     }
     m_emissiveTriangleBuffer = std::move(*emissiveBuf);
 
-    // Power-proportional selection CDF for emissive-triangle NEE (shared helper —
-    // identical across renderers, so the NEE sampling CDF cannot drift).
-    const std::vector<float> emissiveCdf = harmonia::buildEmissiveCdf(emissiveData.power);
-    auto emissiveCdfBuf = Buffer::upload(ctx,
-                                         pool,
-                                         std::as_bytes(std::span<const float>(emissiveCdf.data(), emissiveCdf.size())),
-                                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                         "scene.emissiveCdf");
+    auto emissiveCdfBuf = uploadBuffer(
+        ctx, pool, std::as_bytes(std::span<const float>(emissiveCdf.data(), emissiveCdf.size())), "scene.emissiveCdf");
     if (!emissiveCdfBuf) {
         return emissiveCdfBuf.error();
     }

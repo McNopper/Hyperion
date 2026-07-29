@@ -79,6 +79,29 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
+    writeFrameDescriptors(cmd, scene, camera, frameIndex, hdrImage, gNormal, gDepth);
+    pushFrameConstants(cmd, scene, frameIndex);
+
+    if (m_config.serEnabled) {
+        auto* setMode = reinterpret_cast<PFN_vkCmdSetRayTracingInvocationReorderModeEXT>(
+            vkGetDeviceProcAddr(m_ctx->device, "vkCmdSetRayTracingInvocationReorderModeEXT"));
+        if (setMode != nullptr) {
+            setMode(cmd, VK_RAY_TRACING_INVOCATION_REORDER_MODE_REORDER_EXT);
+        }
+    }
+
+    dispatchRays(cmd);
+
+    return VK_SUCCESS;
+}
+
+void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
+                                       const Scene& scene,
+                                       const Camera& camera,
+                                       std::uint32_t frameIndex,
+                                       const Image& hdrImage,
+                                       const Image& gNormal,
+                                       const Image& gDepth) noexcept {
     const CameraData cameraData = camera.getCameraData(frameIndex, m_config.maxDepth);
     m_cameraBuffer.uploadData(&cameraData, sizeof(cameraData), 0);
 
@@ -110,8 +133,6 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
         .pAccelerationStructures = &tlasHandle,
     };
 
-    // Push bindings 0–2 (tlas, hdrTarget, camera) and 4–5 (gNormal, gDepth).
-    // Binding 3 (swapchainOutput) is pushed by ToneMapper when it runs.
     std::array<VkWriteDescriptorSet, 5> writes{};
     writes[0] = VkWriteDescriptorSet{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -183,32 +204,28 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
                            writes.data());
     vkCmdBindDescriptorSets(
         cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipelineLayout, 1, 1, &m_sceneSet, 0, nullptr);
+}
 
+void PathTracer::pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std::uint32_t frameIndex) noexcept {
     const PushConstants pushConstants{
         .frameIndex = frameIndex,
         .maxDepth = m_config.maxDepth,
         .rngSeed = frameIndex * 1664525u + 1013904223u,
         .envLuminanceScale = m_config.envLuminance,
         .lightCount = scene.lightCount(),
-        .outputColorSpace = m_config.outputColorSpace,
+        .outputColorSpace = static_cast<std::uint32_t>(m_config.outputColorSpace),
         .samplesPerPixel = m_config.samplesPerPixel,
         .hasEnvMap = m_config.hasEnvMap,
         .emissiveTriangleCount = scene.emissiveTriangleCount(),
         .envImportanceWidth = m_config.envImportanceWidth,
         .envImportanceHeight = m_config.envImportanceHeight,
-        .tonemapper = m_config.tonemapper,
-        .workingColorSpace = m_config.workingColorSpace,
+        .tonemapper = static_cast<std::uint32_t>(m_config.tonemapper),
+        .workingColorSpace = static_cast<std::uint32_t>(m_config.workingColorSpace),
     };
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstants), &pushConstants);
+}
 
-    if (m_config.serEnabled) {
-        auto* setMode = reinterpret_cast<PFN_vkCmdSetRayTracingInvocationReorderModeEXT>(
-            vkGetDeviceProcAddr(m_ctx->device, "vkCmdSetRayTracingInvocationReorderModeEXT"));
-        if (setMode != nullptr) {
-            setMode(cmd, VK_RAY_TRACING_INVOCATION_REORDER_MODE_REORDER_EXT);
-        }
-    }
-
+void PathTracer::dispatchRays(VkCommandBuffer cmd) noexcept {
     if (m_config.indirectRt2Enabled && m_indirectDispatchBuffer.isValid()) {
         static auto pfnTraceRaysIndirect2 = reinterpret_cast<PFN_vkCmdTraceRaysIndirect2KHR>(
             vkGetDeviceProcAddr(m_ctx->device, "vkCmdTraceRaysIndirect2KHR"));
@@ -216,13 +233,15 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
         if (pfnTraceRaysIndirect2 != nullptr) {
             pfnTraceRaysIndirect2(cmd, m_indirectDispatchBuffer.deviceAddress());
         } else {
-            vkCmdTraceRaysKHR(cmd, &m_raygen, &m_miss, &m_hit, &m_callable, m_extent.width, m_extent.height, 1);
+            dispatchDirect(cmd);
         }
     } else {
-        vkCmdTraceRaysKHR(cmd, &m_raygen, &m_miss, &m_hit, &m_callable, m_extent.width, m_extent.height, 1);
+        dispatchDirect(cmd);
     }
+}
 
-    return VK_SUCCESS;
+void PathTracer::dispatchDirect(VkCommandBuffer cmd) noexcept {
+    vkCmdTraceRaysKHR(cmd, &m_raygen, &m_miss, &m_hit, &m_callable, m_extent.width, m_extent.height, 1);
 }
 
 void PathTracer::setConfig(const Config& config) noexcept {

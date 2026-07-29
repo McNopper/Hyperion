@@ -56,6 +56,10 @@ class Application final : public harmonia::App, public harmonia::IRenderer {
 
   private:
     [[nodiscard]] bool createGBuffers(VkExtent2D extent);
+    void applySceneOverrides(const SceneLoader::SceneConfig& config);
+    void buildCamera(const SceneLoader::SceneConfig& config);
+    [[nodiscard]] VkResult setupSceneDescriptors();
+    void transitionTargetsOnFirstUse(VkCommandBuffer cmd) noexcept;
 
     DemoConfig m_demoConfig{};
     std::filesystem::path m_shaderDir;
