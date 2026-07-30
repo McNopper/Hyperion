@@ -8,11 +8,11 @@ namespace {
 bool consumeValue(int& index, int argc, char* const argv[], std::string_view option, std::uint32_t& outValue) {
     std::string_view arg = argv[index];
     if (arg.starts_with(option) && arg.size() > option.size() && arg[option.size()] == '=') {
-        return harmonia::App::parseUint32(arg.substr(option.size() + 1), outValue);
+        return harmonia::CliParser::parseUint32(arg.substr(option.size() + 1), outValue);
     }
     if (arg == option && (index + 1) < argc) {
         ++index;
-        return harmonia::App::parseUint32(argv[index], outValue);
+        return harmonia::CliParser::parseUint32(argv[index], outValue);
     }
     return false;
 }
@@ -35,7 +35,7 @@ int main(int argc, char* const argv[]) {
             demoConfig.sppExplicit = true;
         } else if (consumeValue(i, argc, argv, "--depth", value)) {
             demoConfig.maxDepth = value;
-        } else if (harmonia::App::applyCommonArg(config, i, argc, argv)) {
+        } else if (harmonia::CliParser::applyCommonArg(config, i, argc, argv)) {
             continue;
         }
     }
