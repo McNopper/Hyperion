@@ -30,7 +30,7 @@ class PathTracer {
         std::uint32_t envImportanceWidth = 0;  ///< CDF grid width; 0 = importance sampling disabled
         std::uint32_t envImportanceHeight = 0; ///< CDF grid height
         Tonemapper tonemapper = Tonemapper::eACES;
-        ColorSpace::WorkingColorSpace workingColorSpace = ColorSpace::WorkingColorSpace::LinRec2020;
+        harmonia::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020;
         bool serEnabled = false;         ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
         bool indirectRt2Enabled = false; ///< Use vkCmdTraceRaysIndirect2KHR when supported.
     };

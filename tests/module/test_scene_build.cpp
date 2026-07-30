@@ -23,7 +23,7 @@ TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {
     const std::uint32_t matDiffuse = scene.addMaterial(Material::diffuse(sm::float3(0.8F), 1.0F));
     const std::uint32_t matMetal = scene.addMaterial(Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
 
-    MeshData box = ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
+    MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
     const std::uint32_t boxMesh = scene.addMesh(deviceCtx(), commandPool(), std::move(box), "test.box");
     ASSERT_NE(boxMesh, std::numeric_limits<std::uint32_t>::max()) << "Failed to upload floor mesh";
 
@@ -48,7 +48,7 @@ TEST_F(RtFixture, Scene_BuildWithMeshOnly) {
     Scene scene;
     const std::uint32_t mat = scene.addMaterial(Material::diffuse(sm::float3(0.5F), 1.0F));
 
-    MeshData tri = ProceduralGeometry::makeBox(sm::float3(1.0F));
+    MeshData tri = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F));
     const std::uint32_t mesh = scene.addMesh(deviceCtx(), commandPool(), std::move(tri), "test.solo");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
     ASSERT_NE(scene.addInstance(mesh, Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
@@ -78,7 +78,7 @@ TEST_F(RtFixture, Scene_BuildWithMultipleInstancesOfOneMesh) {
     Scene scene;
     const std::uint32_t mat = scene.addMaterial(Material::diffuse(sm::float3(0.7F), 1.0F));
 
-    MeshData box = ProceduralGeometry::makeBox(sm::float3(0.8F)); // one unique mesh
+    MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(0.8F)); // one unique mesh
     const std::uint32_t mesh = scene.addMesh(deviceCtx(), commandPool(), std::move(box), "test.shared");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
 

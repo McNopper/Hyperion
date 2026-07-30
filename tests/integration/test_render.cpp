@@ -168,7 +168,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     // by kMaxDisplayLuminance.  At r=1.5, d=6.5 → P(hit)≈1.7 % → average luminance ≫ 1e-3.
     const std::uint32_t lightMaterial = scene.addMaterial(Material::emissive(sm::float3(1.0F), 50000.0F));
 
-    MeshData floorMesh = ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
+    MeshData floorMesh = harmonia::ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
     const std::uint32_t floorMeshIdx =
         scene.addMesh(context->deviceContext(), *commandPool, std::move(floorMesh), "test.floor");
     if (floorMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
@@ -296,7 +296,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     double averageLuminance = 0.0;
     const std::size_t pixelCount = static_cast<std::size_t>(renderExtent.width) * renderExtent.height;
     for (std::size_t i = 0; i < pixelCount; ++i) {
-        averageLuminance += Math::luminance(sm::max(sm::float3(pixels[i]), sm::float3(0.0F)));
+        averageLuminance += harmonia::Math::luminance(sm::max(sm::float3(pixels[i]), sm::float3(0.0F)));
     }
     averageLuminance /= static_cast<double>(pixelCount);
 

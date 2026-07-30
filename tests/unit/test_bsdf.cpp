@@ -16,7 +16,7 @@ constexpr float kEpsilon = 1.0e-5F;
 [[nodiscard]] sm::float3 sampleUniformHemisphere(float u1, float u2) noexcept {
     const float z = u1;
     const float r = std::sqrt(std::max(0.0F, 1.0F - (z * z)));
-    const float phi = Math::k2Pi * u2;
+    const float phi = harmonia::Math::k2Pi * u2;
     return {r * std::cos(phi), r * std::sin(phi), z};
 }
 
@@ -26,7 +26,7 @@ constexpr float kEpsilon = 1.0e-5F;
     }
     const float alpha2 = alpha * alpha;
     const float denom = (nDotH * nDotH) * (alpha2 - 1.0F) + 1.0F;
-    return alpha2 / (Math::kPi * denom * denom);
+    return alpha2 / (harmonia::Math::kPi * denom * denom);
 }
 
 [[nodiscard]] float smithLambdaGgx(float nDotV, float alpha) noexcept {
@@ -138,7 +138,7 @@ struct LobeWeights {
 [[nodiscard]] sm::float3 sampleUniformSphere(float u1, float u2) noexcept {
     const float z = 1.0F - (2.0F * u1);
     const float r = std::sqrt(std::max(0.0F, 1.0F - (z * z)));
-    const float phi = Math::k2Pi * u2;
+    const float phi = harmonia::Math::k2Pi * u2;
     return {r * std::cos(phi), r * std::sin(phi), z};
 }
 
@@ -203,13 +203,13 @@ void orientFrame(const sm::float3& wo,
 
 // ─── OpenPBR thin-film Airy (mirror of Harmonia bsdf_shared.slang mx_fresnel_airy) ───
 [[nodiscard]] sm::float3 mx_eval_sensitivity(float opd, sm::float3 shift) noexcept {
-    const float phase = 2.0F * Math::kPi * opd;
+    const float phase = 2.0F * harmonia::Math::kPi * opd;
     const sm::float3 val(5.4856e-13F, 4.4201e-13F, 5.2481e-13F);
     const sm::float3 pos(1.6810e+06F, 1.7953e+06F, 2.2084e+06F);
     const sm::float3 var(4.3278e+09F, 9.3046e+09F, 6.6121e+09F);
     sm::float3 xyz =
-        val * sm::sqrt(2.0F * Math::kPi * var) * sm::cos(pos * phase + shift) * sm::exp(-var * phase * phase);
-    xyz.x += 9.7470e-14F * std::sqrt(2.0F * Math::kPi * 4.5282e+09F) * std::cos(2.2399e+06F * phase + shift.x) *
+        val * sm::sqrt(2.0F * harmonia::Math::kPi * var) * sm::cos(pos * phase + shift) * sm::exp(-var * phase * phase);
+    xyz.x += 9.7470e-14F * std::sqrt(2.0F * harmonia::Math::kPi * 4.5282e+09F) * std::cos(2.2399e+06F * phase + shift.x) *
              std::exp(-4.5282e+09F * phase * phase);
     return xyz / 1.0685e-7F;
 }
@@ -335,13 +335,13 @@ void tfConductorPhasePolarized(float cosTheta,
         R23s = f;
         const sm::float3 eta3 = mx_f0_to_ior(F0);
         phi23p = sm::float3(
-            eta3.x < eta2 ? Math::kPi : 0.0F, eta3.y < eta2 ? Math::kPi : 0.0F, eta3.z < eta2 ? Math::kPi : 0.0F);
+            eta3.x < eta2 ? harmonia::Math::kPi : 0.0F, eta3.y < eta2 ? harmonia::Math::kPi : 0.0F, eta3.z < eta2 ? harmonia::Math::kPi : 0.0F);
         phi23s = phi23p;
     }
 
     const float cosB = std::cos(std::atan(eta2 / eta1));
-    const float phi21p = (ct < cosB) ? 0.0F : Math::kPi;
-    const float phi21s = Math::kPi;
+    const float phi21p = (ct < cosB) ? 0.0F : harmonia::Math::kPi;
+    const float phi21s = harmonia::Math::kPi;
 
     const sm::float3 r123p = sm::sqrt(sm::max(sm::float3(R12p) * R23p, sm::float3(0.0F)));
     const sm::float3 r123s = sm::sqrt(sm::max(sm::float3(R12s) * R23s, sm::float3(0.0F)));
@@ -389,18 +389,18 @@ thinFilmIridescentReflectance(sm::float3 baseF0, float cosTheta1, float thicknes
 }
 
 [[nodiscard]] float diffuseDirAlbedoFujii(float cosTheta, float roughness) noexcept {
-    constexpr float kFujiiC1 = 0.5F - 2.0F / (3.0F * Math::kPi);
+    constexpr float kFujiiC1 = 0.5F - 2.0F / (3.0F * harmonia::Math::kPi);
     const float A = 1.0F / (1.0F + (kFujiiC1 * roughness));
     const float B = roughness * A;
     const float Si = std::sqrt(std::max(0.0F, 1.0F - (cosTheta * cosTheta)));
     const float G = (Si * (std::acos(std::clamp(cosTheta, -1.0F, 1.0F)) - (Si * cosTheta))) +
                     2.0F * (((Si / std::max(cosTheta, 1.0e-4F)) * (1.0F - (Si * Si * Si))) - Si) / 3.0F;
-    return A + (B * G * Math::kInvPi);
+    return A + (B * G * harmonia::Math::kInvPi);
 }
 
 [[nodiscard]] float diffuseAvgAlbedoFujii(float roughness) noexcept {
-    constexpr float kFujiiC1 = 0.5F - 2.0F / (3.0F * Math::kPi);
-    constexpr float kFujiiC2 = 2.0F / 3.0F - 28.0F / (15.0F * Math::kPi);
+    constexpr float kFujiiC1 = 0.5F - 2.0F / (3.0F * harmonia::Math::kPi);
+    constexpr float kFujiiC2 = 2.0F / 3.0F - 28.0F / (15.0F * harmonia::Math::kPi);
     const float A = 1.0F / (1.0F + (kFujiiC1 * roughness));
     return A * (1.0F + (kFujiiC2 * roughness));
 }
@@ -427,7 +427,7 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
     const sm::float3 lobeMS = colorMS * std::max(1.0e-4F, 1.0F - dAlbedoV) * std::max(1.0e-4F, 1.0F - dAlbedoL) /
                               std::max(1.0e-4F, 1.0F - avgA);
 
-    return (lobeSingle + lobeMS) * Math::kInvPi;
+    return (lobeSingle + lobeMS) * harmonia::Math::kInvPi;
 }
 
 [[nodiscard]] sm::float2 mx_ggx_dir_albedo_ab(float nDotV, float alpha) noexcept {
@@ -465,7 +465,7 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
     const float s = y * (0.0206607F + 1.58491F * y) / (0.0379424F + y * (1.32227F + y));
     const float m = y * (-0.193854F + y * (-1.14885F + y * (1.7932F - 0.95943F * y * y))) / (0.046391F + y);
     const float o = y * (0.000654023F + (-0.0207818F + 0.119681F * y) * y) / (1.26264F + y * (-1.92021F + y));
-    const float g = std::exp(-0.5F * ((x - m) / s) * ((x - m) / s)) / (s * std::sqrt(2.0F * Math::kPi)) + o;
+    const float g = std::exp(-0.5F * ((x - m) / s) * ((x - m) / s)) / (s * std::sqrt(2.0F * harmonia::Math::kPi)) + o;
     return std::clamp(g, 0.0F, 1.0F);
 }
 
@@ -494,7 +494,7 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
     const float bInv = mx_zeltner_sheen_ltc_bInv(nDotV, roughness);
     const sm::float3 wo2(aInv * w.x + bInv * w.z, aInv * w.y, w.z);
     const float l2 = sm::dot(wo2, wo2);
-    const float dO = std::max(wo2.z, 0.0F) * Math::kInvPi;
+    const float dO = std::max(wo2.z, 0.0F) * harmonia::Math::kInvPi;
     const float k = aInv / std::max(l2, 1.0e-8F);
     return dO * k * k;
 }
@@ -715,7 +715,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
         sm::float3 glossyF0 =
             sm::lerp(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
         const sm::float3 glossyF82 = specColor;
-        const float specF0 = Math::luminance(dielectricF0 * specColor);
+        const float specF0 = harmonia::Math::luminance(dielectricF0 * specColor);
         auto underSpec = [&](float c) {
             return std::clamp(
                 1.0F -
@@ -790,7 +790,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     for (std::size_t i = 0; i < sampleCount; ++i) {
         const sm::float3 wi = sampleUniformSphere(dist(rng), dist(rng));
         const sm::float3 f = evalBSDF(mat, wo, wi, N, T, B, N, T, B);
-        sum += static_cast<double>(Math::luminance(f) * std::abs(wi.z) * (4.0 * Math::kPi));
+        sum += static_cast<double>(harmonia::Math::luminance(f) * std::abs(wi.z) * (4.0 * harmonia::Math::kPi));
     }
     return sum / static_cast<double>(sampleCount);
 }
@@ -818,7 +818,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     const float sinAlpha = incidentIsSteeper ? sinThetaO : sinThetaI;
     const float tanBeta =
         incidentIsSteeper ? (sinThetaI / std::max(wi.z, kEpsilon)) : (sinThetaO / std::max(wo.z, kEpsilon));
-    return (albedo * Math::kInvPi) * (a + (b * maxCos * sinAlpha * tanBeta));
+    return (albedo * harmonia::Math::kInvPi) * (a + (b * maxCos * sinAlpha * tanBeta));
 }
 
 // ── V0 OpenPBR numeric-conformance helpers ───────────────────────────────────────────────
@@ -835,7 +835,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
         (lensq > 0.0F) ? (sm::float3(-Vh.y, Vh.x, 0.0F) / std::sqrt(lensq)) : sm::float3(1.0F, 0.0F, 0.0F);
     const sm::float3 T2 = sm::cross(Vh, T1);
     const float r = std::sqrt(u1);
-    const float phi = Math::k2Pi * u2;
+    const float phi = harmonia::Math::k2Pi * u2;
     const float t1 = r * std::cos(phi);
     float t2 = r * std::sin(phi);
     const float s = 0.5F * (1.0F + Vh.z);
@@ -876,7 +876,7 @@ TEST(Bsdf, GgxDNormalization) {
     double integral = 0.0;
     for (std::size_t i = 0; i < sampleCount; ++i) {
         const sm::float3 m = sampleUniformHemisphere(dist(rng), dist(rng));
-        integral += ggxD(m.z, roughness) * m.z / Math::kInv2Pi;
+        integral += ggxD(m.z, roughness) * m.z / harmonia::Math::kInv2Pi;
     }
     integral /= static_cast<double>(sampleCount);
 
@@ -921,7 +921,7 @@ TEST(Bsdf, DiffuseEonReflectanceDoesNotExceedOne) {
             for (std::size_t i = 0; i < sampleCount; ++i) {
                 const sm::float3 wi = sampleUniformHemisphere(dist(rng), dist(rng));
                 const float brdf = orenNayarDiffuse(wo, wi, roughness, 1.0F);
-                reflectance += brdf * wi.z / Math::kInv2Pi;
+                reflectance += brdf * wi.z / harmonia::Math::kInv2Pi;
             }
             reflectance /= static_cast<double>(sampleCount);
             EXPECT_LE(static_cast<float>(reflectance), 1.0F + 2.0e-2F);
@@ -1343,7 +1343,7 @@ TEST(Bsdf, OpenPbrV0_GeneralizedSchlickF82IsF0AtNormalAndRisesToGrazing) {
     }
     // F82 tint < 1 must reduce reflectance near the 82-degree peak (mu = cos(82deg) ~ 0.1392)
     // relative to a pure-white (F82=1) edge.
-    const float muPeak = std::cos(82.0F * Math::kPi / 180.0F);
+    const float muPeak = std::cos(82.0F * harmonia::Math::kPi / 180.0F);
     const sm::float3 tinted = mx_fresnel_F82(f0, sm::float3(0.5F), muPeak);
     const sm::float3 untinted = mx_fresnel_F82(f0, whiteTint, muPeak);
     EXPECT_LT(tinted.x, untinted.x);
@@ -1365,7 +1365,7 @@ TEST(Bsdf, OpenPbrV0_ZeltnerSheenLtcIsEnergyNormalized) {
             for (std::size_t i = 0; i < kSamples; ++i) {
                 const sm::float3 L = sampleUniformHemisphere(dist(rng), dist(rng));
                 // mx_zeltner_sheen_brdf already includes the cosine; uniform-hemisphere pdf = 1/2pi.
-                sum += static_cast<double>(mx_zeltner_sheen_brdf(V, L, rough)) * (2.0 * Math::kPi);
+                sum += static_cast<double>(mx_zeltner_sheen_brdf(V, L, rough)) * (2.0 * harmonia::Math::kPi);
             }
             const double integral = sum / static_cast<double>(kSamples);
             EXPECT_NEAR(integral, 1.0, 0.04) << "NdotV=" << nDotV << " rough=" << rough;
@@ -1663,7 +1663,7 @@ TEST(Bsdf, OpenPbrV0_ThinFilmUnderCoatStaysBounded) {
 
 [[nodiscard]] float sssExtinction(float radius, const sm::float3& radiusScale) noexcept {
     const float mfp = std::max(radius, 1.0e-4F) *
-                      std::max(Math::luminance(sm::clamp(radiusScale, sm::float3(0.0F), sm::float3(1.0F))), 1.0e-4F);
+                      std::max(harmonia::Math::luminance(sm::clamp(radiusScale, sm::float3(0.0F), sm::float3(1.0F))), 1.0e-4F);
     return 1.0F / std::max(mfp, 1.0e-4F);
 }
 
@@ -1676,7 +1676,7 @@ TEST(Bsdf, OpenPbrV0_ThinFilmUnderCoatStaysBounded) {
         cosTheta = -(1.0F + g * g - sqrTerm * sqrTerm) / (2.0F * g);
     }
     const float sinTheta = std::sqrt(std::max(0.0F, 1.0F - cosTheta * cosTheta));
-    const float phi = 2.0F * Math::kPi * xi.y;
+    const float phi = 2.0F * harmonia::Math::kPi * xi.y;
     sm::float3 a = std::abs(wi.x) > 0.9F ? sm::float3(0.0F, 1.0F, 0.0F) : sm::float3(1.0F, 0.0F, 0.0F);
     const sm::float3 t = sm::normalize(sm::cross(a, wi));
     const sm::float3 b = sm::cross(wi, t);
