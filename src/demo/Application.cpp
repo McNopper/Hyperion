@@ -21,7 +21,7 @@ constexpr float kCornellFocusDist = 1079.5f;
 [[nodiscard]] std::filesystem::path resolveShaderDir(std::filesystem::path shaderDir) {
     // Explicit user path takes priority only if it actually exists.
     if (!shaderDir.empty() && std::filesystem::exists(shaderDir)) {
-        Logger::info("Using shader dir (user-specified): {}", shaderDir.string());
+        harmonia::Logger::info("Using shader dir (user-specified): {}", shaderDir.string());
         return shaderDir;
     }
     // Prefer the compile-time output dir (build/shaders) over any source-tree
@@ -29,11 +29,11 @@ constexpr float kCornellFocusDist = 1079.5f;
 #ifdef HYPERION_SHADER_DIR
     std::filesystem::path builtDir = HYPERION_SHADER_DIR;
     if (std::filesystem::exists(builtDir)) {
-        Logger::info("Using shader dir (built): {}", builtDir.string());
+        harmonia::Logger::info("Using shader dir (built): {}", builtDir.string());
         return builtDir;
     }
 #endif
-    Logger::error("No shader directory found (tried '{}' and HYPERION_SHADER_DIR)", shaderDir.string());
+    harmonia::Logger::error("No shader directory found (tried '{}' and HYPERION_SHADER_DIR)", shaderDir.string());
     return shaderDir;
 }
 
@@ -46,28 +46,28 @@ int Application::run(Config&& config, DemoConfig&& demoConfig) {
 
 bool Application::onInitialize() {
     m_positionFetchSupported = deviceContext().positionFetchSupported;
-    Logger::info("VK_KHR_ray_tracing_position_fetch: {}", m_positionFetchSupported ? "enabled" : "disabled");
-    Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}", deviceContext().serSupported ? "enabled" : "disabled");
-    Logger::info("VK_KHR_ray_tracing_maintenance1 (indirect RT2): {}",
+    harmonia::Logger::info("VK_KHR_ray_tracing_position_fetch: {}", m_positionFetchSupported ? "enabled" : "disabled");
+    harmonia::Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}", deviceContext().serSupported ? "enabled" : "disabled");
+    harmonia::Logger::info("VK_KHR_ray_tracing_maintenance1 (indirect RT2): {}",
                  deviceContext().indirectRt2Supported ? "enabled" : "disabled");
 
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
-    Pipeline::ShaderPaths shaderPaths = makeHyperionShaderPaths(m_shaderDir);
+    harmonia::Pipeline::ShaderPaths shaderPaths = makeHyperionShaderPaths(m_shaderDir);
     if (m_positionFetchSupported) {
         const std::filesystem::path closestHitPath = m_shaderDir / "closesthit_pf.spv";
         shaderPaths.closesthitTriangle = closestHitPath;
         shaderPaths.closesthitSphere = closestHitPath;
     }
-    auto pipeline = Pipeline::create(deviceContext(), descriptors(), shaderPaths, m_demoConfig.maxDepth);
+    auto pipeline = harmonia::Pipeline::create(deviceContext(), descriptors(), shaderPaths, m_demoConfig.maxDepth);
     if (!pipeline) {
-        Logger::error("Pipeline creation failed: VkResult {}", static_cast<int>(pipeline.error()));
+        harmonia::Logger::error("harmonia::Pipeline creation failed: VkResult {}", static_cast<int>(pipeline.error()));
         return false;
     }
     m_pipeline = std::move(*pipeline);
 
     auto sbt = ShaderBindingTable::create(deviceContext(), m_pipeline, context().physicalDeviceInfo().rtProps);
     if (!sbt) {
-        Logger::error("SBT creation failed: VkResult {}", static_cast<int>(sbt.error()));
+        harmonia::Logger::error("SBT creation failed: VkResult {}", static_cast<int>(sbt.error()));
         return false;
     }
     m_sbt = std::move(*sbt);
@@ -85,26 +85,26 @@ bool Application::onInitialize() {
 }
 
 bool Application::createGBuffers(VkExtent2D extent) {
-    auto gNormal = Image::create(deviceContext(),
+    auto gNormal = harmonia::Image::create(deviceContext(),
                                  extent,
                                  VK_FORMAT_R16G16B16A16_SFLOAT,
                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                  VK_IMAGE_ASPECT_COLOR_BIT,
                                  "demo.gNormal");
     if (!gNormal) {
-        Logger::error("G-buffer normal creation failed: VkResult {}", static_cast<int>(gNormal.error()));
+        harmonia::Logger::error("G-buffer normal creation failed: VkResult {}", static_cast<int>(gNormal.error()));
         return false;
     }
     m_gNormal = std::move(*gNormal);
 
-    auto gDepth = Image::create(deviceContext(),
+    auto gDepth = harmonia::Image::create(deviceContext(),
                                 extent,
                                 VK_FORMAT_R32_SFLOAT,
                                 VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                 VK_IMAGE_ASPECT_COLOR_BIT,
                                 "demo.gDepth");
     if (!gDepth) {
-        Logger::error("G-buffer depth creation failed: VkResult {}", static_cast<int>(gDepth.error()));
+        harmonia::Logger::error("G-buffer depth creation failed: VkResult {}", static_cast<int>(gDepth.error()));
         return false;
     }
     m_gDepth = std::move(*gDepth);
@@ -118,22 +118,22 @@ void Application::onSceneUnload() {
     m_pathTracer = {};
 }
 
-bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
+bool Application::onSceneLoaded(const harmonia::SceneLoader::SceneConfig& sceneConfig) {
     applySceneOverrides(sceneConfig);
     const float envLuminance = sceneConfig.envUnitNits.value_or(1.0f);
     buildCamera(sceneConfig);
 
     if (const VkResult result = m_scene.build(deviceContext(), commandPool()); result != VK_SUCCESS) {
-        Logger::error("Scene build failed: VkResult {}", static_cast<int>(result));
+        harmonia::Logger::error("Scene build failed: VkResult {}", static_cast<int>(result));
         return false;
     }
-    Logger::info("Scene built (BLAS+TLAS)");
+    harmonia::Logger::info("Scene built (BLAS+TLAS)");
 
     if (const VkResult result = setupSceneDescriptors(); result != VK_SUCCESS) {
-        Logger::error("Descriptor update failed: VkResult {}", static_cast<int>(result));
+        harmonia::Logger::error("Descriptor update failed: VkResult {}", static_cast<int>(result));
         return false;
     }
-    Logger::info("Descriptors updated");
+    harmonia::Logger::info("harmonia::Descriptors updated");
 
     const auto& probe = iblProbe();
     const bool hasIbl = probe.has_value() && probe->isValid();
@@ -149,23 +149,23 @@ bool Application::onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) {
                                          .hasEnvMap = hasIbl ? 1u : 0u,
                                          .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,
                                          .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
-                                         .tonemapper = static_cast<Tonemapper>(tonemapper()),
+                                         .tonemapper = static_cast<harmonia::Tonemapper>(tonemapper()),
                                          .workingColorSpace = workingColorSpace(),
                                          .serEnabled = deviceContext().serSupported,
                                          .indirectRt2Enabled = deviceContext().indirectRt2Supported,
                                      });
     if (!tracer) {
-        Logger::error("PathTracer creation failed: VkResult {}", static_cast<int>(tracer.error()));
+        harmonia::Logger::error("PathTracer creation failed: VkResult {}", static_cast<int>(tracer.error()));
         return false;
     }
     m_pathTracer = std::move(*tracer);
-    Logger::info("PathTracer created");
+    harmonia::Logger::info("PathTracer created");
 
     m_targetsFirstUse = true;
     return true;
 }
 
-void Application::applySceneOverrides(const SceneLoader::SceneConfig& config) {
+void Application::applySceneOverrides(const harmonia::SceneLoader::SceneConfig& config) {
     if (config.spp && !m_demoConfig.sppExplicit) {
         m_demoConfig.spp = *config.spp;
     }
@@ -174,16 +174,16 @@ void Application::applySceneOverrides(const SceneLoader::SceneConfig& config) {
     }
 }
 
-void Application::buildCamera(const SceneLoader::SceneConfig& config) {
+void Application::buildCamera(const harmonia::SceneLoader::SceneConfig& config) {
     // Build camera — fall back to Cornell box defaults when scene file omits settings.
-    Camera::PhysicalCamera physical{};
+    harmonia::Camera::PhysicalCamera physical{};
     if (config.cameraEv100) {
-        physical = Camera::PhysicalCamera::fromEv100(*config.cameraEv100);
+        physical = harmonia::Camera::PhysicalCamera::fromEv100(*config.cameraEv100);
     }
     const sm::float3 camPos = config.cameraPos.value_or(kCornellCamPos);
     const sm::float3 camAt = config.cameraAt.value_or(kCornellCamTarget);
-    const auto [nearPlane, farPlane] = Camera::nearFarFromDistance(sm::length(camAt - camPos));
-    m_camera = Camera(Camera::Params{
+    const auto [nearPlane, farPlane] = harmonia::Camera::nearFarFromDistance(sm::length(camAt - camPos));
+    m_camera = harmonia::Camera(harmonia::Camera::Params{
         .position = camPos,
         .target = camAt,
         .up = config.cameraUp.value_or(sm::float3(0.0f, 1.0f, 0.0f)),
@@ -217,7 +217,7 @@ void Application::record(VkCommandBuffer cmd, const harmonia::RenderTarget& targ
 
     if (const VkResult r = m_pathTracer.render(cmd, m_scene, m_camera, hdrImage(), m_gNormal, m_gDepth, frameIndex());
         r != VK_SUCCESS) {
-        Logger::error("PathTracer render failed: VkResult {}", static_cast<std::int32_t>(r));
+        harmonia::Logger::error("PathTracer render failed: VkResult {}", static_cast<std::int32_t>(r));
     }
 }
 

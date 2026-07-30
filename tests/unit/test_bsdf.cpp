@@ -91,7 +91,7 @@ struct LobeWeights {
     float diffuseTransWeight = 0.0F;
 };
 
-[[nodiscard]] LobeWeights computeLobeWeights(const GpuMaterial& mat) noexcept {
+[[nodiscard]] LobeWeights computeLobeWeights(const harmonia::GpuMaterial& mat) noexcept {
     LobeWeights weights{};
 
     const float opacity = std::clamp(mat.opacityFlagsPad.x, 0.0F, 1.0F);
@@ -165,8 +165,8 @@ void orientFrame(const sm::float3& wo,
     }
 }
 
-[[nodiscard]] GpuMaterial makeMaterial() noexcept {
-    GpuMaterial mat{};
+[[nodiscard]] harmonia::GpuMaterial makeMaterial() noexcept {
+    harmonia::GpuMaterial mat{};
     mat.baseColorWeight = sm::float4(1.0F);
     mat.baseMetalnessDiffRough = sm::float4(0.0F);
     // OpenPBR default specular: specular_color = (1,1,1), specular_weight = 1.0. NOTE: the 4th
@@ -622,7 +622,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     return pdf_h * dwm_dwi;
 }
 
-[[nodiscard]] sm::float3 evalBSDF(const GpuMaterial& mat,
+[[nodiscard]] sm::float3 evalBSDF(const harmonia::GpuMaterial& mat,
                                   const sm::float3& wo,
                                   const sm::float3& wi,
                                   const sm::float3& N,
@@ -779,7 +779,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     return sm::max(result, sm::float3(0.0F));
 }
 
-[[nodiscard]] double estimateWhiteFurnaceEnergy(const GpuMaterial& mat, const sm::float3& wo, std::size_t sampleCount) {
+[[nodiscard]] double estimateWhiteFurnaceEnergy(const harmonia::GpuMaterial& mat, const sm::float3& wo, std::size_t sampleCount) {
     std::mt19937 rng(12345U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
     const sm::float3 N(0.0F, 0.0F, 1.0F);
@@ -930,11 +930,11 @@ TEST(Bsdf, DiffuseEonReflectanceDoesNotExceedOne) {
 }
 
 TEST(Bsdf, OpenPbrLobeWeightsKeepOpacitySeparateFromTransmission) {
-    GpuMaterial opaque = makeMaterial();
+    harmonia::GpuMaterial opaque = makeMaterial();
     opaque.opacityFlagsPad.x = 1.0F;
     opaque.transmissionColorWeight.w = 1.0F;
 
-    GpuMaterial cutout = opaque;
+    harmonia::GpuMaterial cutout = opaque;
     cutout.opacityFlagsPad.x = 0.25F;
 
     const LobeWeights opaqueWeights = computeLobeWeights(opaque);
@@ -946,7 +946,7 @@ TEST(Bsdf, OpenPbrLobeWeightsKeepOpacitySeparateFromTransmission) {
 }
 
 TEST(Bsdf, OpenPbrThinWalledSubsurfaceSplitConservesWeight) {
-    GpuMaterial mat = makeMaterial();
+    harmonia::GpuMaterial mat = makeMaterial();
     mat.subsurfaceColorWeight = sm::float4(0.0F, 0.0F, 0.0F, 0.8F);
     mat.opacityFlagsPad.z = 0.25F;
     mat.opacityFlagsPad.w = 1.0F;
@@ -977,7 +977,7 @@ TEST(Bsdf, OpenPbrDispersionChannelAndFresnelContractsHold) {
 TEST(Bsdf, OpenPbrWhiteFurnaceRepresentativeConfigsStayBounded) {
     const sm::float3 wo = sm::normalize(sm::float3(0.25F, 0.15F, 0.955F));
 
-    std::array<GpuMaterial, 5> configs{};
+    std::array<harmonia::GpuMaterial, 5> configs{};
 
     configs[0] = makeMaterial();
     configs[0].baseColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
@@ -1006,7 +1006,7 @@ TEST(Bsdf, OpenPbrWhiteFurnaceRepresentativeConfigsStayBounded) {
     configs[4].opacityFlagsPad.w = 1.0F;
     configs[4].opacityFlagsPad.z = 0.2F;
 
-    for (const GpuMaterial& mat : configs) {
+    for (const harmonia::GpuMaterial& mat : configs) {
         const double energy = estimateWhiteFurnaceEnergy(mat, wo, 12000);
         EXPECT_GE(energy, 0.0);
         EXPECT_LE(energy, 1.10);
@@ -1068,7 +1068,7 @@ TEST(Bsdf, GgxMultiScatterCompensationRecoversMetalEnergy) {
     const sm::float3 wo = sm::normalize(sm::float3(0.25F, 0.15F, 0.955F));
 
     for (const float roughness : {0.2F, 0.4F, 0.6F, 0.85F}) {
-        GpuMaterial metal = makeMaterial();
+        harmonia::GpuMaterial metal = makeMaterial();
         metal.baseColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
         metal.baseMetalnessDiffRough = sm::float4(1.0F, 0.0F, 0.0F, 0.0F); // metalness = 1
         metal.specularColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);    // F82 tint = 1 (mirror)
@@ -1433,22 +1433,22 @@ TEST(Bsdf, OpenPbrV0_SingleLobeMaterialsConserveEnergy) {
         sm::normalize(sm::float3(0.45F, 0.0F, 0.89F)),
         sm::normalize(sm::float3(0.70F, 0.20F, 0.68F)),
     };
-    std::vector<GpuMaterial> mats;
+    std::vector<harmonia::GpuMaterial> mats;
     for (const float rough : {0.1F, 0.5F, 0.9F}) {
-        GpuMaterial metal = makeMaterial(); // pure conductor
+        harmonia::GpuMaterial metal = makeMaterial(); // pure conductor
         metal.baseColorWeight = sm::float4(0.9F, 0.85F, 0.8F, 1.0F);
         metal.baseMetalnessDiffRough = sm::float4(1.0F, 0.4F, 0.0F, 0.0F);
         metal.specularColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
         metal.specularRoughAnisoIor = sm::float4(rough, 0.0F, 1.5F, 0.0F);
         mats.push_back(metal);
 
-        GpuMaterial diff = makeMaterial(); // pure diffuse dielectric (specular off)
+        harmonia::GpuMaterial diff = makeMaterial(); // pure diffuse dielectric (specular off)
         diff.baseColorWeight = sm::float4(0.9F, 0.85F, 0.8F, 1.0F);
         diff.baseMetalnessDiffRough = sm::float4(0.0F, rough, 0.0F, 0.0F);
         diff.specularColorWeight = sm::float4(0.0F, 0.0F, 0.0F, 0.0F);
         mats.push_back(diff);
     }
-    GpuMaterial fuzz = makeMaterial(); // pure fuzz/sheen
+    harmonia::GpuMaterial fuzz = makeMaterial(); // pure fuzz/sheen
     fuzz.baseColorWeight = sm::float4(0.0F, 0.0F, 0.0F, 0.0F);
     fuzz.specularColorWeight = sm::float4(0.0F);
     fuzz.fuzzColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
@@ -1479,7 +1479,7 @@ TEST(Bsdf, OpenPbrV0_LayeredMaterialsConserveEnergy) {
     for (const float metalness : {0.0F, 1.0F}) {
         for (const float rough : {0.1F, 0.5F, 0.9F}) {
             for (const bool coated : {false, true}) {
-                GpuMaterial mat = makeMaterial();
+                harmonia::GpuMaterial mat = makeMaterial();
                 mat.baseColorWeight = sm::float4(0.9F, 0.85F, 0.8F, 1.0F);
                 mat.baseMetalnessDiffRough = sm::float4(metalness, 0.4F, 0.0F, 0.0F);
                 mat.specularColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F); // full dielectric specular
@@ -1509,7 +1509,7 @@ TEST(Bsdf, OpenPbrV0_LayeredMaterialsConserveEnergy) {
 // proper directional-albedo layering (Step 1) lands, the per-view bound should tighten toward 1.0.
 
 [[nodiscard]] sm::float3
-evalCompositeReflection(const GpuMaterial& mat, const sm::float3& wo, const sm::float3& wi) noexcept {
+evalCompositeReflection(const harmonia::GpuMaterial& mat, const sm::float3& wo, const sm::float3& wi) noexcept {
     const sm::float3 N(0.0F, 0.0F, 1.0F);
     const sm::float3 T(1.0F, 0.0F, 0.0F);
     const sm::float3 B(0.0F, 1.0F, 0.0F);
@@ -1529,9 +1529,9 @@ TEST(Bsdf, OpenPbrV0_FullBsdfIsReciprocalForOpaqueCompositions) {
         sm::normalize(sm::float3(0.40F, -0.45F, 0.80F)),
         sm::normalize(sm::float3(0.62F, 0.10F, 0.78F)),
     };
-    std::vector<GpuMaterial> mats;
+    std::vector<harmonia::GpuMaterial> mats;
 
-    GpuMaterial coatDielectric = makeMaterial(); // clear coat over diffuse+specular dielectric
+    harmonia::GpuMaterial coatDielectric = makeMaterial(); // clear coat over diffuse+specular dielectric
     coatDielectric.baseColorWeight = sm::float4(0.8F, 0.6F, 0.4F, 1.0F);
     coatDielectric.baseMetalnessDiffRough = sm::float4(0.0F, 0.4F, 0.0F, 0.0F);
     coatDielectric.specularRoughAnisoIor = sm::float4(0.3F, 0.0F, 1.5F, 0.0F);
@@ -1539,7 +1539,7 @@ TEST(Bsdf, OpenPbrV0_FullBsdfIsReciprocalForOpaqueCompositions) {
     coatDielectric.coatRoughAnisoIorDark = sm::float4(0.15F, 0.0F, 1.5F, 0.25F);
     mats.push_back(coatDielectric);
 
-    GpuMaterial coatConductor = makeMaterial(); // clear coat over conductor
+    harmonia::GpuMaterial coatConductor = makeMaterial(); // clear coat over conductor
     coatConductor.baseColorWeight = sm::float4(0.9F, 0.85F, 0.6F, 1.0F);
     coatConductor.baseMetalnessDiffRough = sm::float4(1.0F, 0.4F, 0.0F, 0.0F);
     coatConductor.specularRoughAnisoIor = sm::float4(0.25F, 0.0F, 1.5F, 0.0F);
@@ -1547,7 +1547,7 @@ TEST(Bsdf, OpenPbrV0_FullBsdfIsReciprocalForOpaqueCompositions) {
     coatConductor.coatRoughAnisoIorDark = sm::float4(0.1F, 0.0F, 1.5F, 0.25F);
     mats.push_back(coatConductor);
 
-    GpuMaterial specDiffuse = makeMaterial(); // specular + diffuse coupling
+    harmonia::GpuMaterial specDiffuse = makeMaterial(); // specular + diffuse coupling
     specDiffuse.baseColorWeight = sm::float4(0.7F, 0.5F, 0.55F, 1.0F);
     specDiffuse.baseMetalnessDiffRough = sm::float4(0.0F, 0.5F, 0.0F, 0.0F);
     specDiffuse.specularRoughAnisoIor = sm::float4(0.35F, 0.0F, 1.5F, 0.0F);
@@ -1578,12 +1578,12 @@ TEST(Bsdf, OpenPbrV0_CoatNeverCreatesEnergyOverUncoatedBase) {
     };
     for (const float metalness : {0.0F, 1.0F}) {
         for (const float rough : {0.1F, 0.5F, 0.9F}) {
-            GpuMaterial base = makeMaterial();
+            harmonia::GpuMaterial base = makeMaterial();
             base.baseColorWeight = sm::float4(0.85F, 0.8F, 0.75F, 1.0F);
             base.baseMetalnessDiffRough = sm::float4(metalness, 0.4F, 0.0F, 0.0F);
             base.specularColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
             base.specularRoughAnisoIor = sm::float4(rough, 0.0F, 1.5F, 0.0F);
-            GpuMaterial coated = base;
+            harmonia::GpuMaterial coated = base;
             coated.coatColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
             coated.coatRoughAnisoIorDark = sm::float4(0.1F, 0.0F, 1.5F, 0.25F);
             for (const sm::float3& wo : views) {
@@ -1606,7 +1606,7 @@ TEST(Bsdf, OpenPbrV0_RoughTransmissionFurnaceStaysBounded) {
         sm::normalize(sm::float3(0.55F, 0.0F, 0.84F)),
     };
     for (const float rough : {0.02F, 0.3F, 0.7F}) {
-        GpuMaterial glass = makeMaterial();
+        harmonia::GpuMaterial glass = makeMaterial();
         glass.baseColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
         glass.transmissionColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
         glass.transmissionParams = sm::float4(0.0F);
@@ -1645,7 +1645,7 @@ TEST(Bsdf, OpenPbrV0_ThinFilmUnderCoatStaysBounded) {
     // thickness sweep — the coat must not amplify the iridescent base into energy creation.
     const sm::float3 wo = sm::normalize(sm::float3(0.3F, 0.1F, 0.95F));
     for (const float thicknessNm : {100.0F, 300.0F, 500.0F, 700.0F}) {
-        GpuMaterial mat = makeMaterial();
+        harmonia::GpuMaterial mat = makeMaterial();
         mat.baseColorWeight = sm::float4(0.9F, 0.85F, 0.6F, 1.0F);
         mat.baseMetalnessDiffRough = sm::float4(1.0F, 0.3F, 0.0F, 0.0F);
         mat.specularRoughAnisoIor = sm::float4(0.2F, 0.0F, 1.5F, 0.0F);

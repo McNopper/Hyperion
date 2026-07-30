@@ -9,8 +9,8 @@
 #include "harmonia/renderer/Pipeline.hpp"
 
 std::expected<ShaderBindingTable, VkResult>
-ShaderBindingTable::create(const DeviceContext& ctx,
-                           const Pipeline& pipeline,
+ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
+                           const harmonia::Pipeline& pipeline,
                            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps) {
     constexpr std::uint32_t raygenCount = 1;
     constexpr std::uint32_t missCount = 2;
@@ -20,7 +20,7 @@ ShaderBindingTable::create(const DeviceContext& ctx,
     const std::uint32_t handleSize = rtProps.shaderGroupHandleSize;
     const std::uint32_t handleAlignment = rtProps.shaderGroupHandleAlignment;
     const std::uint32_t baseAlignment = rtProps.shaderGroupBaseAlignment;
-    const std::uint32_t stride = static_cast<std::uint32_t>(bufferAlignUp(handleSize, handleAlignment));
+    const std::uint32_t stride = static_cast<std::uint32_t>(harmonia::bufferAlignUp(handleSize, handleAlignment));
 
     std::vector<std::byte> handles(static_cast<std::size_t>(groupCount) * handleSize);
     if (const VkResult result = vkGetRayTracingShaderGroupHandlesKHR(
@@ -30,11 +30,11 @@ ShaderBindingTable::create(const DeviceContext& ctx,
     }
 
     const VkDeviceSize raygenOffset = 0;
-    const VkDeviceSize raygenSize = bufferAlignUp(static_cast<VkDeviceSize>(stride) * raygenCount, baseAlignment);
-    const VkDeviceSize missOffset = bufferAlignUp(raygenOffset + raygenSize, baseAlignment);
-    const VkDeviceSize missSize = bufferAlignUp(static_cast<VkDeviceSize>(stride) * missCount, baseAlignment);
-    const VkDeviceSize hitOffset = bufferAlignUp(missOffset + missSize, baseAlignment);
-    const VkDeviceSize hitSize = bufferAlignUp(static_cast<VkDeviceSize>(stride) * hitCount, baseAlignment);
+    const VkDeviceSize raygenSize = harmonia::bufferAlignUp(static_cast<VkDeviceSize>(stride) * raygenCount, baseAlignment);
+    const VkDeviceSize missOffset = harmonia::bufferAlignUp(raygenOffset + raygenSize, baseAlignment);
+    const VkDeviceSize missSize = harmonia::bufferAlignUp(static_cast<VkDeviceSize>(stride) * missCount, baseAlignment);
+    const VkDeviceSize hitOffset = harmonia::bufferAlignUp(missOffset + missSize, baseAlignment);
+    const VkDeviceSize hitSize = harmonia::bufferAlignUp(static_cast<VkDeviceSize>(stride) * hitCount, baseAlignment);
     const VkDeviceSize totalSize = hitOffset + hitSize;
 
     std::vector<std::byte> sbtBytes(static_cast<std::size_t>(totalSize), std::byte{0});
@@ -52,7 +52,7 @@ ShaderBindingTable::create(const DeviceContext& ctx,
     }
 
     auto buffer =
-        Buffer::create(ctx,
+        harmonia::Buffer::create(ctx,
                        totalSize,
                        VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                        VMA_MEMORY_USAGE_AUTO_PREFER_HOST,

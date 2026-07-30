@@ -40,17 +40,17 @@ class Scene : public harmonia::SceneBase {
     // addMaterial / addTexture / addInstance / addMesh / build are inherited concrete from SceneBase.
 
     [[nodiscard]] std::uint32_t
-    addSphereMesh(const DeviceContext& ctx, const CommandPool& pool, float radius, std::string_view name = "") override;
+    addSphereMesh(const harmonia::DeviceContext& ctx, const harmonia::CommandPool& pool, float radius, std::string_view name = "") override;
 
     [[nodiscard]] VkAccelerationStructureKHR tlas() const noexcept { return m_tlas.handle(); }
     [[nodiscard]] VkDeviceAddress tlasAddress() const noexcept { return m_tlasAddress; }
-    [[nodiscard]] const Buffer& instanceBuffer() const noexcept { return m_instanceBuffer; }
-    [[nodiscard]] const Buffer& materialBuffer() const noexcept { return m_materialBuffer; }
-    [[nodiscard]] const Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
-    [[nodiscard]] const Buffer& indexBuffer() const noexcept { return m_indexBuffer; }
-    [[nodiscard]] const Buffer& lightBuffer() const noexcept { return m_lightBuffer; }
-    [[nodiscard]] const Buffer& emissiveTriangleBuffer() const noexcept { return m_emissiveTriangleBuffer; }
-    [[nodiscard]] const Buffer& emissiveCdfBuffer() const noexcept { return m_emissiveCdfBuffer; }
+    [[nodiscard]] const harmonia::Buffer& instanceBuffer() const noexcept { return m_instanceBuffer; }
+    [[nodiscard]] const harmonia::Buffer& materialBuffer() const noexcept { return m_materialBuffer; }
+    [[nodiscard]] const harmonia::Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
+    [[nodiscard]] const harmonia::Buffer& indexBuffer() const noexcept { return m_indexBuffer; }
+    [[nodiscard]] const harmonia::Buffer& lightBuffer() const noexcept { return m_lightBuffer; }
+    [[nodiscard]] const harmonia::Buffer& emissiveTriangleBuffer() const noexcept { return m_emissiveTriangleBuffer; }
+    [[nodiscard]] const harmonia::Buffer& emissiveCdfBuffer() const noexcept { return m_emissiveCdfBuffer; }
     [[nodiscard]] std::uint32_t instanceCount() const noexcept {
         return static_cast<std::uint32_t>(m_instances.size());
     }
@@ -66,27 +66,27 @@ class Scene : public harmonia::SceneBase {
         float sphereRadius = 0.0f;
     };
 
-    VkResult buildSceneBuffers(const DeviceContext& ctx, const CommandPool& pool) override;
+    VkResult buildSceneBuffers(const harmonia::DeviceContext& ctx, const harmonia::CommandPool& pool) override;
 
     void buildGpuInstances();
-    VkResult uploadAllBuffers(const DeviceContext& ctx,
-                              const CommandPool& pool,
-                              const std::vector<GpuMaterial>& gpuMaterials,
-                              const std::vector<GpuVertex>& vertices,
+    VkResult uploadAllBuffers(const harmonia::DeviceContext& ctx,
+                              const harmonia::CommandPool& pool,
+                              const std::vector<harmonia::GpuMaterial>& gpuMaterials,
+                              const std::vector<harmonia::GpuVertex>& vertices,
                               const std::vector<std::uint32_t>& indices,
-                              const std::vector<GpuLight>& gpuLights,
-                              const std::vector<GpuEmissiveTriangle>& emissiveTriangles,
+                              const std::vector<harmonia::GpuLight>& gpuLights,
+                              const std::vector<harmonia::GpuEmissiveTriangle>& emissiveTriangles,
                               const std::vector<float>& emissiveCdf);
 
     std::vector<MeshGpu> m_meshGpu;          ///< per-mesh GPU ranges
     std::vector<GpuInstance> m_gpuInstances; ///< per-instance GPU rows (built at build)
-    Buffer m_instanceBuffer{};
-    Buffer m_materialBuffer{};
-    Buffer m_vertexBuffer{};
-    Buffer m_indexBuffer{};
-    Buffer m_lightBuffer{};
-    Buffer m_emissiveTriangleBuffer{};
-    Buffer m_emissiveCdfBuffer{};
+    harmonia::Buffer m_instanceBuffer{};
+    harmonia::Buffer m_materialBuffer{};
+    harmonia::Buffer m_vertexBuffer{};
+    harmonia::Buffer m_indexBuffer{};
+    harmonia::Buffer m_lightBuffer{};
+    harmonia::Buffer m_emissiveTriangleBuffer{};
+    harmonia::Buffer m_emissiveCdfBuffer{};
     std::uint32_t m_emissiveTriangleCount = 0;
 };
 #endif // HYPERION_SCENE_SCENE_HPP

@@ -17,22 +17,22 @@
 #include "harmonia/scene/ProceduralGeometry.hpp"
 #include "hyperion/scene/Scene.hpp"
 
-// Mesh + sphere: the same geometry combination used in the integration render test.
+// harmonia::Mesh + sphere: the same geometry combination used in the integration render test.
 TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {
     Scene scene;
-    const std::uint32_t matDiffuse = scene.addMaterial(Material::diffuse(sm::float3(0.8F), 1.0F));
-    const std::uint32_t matMetal = scene.addMaterial(Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
+    const std::uint32_t matDiffuse = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.8F), 1.0F));
+    const std::uint32_t matMetal = scene.addMaterial(harmonia::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
 
-    MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
+    harmonia::MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
     const std::uint32_t boxMesh = scene.addMesh(deviceCtx(), commandPool(), std::move(box), "test.box");
     ASSERT_NE(boxMesh, std::numeric_limits<std::uint32_t>::max()) << "Failed to upload floor mesh";
 
     const std::uint32_t sphereMesh = scene.addSphereMesh(deviceCtx(), commandPool(), 0.5F, "test.sphere");
     ASSERT_NE(sphereMesh, std::numeric_limits<std::uint32_t>::max()) << "Failed to add sphere mesh";
 
-    ASSERT_NE(scene.addInstance(boxMesh, Xform{.translation = {0.0F, 0.0F, 0.0F}}, matDiffuse),
+    ASSERT_NE(scene.addInstance(boxMesh, harmonia::Xform{.translation = {0.0F, 0.0F, 0.0F}}, matDiffuse),
               std::numeric_limits<std::uint32_t>::max());
-    ASSERT_NE(scene.addInstance(sphereMesh, Xform{.translation = {0.0F, 0.5F, 0.0F}}, matMetal),
+    ASSERT_NE(scene.addInstance(sphereMesh, harmonia::Xform{.translation = {0.0F, 0.5F, 0.0F}}, matMetal),
               std::numeric_limits<std::uint32_t>::max());
 
     const VkResult result = scene.build(deviceCtx(), commandPool());
@@ -43,29 +43,29 @@ TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {
     EXPECT_EQ(scene.instanceCount(), 2U);
 }
 
-// Mesh-only scene: no analytic sphere, single BLAS type.
+// harmonia::Mesh-only scene: no analytic sphere, single BLAS type.
 TEST_F(RtFixture, Scene_BuildWithMeshOnly) {
     Scene scene;
-    const std::uint32_t mat = scene.addMaterial(Material::diffuse(sm::float3(0.5F), 1.0F));
+    const std::uint32_t mat = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.5F), 1.0F));
 
-    MeshData tri = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F));
+    harmonia::MeshData tri = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F));
     const std::uint32_t mesh = scene.addMesh(deviceCtx(), commandPool(), std::move(tri), "test.solo");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
-    ASSERT_NE(scene.addInstance(mesh, Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
+    ASSERT_NE(scene.addInstance(mesh, harmonia::Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
 
     ASSERT_EQ(scene.build(deviceCtx(), commandPool()), VK_SUCCESS);
     EXPECT_NE(scene.tlas(), VK_NULL_HANDLE);
     EXPECT_EQ(scene.instanceCount(), 1U);
 }
 
-// Sphere-only scene: only AABB-based BLASes, no triangle geometry.
+// harmonia::Sphere-only scene: only AABB-based BLASes, no triangle geometry.
 TEST_F(RtFixture, Scene_BuildWithSphereOnly) {
     Scene scene;
-    const std::uint32_t mat = scene.addMaterial(Material::metal(sm::float3(0.9F, 0.1F, 0.1F), 0.2F));
+    const std::uint32_t mat = scene.addMaterial(harmonia::Material::metal(sm::float3(0.9F, 0.1F, 0.1F), 0.2F));
 
     const std::uint32_t mesh = scene.addSphereMesh(deviceCtx(), commandPool(), 1.0F, "test.soloSphere");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
-    ASSERT_NE(scene.addInstance(mesh, Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
+    ASSERT_NE(scene.addInstance(mesh, harmonia::Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
 
     ASSERT_EQ(scene.build(deviceCtx(), commandPool()), VK_SUCCESS);
     EXPECT_NE(scene.tlas(), VK_NULL_HANDLE);
@@ -76,14 +76,14 @@ TEST_F(RtFixture, Scene_BuildWithSphereOnly) {
 // multiple TLAS instances placed at different transforms.
 TEST_F(RtFixture, Scene_BuildWithMultipleInstancesOfOneMesh) {
     Scene scene;
-    const std::uint32_t mat = scene.addMaterial(Material::diffuse(sm::float3(0.7F), 1.0F));
+    const std::uint32_t mat = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.7F), 1.0F));
 
-    MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(0.8F)); // one unique mesh
+    harmonia::MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(0.8F)); // one unique mesh
     const std::uint32_t mesh = scene.addMesh(deviceCtx(), commandPool(), std::move(box), "test.shared");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
 
     for (std::size_t i = 0; i < 4; ++i) {
-        const Xform xform{.translation = sm::float3(static_cast<float>(i) * 2.0F, 0.0F, 0.0F)};
+        const harmonia::Xform xform{.translation = sm::float3(static_cast<float>(i) * 2.0F, 0.0F, 0.0F)};
         ASSERT_NE(scene.addInstance(mesh, xform, mat), std::numeric_limits<std::uint32_t>::max()) << "instance " << i;
     }
 

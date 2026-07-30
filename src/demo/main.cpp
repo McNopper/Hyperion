@@ -19,7 +19,7 @@ bool consumeValue(int& index, int argc, char* const argv[], std::string_view opt
 } // namespace
 
 int main(int argc, char* const argv[]) {
-    Logger::setTag("HYPERION");
+    harmonia::Logger::setTag("HYPERION");
     harmonia::App::Config config;
     config.title = "Hyperion — Path Tracer";
     config.width = 1024;

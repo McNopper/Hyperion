@@ -19,14 +19,14 @@ constexpr std::uint32_t kLcgMultiplier = 1664525u;
 constexpr std::uint32_t kLcgIncrement = 1013904223u;
 } // namespace
 
-std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
+std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceContext& ctx,
                                                        VkExtent2D renderExtent,
-                                                       const Pipeline& pipeline,
+                                                       const harmonia::Pipeline& pipeline,
                                                        const ShaderBindingTable& sbt,
-                                                       const Descriptors& descriptors,
+                                                       const harmonia::Descriptors& descriptors,
                                                        const Config& config) {
-    auto cameraBuffer = Buffer::create(ctx,
-                                       sizeof(CameraData),
+    auto cameraBuffer = harmonia::Buffer::create(ctx,
+                                       sizeof(harmonia::CameraData),
                                        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                        VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
                                        "hyperion.camera");
@@ -34,10 +34,10 @@ std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
         return std::unexpected(cameraBuffer.error());
     }
 
-    Buffer indirectDispatchBuffer{};
+    harmonia::Buffer indirectDispatchBuffer{};
     if (config.indirectRt2Enabled) {
         auto indirectBuf =
-            Buffer::create(ctx,
+            harmonia::Buffer::create(ctx,
                            sizeof(VkTraceRaysIndirectCommand2KHR),
                            VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -66,10 +66,10 @@ std::expected<PathTracer, VkResult> PathTracer::create(const DeviceContext& ctx,
 
 VkResult PathTracer::render(VkCommandBuffer cmd,
                             const Scene& scene,
-                            const Camera& camera,
-                            const Image& hdrImage,
-                            const Image& gNormal,
-                            const Image& gDepth,
+                            const harmonia::Camera& camera,
+                            const harmonia::Image& hdrImage,
+                            const harmonia::Image& gNormal,
+                            const harmonia::Image& gDepth,
                             std::uint32_t frameIndex) noexcept {
     if (cmd == VK_NULL_HANDLE || scene.tlas() == VK_NULL_HANDLE) {
         return VK_ERROR_INITIALIZATION_FAILED;
@@ -93,12 +93,12 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
 
 void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
                                        const Scene& scene,
-                                       const Camera& camera,
+                                       const harmonia::Camera& camera,
                                        std::uint32_t frameIndex,
-                                       const Image& hdrImage,
-                                       const Image& gNormal,
-                                       const Image& gDepth) noexcept {
-    const CameraData cameraData = camera.getCameraData(frameIndex, m_config.maxDepth);
+                                       const harmonia::Image& hdrImage,
+                                       const harmonia::Image& gNormal,
+                                       const harmonia::Image& gDepth) noexcept {
+    const harmonia::CameraData cameraData = camera.getCameraData(frameIndex, m_config.maxDepth);
     m_cameraBuffer.uploadData(&cameraData, sizeof(cameraData), 0);
 
     const VkDescriptorImageInfo hdrInfo{
@@ -109,7 +109,7 @@ void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
     const VkDescriptorBufferInfo cameraInfo{
         .buffer = m_cameraBuffer.handle(),
         .offset = 0,
-        .range = sizeof(CameraData),
+        .range = sizeof(harmonia::CameraData),
     };
     const VkDescriptorImageInfo gNormalInfo{
         .sampler = VK_NULL_HANDLE,
@@ -203,7 +203,7 @@ void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
 }
 
 void PathTracer::pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std::uint32_t frameIndex) noexcept {
-    const PushConstants pushConstants{
+    const harmonia::PushConstants pushConstants{
         .frameIndex = frameIndex,
         .maxDepth = m_config.maxDepth,
         .rngSeed = frameIndex * kLcgMultiplier + kLcgIncrement,
@@ -218,7 +218,7 @@ void PathTracer::pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std
         .tonemapper = static_cast<std::uint32_t>(m_config.tonemapper),
         .workingColorSpace = static_cast<std::uint32_t>(m_config.workingColorSpace),
     };
-    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(PushConstants), &pushConstants);
+    vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(harmonia::PushConstants), &pushConstants);
 }
 
 void PathTracer::dispatchRays(VkCommandBuffer cmd) noexcept {

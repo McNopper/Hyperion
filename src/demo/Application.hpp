@@ -46,29 +46,29 @@ class Application final : public harmonia::App, public harmonia::IRenderer {
   protected:
     // harmonia::App hooks
     [[nodiscard]] harmonia::IRenderer& renderer() noexcept override { return *this; }
-    [[nodiscard]] ISceneBuilder& sceneBuilder() noexcept override { return m_scene; }
+    [[nodiscard]] harmonia::ISceneBuilder& sceneBuilder() noexcept override { return m_scene; }
     [[nodiscard]] bool onInitialize() override;
-    [[nodiscard]] bool onSceneLoaded(const SceneLoader::SceneConfig& sceneConfig) override;
+    [[nodiscard]] bool onSceneLoaded(const harmonia::SceneLoader::SceneConfig& sceneConfig) override;
     void onSceneUnload() override;
     bool onEvent(const SDL_Event& event) override;
     [[nodiscard]] std::uint32_t offscreenFrameCount() const noexcept override { return m_demoConfig.spp; }
 
   private:
     [[nodiscard]] bool createGBuffers(VkExtent2D extent);
-    void applySceneOverrides(const SceneLoader::SceneConfig& config);
-    void buildCamera(const SceneLoader::SceneConfig& config);
+    void applySceneOverrides(const harmonia::SceneLoader::SceneConfig& config);
+    void buildCamera(const harmonia::SceneLoader::SceneConfig& config);
     [[nodiscard]] VkResult setupSceneDescriptors();
     void transitionTargetsOnFirstUse(VkCommandBuffer cmd) noexcept;
 
     DemoConfig m_demoConfig{};
     std::filesystem::path m_shaderDir;
-    Pipeline m_pipeline{};
+    harmonia::Pipeline m_pipeline{};
     ShaderBindingTable m_sbt{};
     PathTracer m_pathTracer{};
     Scene m_scene{};
-    Camera m_camera{};
-    Image m_gNormal{};                     ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
-    Image m_gDepth{};                      ///< G-buffer ray hit distance  (R32_SFLOAT)
+    harmonia::Camera m_camera{};
+    harmonia::Image m_gNormal{};                     ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
+    harmonia::Image m_gDepth{};                      ///< G-buffer ray hit distance  (R32_SFLOAT)
     bool m_targetsFirstUse = true;         ///< HDR/G-buffer images need UNDEFINED→GENERAL
     bool m_positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is active.
 };

@@ -60,7 +60,7 @@ struct WindowDeleter {
 #endif
 }
 
-[[nodiscard]] bool shadersExist(const Pipeline::ShaderPaths& paths) {
+[[nodiscard]] bool shadersExist(const harmonia::Pipeline::ShaderPaths& paths) {
     return std::filesystem::exists(paths.raygen) && std::filesystem::exists(paths.closesthitTriangle) &&
            std::filesystem::exists(paths.closesthitSphere) && std::filesystem::exists(paths.intersection) &&
            std::filesystem::exists(paths.miss) && std::filesystem::exists(paths.shadowMiss);
@@ -83,12 +83,12 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Failed to create Vulkan test window: " << SDL_GetError();
     }
 
-    Context::Config config{};
+    harmonia::Context::Config config{};
     config.appName = "HyperionTestRender";
     config.enableValidation = false;
     config.window = window.get();
 
-    auto context = Context::create(config);
+    auto context = harmonia::Context::create(config);
     if (!context) {
         GTEST_SKIP() << "No Vulkan RT-capable device/context available: VkResult=" << static_cast<int>(context.error());
     }
@@ -98,17 +98,17 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();
     }
 
-    auto commandPool = CommandPool::create(context->deviceContext(), context->deviceContext().graphicsFamily);
+    auto commandPool = harmonia::CommandPool::create(context->deviceContext(), context->deviceContext().graphicsFamily);
     if (!commandPool) {
         GTEST_SKIP() << "Failed to create command pool: VkResult=" << static_cast<int>(commandPool.error());
     }
 
-    auto descriptors = Descriptors::create(context->deviceContext());
+    auto descriptors = harmonia::Descriptors::create(context->deviceContext());
     if (!descriptors) {
         GTEST_SKIP() << "Failed to create descriptors: VkResult=" << static_cast<int>(descriptors.error());
     }
 
-    auto pipeline = Pipeline::create(context->deviceContext(), *descriptors, shaderPaths, 2U);
+    auto pipeline = harmonia::Pipeline::create(context->deviceContext(), *descriptors, shaderPaths, 2U);
     if (!pipeline) {
         GTEST_SKIP() << "Failed to create ray tracing pipeline: VkResult=" << static_cast<int>(pipeline.error());
     }
@@ -119,7 +119,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     constexpr VkExtent2D renderExtent{64U, 64U};
-    auto hdrImage = Image::create(context->deviceContext(),
+    auto hdrImage = harmonia::Image::create(context->deviceContext(),
                                   renderExtent,
                                   VK_FORMAT_R32G32B32A32_SFLOAT,
                                   VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -129,7 +129,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Failed to create HDR image: VkResult=" << static_cast<int>(hdrImage.error());
     }
 
-    auto gNormal = Image::create(context->deviceContext(),
+    auto gNormal = harmonia::Image::create(context->deviceContext(),
                                  renderExtent,
                                  VK_FORMAT_R16G16B16A16_SFLOAT,
                                  VK_IMAGE_USAGE_STORAGE_BIT,
@@ -139,7 +139,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Failed to create G-buffer normal: VkResult=" << static_cast<int>(gNormal.error());
     }
 
-    auto gDepth = Image::create(context->deviceContext(),
+    auto gDepth = harmonia::Image::create(context->deviceContext(),
                                 renderExtent,
                                 VK_FORMAT_R32_SFLOAT,
                                 VK_IMAGE_USAGE_STORAGE_BIT,
@@ -151,7 +151,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
 
     const VkDeviceSize readbackSize =
         static_cast<VkDeviceSize>(renderExtent.width) * renderExtent.height * sizeof(sm::float4);
-    auto readback = Buffer::create(context->deviceContext(),
+    auto readback = harmonia::Buffer::create(context->deviceContext(),
                                    readbackSize,
                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                    VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -161,18 +161,18 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     Scene scene;
-    const std::uint32_t floorMaterial = scene.addMaterial(Material::diffuse(sm::float3(0.8F), 1.0F));
-    const std::uint32_t sphereMaterial = scene.addMaterial(Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
+    const std::uint32_t floorMaterial = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.8F), 1.0F));
+    const std::uint32_t sphereMaterial = scene.addMaterial(harmonia::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
     // Emissive sphere as area light: replaces the removed procedural sky.
     // 50 000 cd/m² at EV100=0 (exposure≈0.833) → display-space ≈ 41 667, clamped to 100
     // by kMaxDisplayLuminance.  At r=1.5, d=6.5 → P(hit)≈1.7 % → average luminance ≫ 1e-3.
-    const std::uint32_t lightMaterial = scene.addMaterial(Material::emissive(sm::float3(1.0F), 50000.0F));
+    const std::uint32_t lightMaterial = scene.addMaterial(harmonia::Material::emissive(sm::float3(1.0F), 50000.0F));
 
-    MeshData floorMesh = harmonia::ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
+    harmonia::MeshData floorMesh = harmonia::ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
     const std::uint32_t floorMeshIdx =
         scene.addMesh(context->deviceContext(), *commandPool, std::move(floorMesh), "test.floor");
     if (floorMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
-        scene.addInstance(floorMeshIdx, Xform{.translation = {0.0F, -1.5F, 0.0F}}, floorMaterial) ==
+        scene.addInstance(floorMeshIdx, harmonia::Xform{.translation = {0.0F, -1.5F, 0.0F}}, floorMaterial) ==
             std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload floor mesh";
     }
@@ -180,7 +180,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     const std::uint32_t sphereMeshIdx =
         scene.addSphereMesh(context->deviceContext(), *commandPool, 1.0F, "test.sphere");
     if (sphereMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
-        scene.addInstance(sphereMeshIdx, Xform{.translation = {0.0F, -0.25F, 0.5F}}, sphereMaterial) ==
+        scene.addInstance(sphereMeshIdx, harmonia::Xform{.translation = {0.0F, -0.25F, 0.5F}}, sphereMaterial) ==
             std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload sphere";
     }
@@ -188,7 +188,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     // Emissive sphere positioned above scene, fully visible from camera.
     const std::uint32_t lightMeshIdx = scene.addSphereMesh(context->deviceContext(), *commandPool, 1.5F, "test.light");
     if (lightMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
-        scene.addInstance(lightMeshIdx, Xform{.translation = {0.0F, 5.0F, 0.0F}}, lightMaterial) ==
+        scene.addInstance(lightMeshIdx, harmonia::Xform{.translation = {0.0F, 5.0F, 0.0F}}, lightMaterial) ==
             std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload light sphere";
     }
@@ -220,7 +220,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Failed to create path tracer: VkResult=" << static_cast<int>(pathTracer.error());
     }
 
-    Camera camera(Camera::Params{
+    harmonia::Camera camera(harmonia::Camera::Params{
         .position = sm::float3(0.0F, 1.0F, -6.0F),
         .target = sm::float3(0.0F, -0.1F, 0.2F),
         .up = sm::float3(0.0F, 1.0F, 0.0F),
@@ -231,7 +231,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
         .lensRadius = 0.0F,
         .focusDist = 6.0F,
         // EV100=0 → exposure=1/1.2≈0.833; correct for 50 000 cd/m² emissive light source.
-        .physical = Camera::PhysicalCamera{.aperture = 1.0F, .shutterSpeedHz = 1.0F, .iso = 100.0F},
+        .physical = harmonia::Camera::PhysicalCamera{.aperture = 1.0F, .shutterSpeedHz = 1.0F, .iso = 100.0F},
     });
 
     auto cmd = commandPool->beginOneShot();

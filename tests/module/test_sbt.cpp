@@ -26,7 +26,7 @@ namespace {
 }
 } // namespace
 
-// Fixture that creates Descriptors + Pipeline + SBT once per test.
+// Fixture that creates harmonia::Descriptors + harmonia::Pipeline + SBT once per test.
 class SbtFixture : public RtFixture {
   protected:
     void SetUp() override {
@@ -38,21 +38,21 @@ class SbtFixture : public RtFixture {
             GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();
         }
 
-        auto desc = Descriptors::create(deviceCtx());
-        ASSERT_TRUE(desc.has_value()) << "Descriptors::create failed: " << static_cast<int>(desc.error());
-        m_descriptors = std::make_unique<Descriptors>(std::move(*desc));
+        auto desc = harmonia::Descriptors::create(deviceCtx());
+        ASSERT_TRUE(desc.has_value()) << "harmonia::Descriptors::create failed: " << static_cast<int>(desc.error());
+        m_descriptors = std::make_unique<harmonia::Descriptors>(std::move(*desc));
 
-        auto pipeline = Pipeline::create(deviceCtx(), *m_descriptors, paths, 2U);
-        ASSERT_TRUE(pipeline.has_value()) << "Pipeline::create failed: " << static_cast<int>(pipeline.error());
-        m_pipeline = std::make_unique<Pipeline>(std::move(*pipeline));
+        auto pipeline = harmonia::Pipeline::create(deviceCtx(), *m_descriptors, paths, 2U);
+        ASSERT_TRUE(pipeline.has_value()) << "harmonia::Pipeline::create failed: " << static_cast<int>(pipeline.error());
+        m_pipeline = std::make_unique<harmonia::Pipeline>(std::move(*pipeline));
 
         auto sbt = ShaderBindingTable::create(deviceCtx(), *m_pipeline, physInfo().rtProps);
         ASSERT_TRUE(sbt.has_value()) << "ShaderBindingTable::create failed: " << static_cast<int>(sbt.error());
         m_sbt = std::make_unique<ShaderBindingTable>(std::move(*sbt));
     }
 
-    std::unique_ptr<Descriptors> m_descriptors;
-    std::unique_ptr<Pipeline> m_pipeline;
+    std::unique_ptr<harmonia::Descriptors> m_descriptors;
+    std::unique_ptr<harmonia::Pipeline> m_pipeline;
     std::unique_ptr<ShaderBindingTable> m_sbt;
 };
 
@@ -77,7 +77,7 @@ TEST_F(SbtFixture, ShaderBindingTable_MissAndHitRegionsNonZero) {
     EXPECT_GT(m_sbt->hitRegion().size, VkDeviceSize{0}) << "Hit region size";
 }
 
-// Pipeline's RT pipeline handle must be non-null after creation.
+// harmonia::Pipeline's RT pipeline handle must be non-null after creation.
 TEST_F(SbtFixture, Pipeline_HandlesNonNull) {
     EXPECT_NE(m_pipeline->rtPipeline(), VK_NULL_HANDLE) << "RT pipeline handle";
 }
