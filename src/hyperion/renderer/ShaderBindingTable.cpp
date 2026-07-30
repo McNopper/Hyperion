@@ -30,7 +30,8 @@ ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
     }
 
     const VkDeviceSize raygenOffset = 0;
-    const VkDeviceSize raygenSize = harmonia::bufferAlignUp(static_cast<VkDeviceSize>(stride) * raygenCount, baseAlignment);
+    const VkDeviceSize raygenSize =
+        harmonia::bufferAlignUp(static_cast<VkDeviceSize>(stride) * raygenCount, baseAlignment);
     const VkDeviceSize missOffset = harmonia::bufferAlignUp(raygenOffset + raygenSize, baseAlignment);
     const VkDeviceSize missSize = harmonia::bufferAlignUp(static_cast<VkDeviceSize>(stride) * missCount, baseAlignment);
     const VkDeviceSize hitOffset = harmonia::bufferAlignUp(missOffset + missSize, baseAlignment);
@@ -51,12 +52,12 @@ ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
         copyHandle(raygenCount + missCount + i, hitOffset + static_cast<VkDeviceSize>(stride) * i);
     }
 
-    auto buffer =
-        harmonia::Buffer::create(ctx,
-                       totalSize,
-                       VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                       "hyperion.sbt");
+    auto buffer = harmonia::Buffer::create(ctx,
+                                           totalSize,
+                                           VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
+                                               VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                           "hyperion.sbt");
     if (!buffer) {
         return std::unexpected(buffer.error());
     }

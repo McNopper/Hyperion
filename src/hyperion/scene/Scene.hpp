@@ -39,8 +39,10 @@ class Scene : public harmonia::SceneBase {
   public:
     // addMaterial / addTexture / addInstance / addMesh / build are inherited concrete from SceneBase.
 
-    [[nodiscard]] std::uint32_t
-    addSphereMesh(const harmonia::DeviceContext& ctx, const harmonia::CommandPool& pool, float radius, std::string_view name = "") override;
+    [[nodiscard]] std::uint32_t addSphereMesh(const harmonia::DeviceContext& ctx,
+                                              const harmonia::CommandPool& pool,
+                                              float radius,
+                                              std::string_view name = "") override;
 
     [[nodiscard]] VkAccelerationStructureKHR tlas() const noexcept { return m_tlas.handle(); }
     [[nodiscard]] VkDeviceAddress tlasAddress() const noexcept { return m_tlasAddress; }

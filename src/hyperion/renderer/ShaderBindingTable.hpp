@@ -8,7 +8,9 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 
-namespace harmonia { class Pipeline; }
+namespace harmonia {
+class Pipeline;
+}
 
 class ShaderBindingTable {
   public:

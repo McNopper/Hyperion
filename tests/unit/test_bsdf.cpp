@@ -209,8 +209,8 @@ void orientFrame(const sm::float3& wo,
     const sm::float3 var(4.3278e+09F, 9.3046e+09F, 6.6121e+09F);
     sm::float3 xyz =
         val * sm::sqrt(2.0F * harmonia::Math::kPi * var) * sm::cos(pos * phase + shift) * sm::exp(-var * phase * phase);
-    xyz.x += 9.7470e-14F * std::sqrt(2.0F * harmonia::Math::kPi * 4.5282e+09F) * std::cos(2.2399e+06F * phase + shift.x) *
-             std::exp(-4.5282e+09F * phase * phase);
+    xyz.x += 9.7470e-14F * std::sqrt(2.0F * harmonia::Math::kPi * 4.5282e+09F) *
+             std::cos(2.2399e+06F * phase + shift.x) * std::exp(-4.5282e+09F * phase * phase);
     return xyz / 1.0685e-7F;
 }
 
@@ -334,8 +334,9 @@ void tfConductorPhasePolarized(float cosTheta,
         R23p = f;
         R23s = f;
         const sm::float3 eta3 = mx_f0_to_ior(F0);
-        phi23p = sm::float3(
-            eta3.x < eta2 ? harmonia::Math::kPi : 0.0F, eta3.y < eta2 ? harmonia::Math::kPi : 0.0F, eta3.z < eta2 ? harmonia::Math::kPi : 0.0F);
+        phi23p = sm::float3(eta3.x < eta2 ? harmonia::Math::kPi : 0.0F,
+                            eta3.y < eta2 ? harmonia::Math::kPi : 0.0F,
+                            eta3.z < eta2 ? harmonia::Math::kPi : 0.0F);
         phi23s = phi23p;
     }
 
@@ -779,7 +780,8 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     return sm::max(result, sm::float3(0.0F));
 }
 
-[[nodiscard]] double estimateWhiteFurnaceEnergy(const harmonia::GpuMaterial& mat, const sm::float3& wo, std::size_t sampleCount) {
+[[nodiscard]] double
+estimateWhiteFurnaceEnergy(const harmonia::GpuMaterial& mat, const sm::float3& wo, std::size_t sampleCount) {
     std::mt19937 rng(12345U);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
     const sm::float3 N(0.0F, 0.0F, 1.0F);
@@ -1662,8 +1664,9 @@ TEST(Bsdf, OpenPbrV0_ThinFilmUnderCoatStaysBounded) {
 // ── Step 3: bulk subsurface random-walk primitives (mirror of Harmonia bsdf_shared.slang) ──
 
 [[nodiscard]] float sssExtinction(float radius, const sm::float3& radiusScale) noexcept {
-    const float mfp = std::max(radius, 1.0e-4F) *
-                      std::max(harmonia::Math::luminance(sm::clamp(radiusScale, sm::float3(0.0F), sm::float3(1.0F))), 1.0e-4F);
+    const float mfp =
+        std::max(radius, 1.0e-4F) *
+        std::max(harmonia::Math::luminance(sm::clamp(radiusScale, sm::float3(0.0F), sm::float3(1.0F))), 1.0e-4F);
     return 1.0F / std::max(mfp, 1.0e-4F);
 }
 

@@ -21,8 +21,10 @@
 #include "harmonia/scene/EmissiveBuilder.hpp"
 #include "harmonia/scene/Geometry.hpp"
 
-std::uint32_t
-Scene::addSphereMesh(const harmonia::DeviceContext& ctx, const harmonia::CommandPool& pool, float radius, std::string_view name) {
+std::uint32_t Scene::addSphereMesh(const harmonia::DeviceContext& ctx,
+                                   const harmonia::CommandPool& pool,
+                                   float radius,
+                                   std::string_view name) {
     const std::uint32_t meshIndex = static_cast<std::uint32_t>(m_meshes.size());
     const std::string debugName = name.empty() ? std::string{"sphere."} + std::to_string(meshIndex) : std::string{name};
 
@@ -153,21 +155,22 @@ VkResult Scene::uploadAllBuffers(const harmonia::DeviceContext& ctx,
         return instanceBuf.error();
     }
 
-    auto materialBuf =
-        uploadStorageBuffer(ctx,
-                            pool,
-                            std::as_bytes(std::span<const harmonia::GpuMaterial>(gpuMaterials.data(), gpuMaterials.size())),
-                            "scene.materials",
-                            kStorageAddr);
+    auto materialBuf = uploadStorageBuffer(
+        ctx,
+        pool,
+        std::as_bytes(std::span<const harmonia::GpuMaterial>(gpuMaterials.data(), gpuMaterials.size())),
+        "scene.materials",
+        kStorageAddr);
     if (!materialBuf) {
         return materialBuf.error();
     }
 
-    auto vertexBuf = uploadStorageBuffer(ctx,
-                                         pool,
-                                         std::as_bytes(std::span<const harmonia::GpuVertex>(vertices.data(), vertices.size())),
-                                         "scene.vertices",
-                                         kStorageAddr);
+    auto vertexBuf =
+        uploadStorageBuffer(ctx,
+                            pool,
+                            std::as_bytes(std::span<const harmonia::GpuVertex>(vertices.data(), vertices.size())),
+                            "scene.vertices",
+                            kStorageAddr);
     if (!vertexBuf) {
         return vertexBuf.error();
     }
@@ -186,22 +189,23 @@ VkResult Scene::uploadAllBuffers(const harmonia::DeviceContext& ctx,
     m_vertexBuffer = std::move(*vertexBuf);
     m_indexBuffer = std::move(*indexBuf);
 
-    auto lightBuf = uploadStorageBuffer(ctx,
-                                        pool,
-                                        std::as_bytes(std::span<const harmonia::GpuLight>(gpuLights.data(), gpuLights.size())),
-                                        "scene.lights",
-                                        kStorageAddr);
+    auto lightBuf =
+        uploadStorageBuffer(ctx,
+                            pool,
+                            std::as_bytes(std::span<const harmonia::GpuLight>(gpuLights.data(), gpuLights.size())),
+                            "scene.lights",
+                            kStorageAddr);
     if (!lightBuf) {
         return lightBuf.error();
     }
     m_lightBuffer = std::move(*lightBuf);
 
-    auto emissiveBuf = uploadStorageBuffer(
-        ctx,
-        pool,
-        std::as_bytes(std::span<const harmonia::GpuEmissiveTriangle>(emissiveTriangles.data(), emissiveTriangles.size())),
-        "scene.emissiveTriangles",
-        kStorageAddr);
+    auto emissiveBuf = uploadStorageBuffer(ctx,
+                                           pool,
+                                           std::as_bytes(std::span<const harmonia::GpuEmissiveTriangle>(
+                                               emissiveTriangles.data(), emissiveTriangles.size())),
+                                           "scene.emissiveTriangles",
+                                           kStorageAddr);
     if (!emissiveBuf) {
         return emissiveBuf.error();
     }

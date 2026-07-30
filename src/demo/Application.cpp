@@ -47,9 +47,10 @@ int Application::run(Config&& config, DemoConfig&& demoConfig) {
 bool Application::onInitialize() {
     m_positionFetchSupported = deviceContext().positionFetchSupported;
     harmonia::Logger::info("VK_KHR_ray_tracing_position_fetch: {}", m_positionFetchSupported ? "enabled" : "disabled");
-    harmonia::Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}", deviceContext().serSupported ? "enabled" : "disabled");
+    harmonia::Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}",
+                           deviceContext().serSupported ? "enabled" : "disabled");
     harmonia::Logger::info("VK_KHR_ray_tracing_maintenance1 (indirect RT2): {}",
-                 deviceContext().indirectRt2Supported ? "enabled" : "disabled");
+                           deviceContext().indirectRt2Supported ? "enabled" : "disabled");
 
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
     harmonia::Pipeline::ShaderPaths shaderPaths = makeHyperionShaderPaths(m_shaderDir);
@@ -86,11 +87,11 @@ bool Application::onInitialize() {
 
 bool Application::createGBuffers(VkExtent2D extent) {
     auto gNormal = harmonia::Image::create(deviceContext(),
-                                 extent,
-                                 VK_FORMAT_R16G16B16A16_SFLOAT,
-                                 VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                 VK_IMAGE_ASPECT_COLOR_BIT,
-                                 "demo.gNormal");
+                                           extent,
+                                           VK_FORMAT_R16G16B16A16_SFLOAT,
+                                           VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                           VK_IMAGE_ASPECT_COLOR_BIT,
+                                           "demo.gNormal");
     if (!gNormal) {
         harmonia::Logger::error("G-buffer normal creation failed: VkResult {}", static_cast<int>(gNormal.error()));
         return false;
@@ -98,11 +99,11 @@ bool Application::createGBuffers(VkExtent2D extent) {
     m_gNormal = std::move(*gNormal);
 
     auto gDepth = harmonia::Image::create(deviceContext(),
-                                extent,
-                                VK_FORMAT_R32_SFLOAT,
-                                VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                VK_IMAGE_ASPECT_COLOR_BIT,
-                                "demo.gDepth");
+                                          extent,
+                                          VK_FORMAT_R32_SFLOAT,
+                                          VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                          VK_IMAGE_ASPECT_COLOR_BIT,
+                                          "demo.gDepth");
     if (!gDepth) {
         harmonia::Logger::error("G-buffer depth creation failed: VkResult {}", static_cast<int>(gDepth.error()));
         return false;

@@ -14,8 +14,12 @@
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/OutputColorSpace.hpp"
 
-namespace harmonia { class Descriptors; }
-namespace harmonia { class Pipeline; }
+namespace harmonia {
+class Descriptors;
+}
+namespace harmonia {
+class Pipeline;
+}
 class Scene;
 class ShaderBindingTable;
 

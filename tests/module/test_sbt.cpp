@@ -43,7 +43,8 @@ class SbtFixture : public RtFixture {
         m_descriptors = std::make_unique<harmonia::Descriptors>(std::move(*desc));
 
         auto pipeline = harmonia::Pipeline::create(deviceCtx(), *m_descriptors, paths, 2U);
-        ASSERT_TRUE(pipeline.has_value()) << "harmonia::Pipeline::create failed: " << static_cast<int>(pipeline.error());
+        ASSERT_TRUE(pipeline.has_value())
+            << "harmonia::Pipeline::create failed: " << static_cast<int>(pipeline.error());
         m_pipeline = std::make_unique<harmonia::Pipeline>(std::move(*pipeline));
 
         auto sbt = ShaderBindingTable::create(deviceCtx(), *m_pipeline, physInfo().rtProps);

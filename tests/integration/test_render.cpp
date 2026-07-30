@@ -120,31 +120,31 @@ TEST(PathTracer, CornellBoxNonBlack) {
 
     constexpr VkExtent2D renderExtent{64U, 64U};
     auto hdrImage = harmonia::Image::create(context->deviceContext(),
-                                  renderExtent,
-                                  VK_FORMAT_R32G32B32A32_SFLOAT,
-                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                                  VK_IMAGE_ASPECT_COLOR_BIT,
-                                  "hyperion.test.hdr");
+                                            renderExtent,
+                                            VK_FORMAT_R32G32B32A32_SFLOAT,
+                                            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                            VK_IMAGE_ASPECT_COLOR_BIT,
+                                            "hyperion.test.hdr");
     if (!hdrImage) {
         GTEST_SKIP() << "Failed to create HDR image: VkResult=" << static_cast<int>(hdrImage.error());
     }
 
     auto gNormal = harmonia::Image::create(context->deviceContext(),
-                                 renderExtent,
-                                 VK_FORMAT_R16G16B16A16_SFLOAT,
-                                 VK_IMAGE_USAGE_STORAGE_BIT,
-                                 VK_IMAGE_ASPECT_COLOR_BIT,
-                                 "hyperion.test.gNormal");
+                                           renderExtent,
+                                           VK_FORMAT_R16G16B16A16_SFLOAT,
+                                           VK_IMAGE_USAGE_STORAGE_BIT,
+                                           VK_IMAGE_ASPECT_COLOR_BIT,
+                                           "hyperion.test.gNormal");
     if (!gNormal) {
         GTEST_SKIP() << "Failed to create G-buffer normal: VkResult=" << static_cast<int>(gNormal.error());
     }
 
     auto gDepth = harmonia::Image::create(context->deviceContext(),
-                                renderExtent,
-                                VK_FORMAT_R32_SFLOAT,
-                                VK_IMAGE_USAGE_STORAGE_BIT,
-                                VK_IMAGE_ASPECT_COLOR_BIT,
-                                "hyperion.test.gDepth");
+                                          renderExtent,
+                                          VK_FORMAT_R32_SFLOAT,
+                                          VK_IMAGE_USAGE_STORAGE_BIT,
+                                          VK_IMAGE_ASPECT_COLOR_BIT,
+                                          "hyperion.test.gDepth");
     if (!gDepth) {
         GTEST_SKIP() << "Failed to create G-buffer depth: VkResult=" << static_cast<int>(gDepth.error());
     }
@@ -152,17 +152,18 @@ TEST(PathTracer, CornellBoxNonBlack) {
     const VkDeviceSize readbackSize =
         static_cast<VkDeviceSize>(renderExtent.width) * renderExtent.height * sizeof(sm::float4);
     auto readback = harmonia::Buffer::create(context->deviceContext(),
-                                   readbackSize,
-                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                   "hyperion.test.readback");
+                                             readbackSize,
+                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                             VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                             "hyperion.test.readback");
     if (!readback || readback->mappedData() == nullptr) {
         GTEST_SKIP() << "Failed to create mapped readback buffer";
     }
 
     Scene scene;
     const std::uint32_t floorMaterial = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.8F), 1.0F));
-    const std::uint32_t sphereMaterial = scene.addMaterial(harmonia::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
+    const std::uint32_t sphereMaterial =
+        scene.addMaterial(harmonia::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
     // Emissive sphere as area light: replaces the removed procedural sky.
     // 50 000 cd/m² at EV100=0 (exposure≈0.833) → display-space ≈ 41 667, clamped to 100
     // by kMaxDisplayLuminance.  At r=1.5, d=6.5 → P(hit)≈1.7 % → average luminance ≫ 1e-3.

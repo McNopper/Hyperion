@@ -26,10 +26,10 @@ std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceCon
                                                        const harmonia::Descriptors& descriptors,
                                                        const Config& config) {
     auto cameraBuffer = harmonia::Buffer::create(ctx,
-                                       sizeof(harmonia::CameraData),
-                                       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                       "hyperion.camera");
+                                                 sizeof(harmonia::CameraData),
+                                                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                 "hyperion.camera");
     if (!cameraBuffer) {
         return std::unexpected(cameraBuffer.error());
     }
@@ -38,10 +38,10 @@ std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceCon
     if (config.indirectRt2Enabled) {
         auto indirectBuf =
             harmonia::Buffer::create(ctx,
-                           sizeof(VkTraceRaysIndirectCommand2KHR),
-                           VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                           "hyperion.indirectDispatch");
+                                     sizeof(VkTraceRaysIndirectCommand2KHR),
+                                     VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                     VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                     "hyperion.indirectDispatch");
         if (!indirectBuf) {
             return std::unexpected(indirectBuf.error());
         }
