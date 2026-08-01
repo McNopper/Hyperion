@@ -36,7 +36,6 @@ class PathTracer {
         harmonia::Tonemapper tonemapper = harmonia::Tonemapper::eACES;
         harmonia::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020;
         bool serEnabled = false;         ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
-        bool indirectRt2Enabled = false; ///< Use vkCmdTraceRaysIndirect2KHR when supported.
     };
 
     [[nodiscard]] static std::expected<PathTracer, VkResult> create(const harmonia::DeviceContext& ctx,
@@ -67,7 +66,6 @@ class PathTracer {
                                const harmonia::Image& gDepth) noexcept;
     void pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std::uint32_t frameIndex) noexcept;
     void dispatchRays(VkCommandBuffer cmd) noexcept;
-    void dispatchDirect(VkCommandBuffer cmd) noexcept;
 
     void updateIndirectBuffer() noexcept;
     const harmonia::DeviceContext* m_ctx{};

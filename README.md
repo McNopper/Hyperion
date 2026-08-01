@@ -67,9 +67,9 @@ sample count are expected; 64 spp keeps the full-gallery render tractable).
 - Analytic spheres via `VK_KHR_ray_tracing_pipeline` intersection shaders
 - Image-based lighting (IBL) — equirectangular HDR panorama via `env_map`
 - Firefly suppression (channel-average clamping with NaN guard)
-- À trous wavelet denoiser pass
+- À trous wavelet denoiser pass (interactive presentation stage only; forced off for `--output` captures — fixed pixel radius, not a converging filter)
 - Headless render mode with PNG + EXR output
-- **`VK_KHR_ray_tracing_maintenance1`** — `vkCmdTraceRaysIndirect2KHR` indirect dispatch (GPU-buffer-driven ray dispatch dimensions; pre-set at `PathTracer::create()` / `onResize()` — never written on the hot render path; falls back to `vkCmdTraceRaysKHR` when absent)
+- **`VK_KHR_ray_tracing_maintenance1`** (required) — `vkCmdTraceRaysIndirect2KHR` indirect dispatch (GPU-buffer-driven ray dispatch dimensions; pre-set at `PathTracer::create()` / `onResize()` — never written on the hot render path). The extension is a hard device requirement; device selection fails fast when it is absent
 
 ### Material model — OpenPBR Surface v1.1.1
 All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.github.io/OpenPBR/) naming:

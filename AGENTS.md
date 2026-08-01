@@ -99,12 +99,12 @@ SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides opene
 **Principle:** GPU-driven by design — all dispatch parameters are GPU-resident and pre-set;
 `render()` is a pure GPU command record with no CPU→GPU data transfer on the hot path.
 
-**Indirect RT dispatch (`VK_KHR_ray_tracing_maintenance1`):**
-- When `indirectRt2Supported` (= `DeviceContext::indirectRt2Supported`), Hyperion uses
-  `vkCmdTraceRaysIndirect2KHR`. The `VkTraceRaysIndirectCommand2KHR` buffer (SBT addresses +
-  render dimensions) is written **once** at `PathTracer::create()` and updated in `onResize()`.
-  The per-frame `render()` path records only GPU commands — no host writes.
-- Falls back to `vkCmdTraceRaysKHR` when the extension is unavailable.
+**Indirect RT dispatch (`VK_KHR_ray_tracing_maintenance1`, required):**
+- `ray_tracing_maintenance1` is a **hard-required** device feature — Harmonia's device
+  selection (`Context.cpp`) fails fast when it is absent. Hyperion dispatches rays exclusively
+  through `vkCmdTraceRaysIndirect2KHR`. The `VkTraceRaysIndirectCommand2KHR` buffer (SBT
+  addresses + render dimensions) is written **once** at `PathTracer::create()` and updated in
+  `onResize()`. The per-frame `render()` path records only GPU commands — no host writes.
 
 **Acceleration structure builds — device-side only (Khronos deprecation compliant):**
 - All BLAS builds: `vkCmdBuildAccelerationStructuresKHR` (Harmonia `Geometry::buildBlas`).

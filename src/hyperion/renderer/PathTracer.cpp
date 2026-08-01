@@ -35,18 +35,16 @@ std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceCon
     }
 
     harmonia::Buffer indirectDispatchBuffer{};
-    if (config.indirectRt2Enabled) {
-        auto indirectBuf =
-            harmonia::Buffer::create(ctx,
-                                     sizeof(VkTraceRaysIndirectCommand2KHR),
-                                     VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                     VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                     "hyperion.indirectDispatch");
-        if (!indirectBuf) {
-            return std::unexpected(indirectBuf.error());
-        }
-        indirectDispatchBuffer = std::move(*indirectBuf);
+    auto indirectBuf =
+        harmonia::Buffer::create(ctx,
+                                 sizeof(VkTraceRaysIndirectCommand2KHR),
+                                 VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                 "hyperion.indirectDispatch");
+    if (!indirectBuf) {
+        return std::unexpected(indirectBuf.error());
     }
+    indirectDispatchBuffer = std::move(*indirectBuf);
 
     PathTracer tracer;
     tracer.m_ctx = &ctx;
@@ -222,22 +220,10 @@ void PathTracer::pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std
 }
 
 void PathTracer::dispatchRays(VkCommandBuffer cmd) noexcept {
-    if (m_config.indirectRt2Enabled && m_indirectDispatchBuffer.isValid()) {
-        static auto pfnTraceRaysIndirect2 = reinterpret_cast<PFN_vkCmdTraceRaysIndirect2KHR>(
-            vkGetDeviceProcAddr(m_ctx->device, "vkCmdTraceRaysIndirect2KHR"));
+    static auto pfnTraceRaysIndirect2 = reinterpret_cast<PFN_vkCmdTraceRaysIndirect2KHR>(
+        vkGetDeviceProcAddr(m_ctx->device, "vkCmdTraceRaysIndirect2KHR"));
 
-        if (pfnTraceRaysIndirect2 != nullptr) {
-            pfnTraceRaysIndirect2(cmd, m_indirectDispatchBuffer.deviceAddress());
-        } else {
-            dispatchDirect(cmd);
-        }
-    } else {
-        dispatchDirect(cmd);
-    }
-}
-
-void PathTracer::dispatchDirect(VkCommandBuffer cmd) noexcept {
-    vkCmdTraceRaysKHR(cmd, &m_raygen, &m_miss, &m_hit, &m_callable, m_extent.width, m_extent.height, 1);
+    pfnTraceRaysIndirect2(cmd, m_indirectDispatchBuffer.deviceAddress());
 }
 
 void PathTracer::setConfig(const Config& config) noexcept {
@@ -250,9 +236,6 @@ void PathTracer::onResize(VkExtent2D newExtent) noexcept {
 }
 
 void PathTracer::updateIndirectBuffer() noexcept {
-    if (!m_config.indirectRt2Enabled || !m_indirectDispatchBuffer.isValid()) {
-        return;
-    }
     VkTraceRaysIndirectCommand2KHR indirectCmd{};
     indirectCmd.raygenShaderRecordAddress = m_raygen.deviceAddress;
     indirectCmd.raygenShaderRecordSize = m_raygen.size;

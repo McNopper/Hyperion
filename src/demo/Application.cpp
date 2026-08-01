@@ -49,8 +49,7 @@ bool Application::onInitialize() {
     harmonia::Logger::info("VK_KHR_ray_tracing_position_fetch: {}", m_positionFetchSupported ? "enabled" : "disabled");
     harmonia::Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}",
                            deviceContext().serSupported ? "enabled" : "disabled");
-    harmonia::Logger::info("VK_KHR_ray_tracing_maintenance1 (indirect RT2): {}",
-                           deviceContext().indirectRt2Supported ? "enabled" : "disabled");
+    harmonia::Logger::info("VK_KHR_ray_tracing_maintenance1 (indirect RT2): required");
 
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
     harmonia::Pipeline::ShaderPaths shaderPaths = makeHyperionShaderPaths(m_shaderDir);
@@ -138,23 +137,21 @@ bool Application::onSceneLoaded(const harmonia::SceneLoader::SceneConfig& sceneC
 
     const auto& probe = iblProbe();
     const bool hasIbl = probe.has_value() && probe->isValid();
-    auto tracer = PathTracer::create(deviceContext(),
-                                     swapchain().extent(),
-                                     m_pipeline,
-                                     m_sbt,
-                                     descriptors(),
-                                     PathTracer::Config{
-                                         .samplesPerPixel = m_demoConfig.spp,
-                                         .maxDepth = m_demoConfig.maxDepth,
-                                         .envLuminance = envLuminance,
-                                         .hasEnvMap = hasIbl ? 1u : 0u,
-                                         .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,
-                                         .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
-                                         .tonemapper = static_cast<harmonia::Tonemapper>(tonemapper()),
-                                         .workingColorSpace = workingColorSpace(),
-                                         .serEnabled = deviceContext().serSupported,
-                                         .indirectRt2Enabled = deviceContext().indirectRt2Supported,
-                                     });
+    auto tracer =
+        PathTracer::create(deviceContext(),
+                           swapchain().extent(),
+                           m_pipeline,
+                           m_sbt,
+                           descriptors(),
+                           PathTracer::Config{.samplesPerPixel = m_demoConfig.spp,
+                                              .maxDepth = m_demoConfig.maxDepth,
+                                              .envLuminance = envLuminance,
+                                              .hasEnvMap = hasIbl ? 1u : 0u,
+                                              .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,
+                                              .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
+                                              .tonemapper = static_cast<harmonia::Tonemapper>(tonemapper()),
+                                              .workingColorSpace = workingColorSpace(),
+                                              .serEnabled = deviceContext().serSupported});
     if (!tracer) {
         harmonia::Logger::error("PathTracer creation failed: VkResult {}", static_cast<int>(tracer.error()));
         return false;

@@ -52,6 +52,9 @@ constexpr float kEpsilon = 1.0e-5F;
     // (l,v opposite hemispheres); a max(.,0) on the cosine would wrongly zero the transmitted leg.
     // Consistent with the MaterialX `mx_ggx_dir_albedo_analytic` fit used for multiple-scattering
     // energy compensation.
+    // C8: Tamisier et al. 2024 ("Visibility Evaluation in Microfacet Theory") reviewed — it is an
+    // error-prediction study over measured height fields, not a replacement G2; height-correlated
+    // Smith remains the correct analytic term. No formula change (mirrors shader GGX_G2).
     const float lambdaL = smithLambdaGgx(std::abs(l.z), alpha);
     const float lambdaV = smithLambdaGgx(std::abs(v.z), alpha);
     return 1.0F / (1.0F + lambdaL + lambdaV);
@@ -829,7 +832,7 @@ estimateWhiteFurnaceEnergy(const harmonia::GpuMaterial& mat, const sm::float3& w
 // `mx_ggx_dir_albedo` = `mx_ggx_dir_albedo_analytic`) against ground-truth Monte-Carlo integration
 // of the actual BRDFs, and to check physical properties (reciprocity, energy normalization).
 
-// Heitz 2018 "Sampling the GGX Distribution of Visible Normals" (isotropic).
+// Smith-GGX VNDF (Heitz 2018, isotropic). Mirrors Harmonia math.slang sampleGGX_VNDF.
 [[nodiscard]] sm::float3 sampleGgxVndf(const sm::float3& Ve, float alpha, float u1, float u2) noexcept {
     const sm::float3 Vh = sm::normalize(sm::float3(alpha * Ve.x, alpha * Ve.y, Ve.z));
     const float lensq = (Vh.x * Vh.x) + (Vh.y * Vh.y);
@@ -1183,7 +1186,7 @@ TEST(Bsdf, TransmissionEvalPdfWeightMatchesPbrt) {
 TEST(Bsdf, ThinFilmGuardReturnsBaseWhenInactive) {
     // The eval path applies iridescence only when thin_film_weight>0 AND thickness>0;
     // otherwise the base Schlick reflectance is used unchanged. Verify that contract
-    // (mirrors evalReflectionMicrofacetThinFilm / the thinFilmTint guard).
+    // (mirrors evalReflectionMicrofacetThinFilm).
     auto applyThinFilm = [](sm::float3 baseF0, float cosT, float thickness, float ior, float weight) {
         const sm::float3 base =
             baseF0 + (sm::float3(1.0F) - baseF0) * std::pow(std::clamp(1.0F - cosT, 0.0F, 1.0F), 5.0F);

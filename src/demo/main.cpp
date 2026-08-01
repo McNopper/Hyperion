@@ -37,6 +37,9 @@ int main(int argc, char* const argv[]) {
             demoConfig.maxDepth = value;
         } else if (harmonia::CliParser::applyCommonArg(config, i, argc, argv)) {
             continue;
+        } else {
+            harmonia::Logger::error("Unrecognized command-line argument: {}", argv[i]);
+            return 2;
         }
     }
 
