@@ -35,7 +35,7 @@ class PathTracer {
         std::uint32_t envImportanceHeight = 0; ///< CDF grid height
         harmonia::Tonemapper tonemapper = harmonia::Tonemapper::eACES;
         harmonia::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020;
-        bool serEnabled = false;         ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
+        bool serEnabled = false; ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
     };
 
     [[nodiscard]] static std::expected<PathTracer, VkResult> create(const harmonia::DeviceContext& ctx,
