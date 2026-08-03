@@ -24,7 +24,8 @@ TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {
     const std::uint32_t matMetal = scene.addMaterial(harmonia::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
 
     harmonia::MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
-    const std::uint32_t boxMesh = scene.addMesh(deviceCtx(), commandPool(), std::move(box), "test.box");
+    const std::uint32_t boxMesh =
+        scene.addMesh(deviceCtx(), commandPool(), std::move(box), harmonia::MeshOpacity{}, "test.box");
     ASSERT_NE(boxMesh, std::numeric_limits<std::uint32_t>::max()) << "Failed to upload floor mesh";
 
     const std::uint32_t sphereMesh = scene.addSphereMesh(deviceCtx(), commandPool(), 0.5F, "test.sphere");
@@ -49,7 +50,8 @@ TEST_F(RtFixture, Scene_BuildWithMeshOnly) {
     const std::uint32_t mat = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.5F), 1.0F));
 
     harmonia::MeshData tri = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F));
-    const std::uint32_t mesh = scene.addMesh(deviceCtx(), commandPool(), std::move(tri), "test.solo");
+    const std::uint32_t mesh =
+        scene.addMesh(deviceCtx(), commandPool(), std::move(tri), harmonia::MeshOpacity{}, "test.solo");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
     ASSERT_NE(scene.addInstance(mesh, harmonia::Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
 
@@ -79,7 +81,8 @@ TEST_F(RtFixture, Scene_BuildWithMultipleInstancesOfOneMesh) {
     const std::uint32_t mat = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.7F), 1.0F));
 
     harmonia::MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(0.8F)); // one unique mesh
-    const std::uint32_t mesh = scene.addMesh(deviceCtx(), commandPool(), std::move(box), "test.shared");
+    const std::uint32_t mesh =
+        scene.addMesh(deviceCtx(), commandPool(), std::move(box), harmonia::MeshOpacity{}, "test.shared");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
 
     for (std::size_t i = 0; i < 4; ++i) {

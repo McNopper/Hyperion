@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(hyperion VERSION 0.7.5 LANGUAGES C CXX)
+project(hyperion VERSION 0.7.7 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -193,16 +193,16 @@ endif()
 # development against working copies, override FETCHCONTENT_SOURCE_DIR_AETHER /
 # FETCHCONTENT_SOURCE_DIR_HARMONIA.
 # Aether is declared first so Harmonia reuses this same declaration (dedup by
-# name). Aether is pinned v0.7.2; Harmonia is pinned to the latest release.
+# name). Aether is pinned v0.7.3; Harmonia is pinned to the latest release.
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v0.7.2
+    GIT_TAG v0.7.3
 )
 FetchContent_Declare(
     harmonia
     GIT_REPOSITORY https://github.com/McNopper/Harmonia.git
-    GIT_TAG v0.7.6
+    GIT_TAG v0.7.7
 )
 
 FetchContent_MakeAvailable(aether harmonia)
@@ -212,6 +212,7 @@ set(HYPERION_SHADER_OUTPUT_DIR "${CMAKE_BINARY_DIR}/shaders")
 set(HYPERION_ENTRY_SHADERS
     raygen.slang
     closesthit.slang
+    anyhit.slang
     intersection.slang
     miss.slang
     shadow_miss.slang

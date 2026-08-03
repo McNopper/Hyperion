@@ -5,6 +5,7 @@ import env;
 import path_integrator;
 import medium_walk;
 import surface;
+import texsampler;
 
 #ifdef POSITION_FETCH_ENABLED
 /// Fetch the object-space position of a hit-triangle vertex via
@@ -114,22 +115,22 @@ HitInfo makeSphereHit(SphereIntersectionAttributes attr)
     return hit;
 }
 
-/// Bindless-texture fetcher for the shared surface-frame populator (mip 0).
-struct HyperionTextureSampler : ISurfaceTextureSampler {
-    float4 sampleTex(uint idx, float2 uv) {
-        return bindlessTextures[NonUniformResourceIndex(idx)]
-            .SampleLevel(bindlessSamplers[NonUniformResourceIndex(idx)], uv, 0.0);
-    }
-};
-
 /// Shadow-ray tracer for the shared path integrator (ITracer).
-/// Returns true when origin→direction*tMax is unoccluded (the shadow miss shader fired).
-/// All instances are visible (kInstanceMaskAll); tMax stops just before the sampled light
-/// surface so the ray does not self-intersect it.
+/// Returns the transmittance along origin→direction*tMax: 1 = clear, 0 = blocked,
+/// and in between the OpenPBR "transparent shadows" product ∏(1-α) accumulated by
+/// the shadow any-hit over cut-out crossings (anyhit.slang).
+///
+/// `RayContributionToHitGroupIndex = 1` selects the shadow hit groups (the ones
+/// carrying that any-hit and no closest-hit); ACCEPT_FIRST_HIT still ends the
+/// traversal at the first *accepted* hit, which for fully-present geometry is the
+/// first hit — so opaque scenes trace exactly as they did before.
+/// All instances are visible (kInstanceMaskAll); tMax stops just before the sampled
+/// light surface so the ray does not self-intersect it.
 struct HyperionTracer : ITracer {
-    bool traceOccluded(float3 origin, float3 direction, float tMax) {
+    float traceTransmittance(float3 origin, float3 direction, float tMax) {
         ShadowPayload p;
-        p.inShadow = true;
+        p.missed = false;
+        p.transmittance = 1.0;
         RayDesc ray;
         ray.Origin    = origin;
         ray.Direction = direction;
@@ -137,8 +138,8 @@ struct HyperionTracer : ITracer {
         ray.TMax      = tMax;
         TraceRay(tlas,
                  RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
-                 kInstanceMaskAll, 0, 2, 1, ray, p);
-        return !p.inShadow;
+                 kInstanceMaskAll, 1, 2, 1, ray, p);
+        return p.missed ? saturate(p.transmittance) : 0.0;
     }
 }
 
@@ -207,6 +208,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     state.seed           = payload.seed;
     state.terminated     = false;
     state.specularBounce = payload.specularBounce;
+    state.passedThrough  = false;
     state.lastBsdfPdf    = payload.lastBsdfPdf;
     state.nextOrigin     = payload.origin;
     state.nextDirection  = payload.direction;
@@ -230,6 +232,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     payload.seed           = state.seed;
     payload.terminated     = state.terminated;
     payload.specularBounce = state.specularBounce;
+    payload.passedThrough  = state.passedThrough;
     payload.lastBsdfPdf    = state.lastBsdfPdf;
     payload.origin         = state.nextOrigin;
     payload.direction      = state.nextDirection;

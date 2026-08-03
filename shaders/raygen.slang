@@ -44,6 +44,7 @@ void pathTracingRaygen()
         payload.seed           = seed;
         payload.terminated     = false;
         payload.specularBounce = false;
+        payload.passedThrough  = false;
         payload.lastBsdfPdf    = 0.0;
         payload.insideMedium   = false;
         payload.mediumSigmaT   = 0.0.xxx;
@@ -66,7 +67,10 @@ void pathTracingRaygen()
             RayDesc ray;
             ray.Origin = payload.origin;
             ray.Direction = payload.direction;
-            ray.TMin = wasInMedium ? kMediumEpsilon : kRayEpsilon;
+            // A null interaction (opacity pass-through) and a medium segment both RESUME the
+            // ray rather than scatter it, so both use the small continuation epsilon; only a
+            // real bounce needs the scattering self-intersection guard.
+            ray.TMin = (wasInMedium || payload.passedThrough) ? kMediumEpsilon : kRayEpsilon;
             if (wasInMedium) {
                 payload.mediumFreeDist = mediumSampleFreeFlight(payload.mediumSigmaT, payload.mediumAlbedo, payload.seed);
                 ray.TMax = payload.mediumFreeDist;
@@ -75,8 +79,14 @@ void pathTracingRaygen()
             }
             TraceRay(tlas, RAY_FLAG_NONE, kInstanceMaskAll, 0, 2, 0, ray, payload);
             totalIters++;
-            // Only an ordinary (non-medium) segment counts as a surface bounce toward maxDepth.
-            if (!wasInMedium) {
+            // Only an ordinary (non-medium) segment that actually SCATTERED counts as a
+            // surface bounce toward maxDepth. An OpenPBR opacity pass-through selected the
+            // ambient-medium side of mix(ambient, surface, geometry_opacity): no surface was
+            // there, so it is a null interaction like a medium free-flight segment. Charging
+            // it would black out cut-out geometry wherever a ray grazes several crossings
+            // (the budget runs out before any light is gathered); the global maxIters cap
+            // still guarantees termination.
+            if (!wasInMedium && !payload.passedThrough) {
                 surfaceBounces++;
                 payload.depth++;
             }

@@ -41,6 +41,11 @@ struct RayPayload {
     RngState seed         : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     bool   terminated    : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     bool   specularBounce: read(caller, closesthit)       : write(caller, closesthit);
+    // OpenPBR opacity pass-through: the vertex resolved to the ambient-medium side of
+    // mix(ambient, surface, geometry_opacity), so no surface interaction happened and
+    // the ray continued unchanged. raygen must not charge it against maxDepth — it is a
+    // null interaction, exactly like a medium free-flight segment.
+    bool   passedThrough : read(caller, closesthit)       : write(caller, closesthit);
     float  lastBsdfPdf   : read(caller, closesthit, miss) : write(caller, closesthit);
     // Step 3 (bulk subsurface random walk): when true, the NEXT TraceRay call is a segment
     // of a volumetric random walk rather than an ordinary bounce — raygen caps its TMax to
@@ -54,9 +59,16 @@ struct RayPayload {
     float  mediumFreeDist : read(caller, closesthit, miss) : write(caller, closesthit, miss);
 };
 
+/// Shadow-ray payload. `transmittance` is the running ∏(1-α) accumulated by the
+/// shadow any-hit over cut-out crossings; `missed` is set only by the shadow
+/// miss shader, so it distinguishes "the ray got through (possibly attenuated)"
+/// from "a fully present surface accepted the hit and ended the search" — the
+/// latter also covers hits traversal accepted on its own (an opacity micromap's
+/// OPAQUE microtriangles never invoke the any-hit).
 [raypayload]
 struct ShadowPayload {
-    bool inShadow : read(caller, miss) : write(caller, miss);
+    bool  missed        : read(caller, miss)         : write(caller, miss);
+    float transmittance : read(caller, anyhit, miss) : write(caller, anyhit);
 };
 
 struct HitInfo {

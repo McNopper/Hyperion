@@ -11,7 +11,7 @@ It implements the [OpenPBR Surface v1.1.1](https://academysoftwarefoundation.git
 
 ## Screenshots
 
-All 29 test scenes — Hyperion path tracer at **64 spp**, 1280×720 (fireflies from the low
+All 30 test scenes — Hyperion path tracer at **64 spp**, 1280×720 (fireflies from the low
 sample count are expected; 64 spp keeps the full-gallery render tractable).
 
 | cornell_classic | cornell_classic_rec709 | cornell_empty |
@@ -46,13 +46,13 @@ sample count are expected; 64 spp keeps the full-gallery render tractable).
 |:---:|:---:|:---:|
 | ![shaderball_thinfilm](screenshots/shaderball_thinfilm.png) | ![shaderball_transmission](screenshots/shaderball_transmission.png) | ![shaderball_emission](screenshots/shaderball_emission.png) |
 
-| shader_ball | bunny_shaderball | camera_suzanne |
+| shaderball_checker | shader_ball | bunny_shaderball |
 |:---:|:---:|:---:|
-| ![shader_ball](screenshots/shader_ball.png) | ![bunny_shaderball](screenshots/bunny_shaderball.png) | ![camera_suzanne](screenshots/camera_suzanne.png) |
+| ![shaderball_checker](screenshots/shaderball_checker.png) | ![shader_ball](screenshots/shader_ball.png) | ![bunny_shaderball](screenshots/bunny_shaderball.png) |
 
-| ABeautifulGame | dragon_teapot |
-|:---:|:---:|
-| ![ABeautifulGame](screenshots/ABeautifulGame.png) | ![dragon_teapot](screenshots/dragon_teapot.png) |
+| camera_suzanne | ABeautifulGame | dragon_teapot |
+|:---:|:---:|:---:|
+| ![camera_suzanne](screenshots/camera_suzanne.png) | ![ABeautifulGame](screenshots/ABeautifulGame.png) | ![dragon_teapot](screenshots/dragon_teapot.png) |
 
 ---
 
@@ -84,7 +84,7 @@ All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.githu
 | Thin-film | `thin_film_weight`, `thin_film_thickness`, `thin_film_ior` |
 | Transmission | `transmission_weight`, `transmission_color`, `transmission_depth` |
 | Subsurface | `subsurface_weight`, `subsurface_color`, `subsurface_radius`, `subsurface_radius_scale`, `subsurface_scatter_anisotropy` |
-| Geometry | `geometry_opacity` |
+| Geometry | `geometry_opacity`, `map_opacity` | true presence weight (`mix(ambient-medium, surface, α)`, spec §Opacity/Transparency) — resolved stochastically at every hit, textured or scalar; shadow rays carry the matching `∏(1-α)` transmittance. `VK_EXT_opacity_micromap` accelerates a textured mask's RT traversal (`shaderball_checker`) without changing the result — see `shaderball_checker_omm.micromap.toml` |
 
 Conductor reflectance uses the OpenPBR generalized-Schlick **F82-tint** model
 (`base_color` = F0, `specular_color` = the 82° tint); specular/coat microfacets

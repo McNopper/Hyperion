@@ -13,6 +13,7 @@
         .intersection = rootDir / "intersection.spv",
         .miss = rootDir / "miss.spv",
         .shadowMiss = rootDir / "shadow_miss.spv",
+        .shadowAnyHit = rootDir / "anyhit.spv",
     };
 }
 

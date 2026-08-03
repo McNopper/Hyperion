@@ -170,8 +170,8 @@ TEST(PathTracer, CornellBoxNonBlack) {
     const std::uint32_t lightMaterial = scene.addMaterial(harmonia::Material::emissive(sm::float3(1.0F), 50000.0F));
 
     harmonia::MeshData floorMesh = harmonia::ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
-    const std::uint32_t floorMeshIdx =
-        scene.addMesh(context->deviceContext(), *commandPool, std::move(floorMesh), "test.floor");
+    const std::uint32_t floorMeshIdx = scene.addMesh(
+        context->deviceContext(), *commandPool, std::move(floorMesh), harmonia::MeshOpacity{}, "test.floor");
     if (floorMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
         scene.addInstance(floorMeshIdx, harmonia::Xform{.translation = {0.0F, -1.5F, 0.0F}}, floorMaterial) ==
             std::numeric_limits<std::uint32_t>::max()) {

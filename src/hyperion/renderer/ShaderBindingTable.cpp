@@ -14,7 +14,7 @@ ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
                            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps) {
     constexpr std::uint32_t raygenCount = 1;
     constexpr std::uint32_t missCount = 2;
-    constexpr std::uint32_t hitCount = 2;
+    constexpr std::uint32_t hitCount = harmonia::Pipeline::kHitGroupCount;
     constexpr std::uint32_t groupCount = raygenCount + missCount + hitCount;
 
     const std::uint32_t handleSize = rtProps.shaderGroupHandleSize;
