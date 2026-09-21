@@ -2,6 +2,9 @@
 
 Quick-start context for AI agents so basic facts don't have to be rediscovered each session.
 
+**Outstanding work, governance (definition of done + guardrails) and release history: see
+[`PLAN.md`](PLAN.md).**
+
 ## What this repo is
 
 **Hyperion** is a Vulkan **path tracer** and the **ground-truth reference renderer** for the
@@ -29,7 +32,9 @@ Pipeline (dependency direction):
 
 ```mermaid
 flowchart LR
-    A["Aether<br/>file format"] --> H["Harmonia<br/>shared Vulkan lib"]
+    SM["slang-math<br/>math"] --> A["Aether<br/>file format"]
+    SM --> H
+    A --> H["Harmonia<br/>shared Vulkan lib"]
     H --> Hy["<b>Hyperion</b><br/>path tracer · ground truth (this repo)"]
     H --> T["Theia<br/>real-time renderer"]
 ```
@@ -58,7 +63,7 @@ CLI flags: all common Harmonia flags (`--scene/-s`, `--output/-o`, `--width`, `-
 ## Gotchas (these waste a cycle every time they're forgotten)
 
 - **Assets come from `build/_deps/aether-src/assets/`** (FetchContent clone), NOT the working
-  Aether tree. Editing `C:\Development\GitHub\Aether\assets` does nothing unless you also
+  Aether tree. Editing the Aether working tree's `assets/` does nothing unless you also
   update the `_deps` copy or build with `-DFETCHCONTENT_SOURCE_DIR_AETHER=...`. Symptom:
   two "different" renders give byte-identical metrics. See Aether/AGENTS.md.
 - **spp for parity:** the meadow IBL scenes reference 64–128 spp presets (noisy under IBL).

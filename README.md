@@ -66,7 +66,6 @@ sample count are expected; 64 spp keeps the full-gallery render tractable).
 - **Environment map importance sampling** — 2D separable CDF (256×128) built from panorama luminance × sin(θ); MIS-weighted against BSDF paths in the miss shader; eliminates fireflies from bright suns and skies
 - Analytic spheres via `VK_KHR_ray_tracing_pipeline` intersection shaders
 - Image-based lighting (IBL) — equirectangular HDR panorama via `env_map`
-- Firefly suppression (channel-average clamping with NaN guard)
 - À trous wavelet denoiser pass (interactive presentation stage only; forced off for `--output` captures — fixed pixel radius, not a converging filter)
 - Headless render mode with PNG + EXR output
 - **`VK_KHR_ray_tracing_maintenance1`** (required) — `vkCmdTraceRaysIndirect2KHR` indirect dispatch (GPU-buffer-driven ray dispatch dimensions; pre-set at `PathTracer::create()` / `onResize()` — never written on the hot render path). The extension is a hard device requirement; device selection fails fast when it is absent
@@ -86,51 +85,16 @@ All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.githu
 | Subsurface | `subsurface_weight`, `subsurface_color`, `subsurface_radius`, `subsurface_radius_scale`, `subsurface_scatter_anisotropy` |
 | Geometry | `geometry_opacity`, `map_opacity` | true presence weight (`mix(ambient-medium, surface, α)`, spec §Opacity/Transparency) — resolved stochastically at every hit, textured or scalar; shadow rays carry the matching `∏(1-α)` transmittance. `VK_EXT_opacity_micromap` accelerates a textured mask's RT traversal (`shaderball_checker`) without changing the result — see `shaderball_checker_omm.micromap.toml` |
 
-Conductor reflectance uses the OpenPBR generalized-Schlick **F82-tint** model
-(`base_color` = F0, `specular_color` = the 82° tint); specular/coat microfacets
-use GGX with the spec's anisotropy remapping plus Turquin/Kulla-Conty multiple-scattering
-energy compensation on both the reflection **and** the rough-transmission lobes (so rough
-glass does not lose energy).
-
-**Layer stacking** follows OpenPBR's directional-albedo coupling rather than a linear blend:
-each lower layer is attenuated by the directional albedo of the layer above it
-(`R_out = R_top + (1 − E_top)·R_base`). The coat darkens the substrate by `1 − coat·E_coat`
-and the dielectric diffuse/subsurface base sits under the specular layer (`1 − E_spec`); both
-are applied symmetrically in view/light so the stack stays reciprocal and energy-conserving.
-
-**Thin-film iridescence** is the spec model — a faithful port of MaterialX `mx_fresnel_airy`
-(Belcour & Barla 2017): a full s/p-polarized Airy summation with the spectral Gaussian
-sensitivity. For metals it uses the true **complex-IOR conductor phase** (with `(n,k)`
-recovered from `base_color` + `specular_color` via the Gulbrandsen 2014 artist-friendly
-mapping), so anodized metals show vivid, physically-correct interference colour; dielectric
-bases use the Schlick interface, and the two are blended by `base_metalness`.
-
-**Fuzz/sheen** is the OpenPBR spec model — a faithful port of MaterialX's Zeltner et al. 2022
-"Practical Multiple-Scattering Sheen Using Linearly Transformed Cosines". The LTC coefficients
-and the sheen directional albedo are closed-form analytic fits (no lookup table), and that
-directional albedo also drives the physically-correct, view-dependent darkening of the layers
-beneath the fuzz.
-
-**Subsurface** (bulk, non-thin-walled) is a **real volumetric random walk**, not a diffusion
-or tinted-diffuse approximation: light refracts through the dielectric interface (Fresnel-gated),
-takes an exponential free-flight walk with Henyey-Greenstein phase scattering
-(`subsurface_scatter_anisotropy` = the phase mean cosine), and exits through the interface with
-Fresnel-gated transmission / total internal reflection. Extinction is **chromatic (per-channel)** —
-derived from `subsurface_radius` × `subsurface_radius_scale`, so the default `(1, 0.5, 0.25)` scale
-gives the characteristic red-shifted subsurface glow; the single-scatter albedo is `subsurface_color`.
-A **hero-wavelength spectral-MIS estimator** samples one channel's mean-free-path per step and
-reweights the others, and reduces exactly to the achromatic walk when the extinction is grey (clear
-glass stays byte-stable). The walk runs on its own bounce budget (it does not starve surface
-transport). Thin-walled subsurface keeps a diffuse reflection/transmission sheet.
-
-**Transmission scattering** reuses the same volumetric walk: when `transmission_scatter` is set,
-the smooth dielectric interior becomes a genuine scattering medium (milky/cloudy liquids) rather
-than a fixed tint, while `transmission_color` / `transmission_depth` provide the Beer–Lambert
-absorption. For pure absorbers (`transmission_scatter = 0`) the walk applies **exact deterministic
-per-channel Beer–Lambert transmittance** at the boundary (ratio-tracking degenerate case — zero
-walk variance), and dielectric exits are **side-correct**: interior rays refract with the inverted
-IOR and undergo genuine total internal reflection, matching the MaterialX `dielectric_bsdf` /
-PBRT-v4 `DielectricBxDF` convention.
+Conductor reflectance, layer stacking, thin-film iridescence, fuzz/sheen, the volumetric
+subsurface/transmission random walk, and Beer–Lambert pure absorbers are implemented once
+in the shared Harmonia `bsdf_shared.slang` — see
+[Harmonia README — Material model](../Harmonia/README.md#material-model--openpbr-surface-v111)
+for the canonical description. Hyperion runs that shared BSDF **unbiased** at full offline
+depth (dispersion, multi-bounce glass, unbounded walks) and is the conformance ground truth
+for the family: spec-correctness lands here first, references are regenerated, then Theia is
+aligned. Renderer-specific notes: analytic spheres use the RT-pipeline intersection shader,
+and cutout opacity adds a shadow-only any-hit hit-group pair so shadow rays carry the
+matching ∏(1−α) transmittance while camera/indirect rays keep the stochastic presence gate.
 
 ### Color pipeline
 - Scene-referred rendering in a selectable **working color space**: linear **Rec.2020**
@@ -186,7 +150,9 @@ Hyperion is the **offline / ground-truth** renderer in a family of four reposito
 
 ```mermaid
 flowchart LR
-    A["Aether<br/>file format"] --> H["Harmonia<br/>shared Vulkan lib"]
+    SM["slang-math<br/>math"] --> A["Aether<br/>file format"]
+    SM --> H
+    A --> H["Harmonia<br/>shared Vulkan lib"]
     H --> Hy["<b>Hyperion</b><br/>path tracer · ground truth"]
     H --> T["Theia<br/>real-time renderer"]
 ```
