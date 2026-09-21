@@ -49,7 +49,7 @@ gate measures against. Most estimator work is therefore owned by Harmonia (see
 | PERF3 | **GPU acceleration-structure pipeline** for Hyperion (reframe — CPU-side BV is stale under hwRT): AS **refit-vs-rebuild + compaction** (Vulkan 1.4 `vkCmdBuildAccelerationStructures`). Prerequisite for ANI2 (per-frame refit). `VK_EXT_opacity_micromap` itself shipped standalone in v0.7.7 — that was the single-mesh cutout-acceleration use case only; this item is the broader refit/rebuild/compaction pipeline, unaffected. | — | backlog |
 | PERF6 | **RAFI** multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. — 2026, [arXiv:2605.30294](https://arxiv.org/abs/2605.30294)); Hyperion large-scene/streaming scaling. | — | backlog |
 | ANI7 | **Render animated sequence to disk** — batch/offline render of a timeline range: for each frame, sample the node graph at shutter time, render (Hyperion path trace / Theia accumulate via `--offscreen-frames`) and write per-frame EXR+PNG to disk. The animation production output step — the sequence equivalent of headless `--output`. | ANI1, ANI2 | backlog |
-| SM6-Hyperion | **slang-math v0.3.0 migration slice** — test-mirror `rsqrt`/`saturate` cleanup (`tests/unit/test_bsdf.cpp:489` hand-mirrored `1/std::sqrt`); bump the FetchContent pin in this repo's release commit. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
+| SM6-Hyperion | **slang-math v0.3.0 migration slice** — test-mirror `rsqrt`/`saturate` cleanup (`tests/unit/test_bsdf.cpp:491` hand-mirrored `1/std::sqrt`); bump the FetchContent pin in this repo's release commit. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
 
 ### Consumed items (owned elsewhere — pointers)
 
