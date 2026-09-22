@@ -90,7 +90,7 @@ cmake --build build
 cd build; ctest --output-on-failure
 ```
 
-SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides openexr, stb.
+SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides tomlplusplus and OpenImageIO.
 
 ## Conventions
 
