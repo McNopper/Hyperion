@@ -672,7 +672,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     const float etaS = std::lerp(specIorRaw, etaRatioG3, std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F));
     const float f0sqrtG3 = (etaS - 1.0F) / (etaS + 1.0F);
     const float scaledF0G3 =
-        std::clamp(std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F) * f0sqrtG3 * f0sqrtG3, 0.0F, 0.99999F);
+        std::clamp(std::max(mat.specularColorWeight.w, 0.0F) * f0sqrtG3 * f0sqrtG3, 0.0F, 0.99999F);
     const float epsG3 = (etaS >= 1.0F ? 1.0F : -1.0F) * std::sqrt(scaledF0G3);
     const float eta = (1.0F + epsG3) / std::max(1.0F - epsG3, 1.0e-4F);
     const float diffuseRough = std::clamp(mat.baseMetalnessDiffRough.y, 0.0F, 1.0F);
@@ -1016,6 +1016,31 @@ TEST(Bsdf, OpenPbrWhiteFurnaceRepresentativeConfigsStayBounded) {
         EXPECT_GE(energy, 0.0);
         EXPECT_LE(energy, 1.10);
     }
+}
+
+TEST(Bsdf, SpecularWeightAboveOneBoostsDielectricF0WithinSpecClamp) {
+    // OpenPBR v1.1.1 §base-substrate: specular_weight may exceed 1, boosting the dielectric
+    // reflectivity above the specular_ior level; the mandated internal clamp ξ_s·F_s ≤ 1 keeps
+    // the scaled F0 < 1, so even an extreme weight must stay furnace-bounded (no energy
+    // creation) instead of exploding. Regression guard for the G3 modulated-eta path (the
+    // parser and the shader both accept values > 1; the clamp lives in openpbrModulatedEta).
+    const sm::float3 wo = sm::normalize(sm::float3(0.05F, 0.03F, 0.998F)); // near-normal incidence
+
+    auto dielectricSpecOnly = [](float specularWeight) {
+        harmonia::GpuMaterial mat = makeMaterial();
+        mat.baseColorWeight = sm::float4(0.0F, 0.0F, 0.0F, 1.0F); // black base: diffuse ~0
+        mat.baseMetalnessDiffRough = sm::float4(0.0F, 0.0F, 0.0F, 0.0F);
+        mat.specularColorWeight = sm::float4(1.0F, 1.0F, 1.0F, specularWeight);
+        mat.specularRoughAnisoIor = sm::float4(0.3F, 0.0F, 1.5F, 0.0F);
+        return mat;
+    };
+
+    const double e1 = estimateWhiteFurnaceEnergy(dielectricSpecOnly(1.0F), wo, 20000);
+    const double e2 = estimateWhiteFurnaceEnergy(dielectricSpecOnly(2.0F), wo, 20000);
+    const double eHuge = estimateWhiteFurnaceEnergy(dielectricSpecOnly(100.0F), wo, 20000);
+
+    EXPECT_GT(e2, e1 * 1.2); // the >1 boost is real (not clamped away at the input)
+    EXPECT_LE(eHuge, 1.10);  // the ξ_s·F_s ≤ 1 clamp prevents energy creation
 }
 
 TEST(Bsdf, ZeltnerSheenIsEnergyConservingAndGrazingPeaked) {
