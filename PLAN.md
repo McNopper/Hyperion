@@ -32,10 +32,11 @@ gate measures against. Most estimator work is therefore owned by Harmonia (see
 
 ## At a glance
 
-- **Release:** v0.7.7 — lockstep with Harmonia/Theia (slang-math v0.2.1, Aether v0.7.3;
+- **Release:** v0.7.8 — lockstep with Harmonia/Theia (slang-math v0.2.1, Aether v0.7.4;
   all tag-synced with GitHub).
 - **Last shipped (v0.7.7):** C14/VK2 — real OpenPBR `geometry_opacity` cutout; Hyperion's
-  slice was the shadow-only any-hit hit-group pair (see Baseline).
+  slice was the shadow-only any-hit hit-group pair (see Baseline). **v0.7.8** is a
+  conformance/tooling wave (see Baseline).
 - **Next:** nothing Hyperion-owned is on the family's next-up list right now — the active
   items (GI-SMS, C9, DN3, LS2, PERF5/PERF4, C11, C12) land in the **shared estimator**
   (Harmonia/PLAN.md) and are consumed here. Hyperion-owned backlog: PERF3, PERF6, ANI7.
@@ -113,7 +114,15 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
-- **v0.7.7** (current): **C14/VK2 — real OpenPBR `geometry_opacity` cutout.** A shadow-only
+- **v0.7.8** (current): consumes Harmonia v0.7.8 (VK11 `shaderDemoteToHelperInvocation`;
+  OpenPBR 1.1.1 conformance: `specular_weight` > 1 with the spec's ξ_s·F_s ≤ 1 clamp, and the
+  transmission negative-μ_a gray-shift) and Aether v0.7.4 (spec defaults: coat_ior 1.6,
+  thin_film_ior 1.4, thin_film_thickness 500 nm). New conformance test
+  `Bsdf.SpecularWeightAboveOneBoostsDielectricF0WithinSpecClamp` (the >1 boost is real; an
+  extreme weight stays furnace-bounded) + the test-side `openpbrModulatedEta` mirror synced.
+  Tooling (presets / check_tidy.py + test_tidy / HYPERION_SANITIZER / deterministic FP).
+  43 ctest green.
+- **v0.7.7**: **C14/VK2 — real OpenPBR `geometry_opacity` cutout.** A shadow-only
   any-hit hit-group pair (`anyhit.slang`, `triangleShadowAnyHit`/`sphereShadowAnyHit`)
   accumulates the ∏(1-α) transmittance product and ends the search early on a fully-present
   hit; the radiance hit groups carry no any-hit (camera/indirect opacity stays the estimator's
