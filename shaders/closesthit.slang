@@ -217,6 +217,9 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     state.mediumAlbedo   = payload.mediumAlbedo;
     state.mediumG        = payload.mediumG;
     state.mediumEta      = payload.mediumEta;
+    state.captureRe      = 0u; // GI-ENH (a) capture is Theia-only; zero here keeps
+    state.reCaptured     = 0u; // integrateSurface's capture branch inert for Hyperion.
+    state.rec.flags      = 0u;
 
     HyperionTracer tracer;
     integrateSurface(tracer, surf,
