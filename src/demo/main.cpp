@@ -35,6 +35,7 @@ int main(int argc, char* const argv[]) {
             demoConfig.sppExplicit = true;
         } else if (consumeValue(i, argc, argv, "--depth", value)) {
             demoConfig.maxDepth = value;
+            demoConfig.maxDepthExplicit = true;
         } else if (harmonia::CliParser::applyCommonArg(config, i, argc, argv)) {
             continue;
         } else {

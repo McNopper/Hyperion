@@ -21,7 +21,7 @@ target_link_libraries(hyperion_unit_tests
 target_include_directories(hyperion_unit_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../src"
 )
-gtest_discover_tests(hyperion_unit_tests)
+gtest_discover_tests(hyperion_unit_tests PROPERTIES RUN_SERIAL TRUE)
 
 # ---------------------------------------------------------------------------
 # Module tests — multi-object GPU workflows (Scene build, Pipeline + SBT)
@@ -51,7 +51,7 @@ target_include_directories(hyperion_module_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../src"
     "${harmonia_SOURCE_DIR}/tests"
 )
-gtest_discover_tests(hyperion_module_tests)
+gtest_discover_tests(hyperion_module_tests PROPERTIES RUN_SERIAL TRUE)
 
 # ---------------------------------------------------------------------------
 # System / Integration tests — full end-to-end path tracer render
@@ -78,4 +78,4 @@ target_link_libraries(hyperion_integration_tests
 target_include_directories(hyperion_integration_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../src"
 )
-gtest_discover_tests(hyperion_integration_tests)
+gtest_discover_tests(hyperion_integration_tests PROPERTIES RUN_SERIAL TRUE)

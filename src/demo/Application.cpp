@@ -58,7 +58,19 @@ bool Application::onInitialize() {
         shaderPaths.closesthitTriangle = closestHitPath;
         shaderPaths.closesthitSphere = closestHitPath;
     }
-    auto pipeline = harmonia::Pipeline::create(deviceContext(), descriptors(), shaderPaths, m_demoConfig.maxDepth);
+    // RT pipeline recursion depth is a limit on the shader's TraceRay NESTING, not the
+    // path bounce budget — the two are unrelated. Hyperion nests exactly two deep:
+    // raygen -> TraceRay -> closesthit, and closesthit -> TraceRay (shadow) ->
+    // anyhit/shadowMiss, where RAY_FLAG_SKIP_CLOSEST_HIT_SHADER stops that shadow ray
+    // from recursing further. The depth is therefore a constant 2 for any maxDepth.
+    //
+    // Passing m_demoConfig.maxDepth here conflated the two concepts and only worked by
+    // accident: onInitialize() runs before applySceneOverrides(), so the pipeline was
+    // always built with the pre-override default (8). Had the scene override landed
+    // first, a max_depth=1 scene would have declared a recursion limit of 1 and broken
+    // every NEE shadow ray.
+    constexpr std::uint32_t kRayRecursionDepth = 2;
+    auto pipeline = harmonia::Pipeline::create(deviceContext(), descriptors(), shaderPaths, kRayRecursionDepth);
     if (!pipeline) {
         harmonia::Logger::error("harmonia::Pipeline creation failed: VkResult {}", static_cast<int>(pipeline.error()));
         return false;
@@ -167,7 +179,7 @@ void Application::applySceneOverrides(const harmonia::SceneLoader::SceneConfig& 
     if (config.spp && !m_demoConfig.sppExplicit) {
         m_demoConfig.spp = *config.spp;
     }
-    if (config.maxDepth) {
+    if (config.maxDepth && !m_demoConfig.maxDepthExplicit) {
         m_demoConfig.maxDepth = *config.maxDepth;
     }
 }

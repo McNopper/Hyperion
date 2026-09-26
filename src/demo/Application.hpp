@@ -28,6 +28,7 @@ class Application final : public harmonia::App, public harmonia::IRenderer {
         std::uint32_t spp = 4;
         std::uint32_t maxDepth = 8;
         bool sppExplicit = false; ///< true if --spp was given on the command line
+        bool maxDepthExplicit = false; ///< true if --depth was given on the command line
         std::filesystem::path shaderDir;
     };
 

@@ -11,6 +11,7 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/renderer/Camera.hpp"
+#include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/OutputColorSpace.hpp"
 
@@ -42,7 +43,7 @@ class PathTracer {
                                                                     VkExtent2D renderExtent,
                                                                     const harmonia::Pipeline& pipeline,
                                                                     const ShaderBindingTable& sbt,
-                                                                    const harmonia::Descriptors& descriptors,
+                                                                    harmonia::Descriptors& descriptors,
                                                                     const Config& config);
 
     VkResult render(VkCommandBuffer cmd,
@@ -71,7 +72,8 @@ class PathTracer {
     const harmonia::DeviceContext* m_ctx{};
     VkPipeline m_rtPipeline{VK_NULL_HANDLE};
     VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
-    VkDescriptorSet m_sceneSet{VK_NULL_HANDLE};
+    /// MOD1: descriptor buffer — scene set bound via Descriptors::bindSceneSet().
+    harmonia::Descriptors* m_descriptors{nullptr};
     VkExtent2D m_extent{};
     Config m_config;
     harmonia::Buffer m_cameraBuffer{};

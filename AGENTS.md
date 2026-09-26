@@ -93,6 +93,23 @@ cd build; ctest --output-on-failure
 Equivalent preset flow (Ninja + Release + clang-cl + `$env:VCPKG_ROOT` toolchain):
 `cmake --preset win` / `cmake --build --preset win` / `ctest --preset win`.
 
+> **⚠️ Do not run things in parallel — it slows the machine to a crawl.**
+> - **Tests are serialised in CMake:** every test carries `RUN_SERIAL`, so `ctest -j`
+>   cannot parallelise them. That only covers *within* one `ctest` invocation, so still
+>   run ONE repo's suite at a time (never Harmonia + Theia + Hyperion together).
+> - **GPU jobs strictly one after the other:** renders, gallery generation and parity
+>   gates all saturate the GPU. Run one, wait for it to finish, then start the next.
+>   Two concurrent jobs make both several times slower and interleave their logs.
+> - **Offscreen capture self-deprioritises:** `App::renderOffscreen()` drops the
+>   process to below-normal CPU priority (`BELOW_NORMAL_PRIORITY_CLASS` on Windows,
+>   nice +10 on POSIX) for the whole capture, so the desktop stays usable while a
+>   render runs. A per-frame `std::this_thread::yield()` alone is NOT sufficient - it
+>   is `SwitchToThread()`/`sched_yield()`, only a hint that does nothing when no
+>   equal-or-higher-priority thread is already runnable. On POSIX the drop is one-way
+>   for an unprivileged process (raising priority back needs `CAP_SYS_NICE`), so it is
+>   used only in the one-shot capture path. This helps *during* a capture; it is still
+>   not licence to run two captures at once.
+
 **Static analysis:** `python tools/check_tidy.py` â€” parallel clang-tidy over
 `build/compile_commands.json`, classified per `.clang-tidy`'s WarningsAsErrors contract
 (clang-diagnostic/clang-analyzer/bugprone fail the run; modernize/performance/portability

@@ -23,11 +23,12 @@ std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceCon
                                                        VkExtent2D renderExtent,
                                                        const harmonia::Pipeline& pipeline,
                                                        const ShaderBindingTable& sbt,
-                                                       const harmonia::Descriptors& descriptors,
+                                                       harmonia::Descriptors& descriptors,
                                                        const Config& config) {
     auto cameraBuffer = harmonia::Buffer::create(ctx,
                                                  sizeof(harmonia::CameraData),
-                                                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+                                                     VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
                                                  "hyperion.camera");
     if (!cameraBuffer) {
@@ -50,7 +51,7 @@ std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceCon
     tracer.m_ctx = &ctx;
     tracer.m_rtPipeline = pipeline.rtPipeline();
     tracer.m_pipelineLayout = descriptors.pipelineLayout();
-    tracer.m_sceneSet = descriptors.set1();
+    tracer.m_descriptors = &descriptors; // MOD1: bindSceneSet() replaces set1()
     tracer.m_extent = renderExtent;
     tracer.m_config = config;
     tracer.m_cameraBuffer = std::move(*cameraBuffer);
@@ -190,14 +191,10 @@ void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
     };
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
-    vkCmdPushDescriptorSet(cmd,
-                           VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-                           m_pipelineLayout,
-                           0,
-                           static_cast<std::uint32_t>(writes.size()),
-                           writes.data());
-    vkCmdBindDescriptorSets(
-        cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipelineLayout, 1, 1, &m_sceneSet, 0, nullptr);
+    // MOD1: write set 0 via descriptor buffer + bind both sets.
+    m_descriptors->updateFrameSet(*m_ctx, tlasHandle, hdrImage.view(), m_cameraBuffer.handle(),
+                                  gNormal.view(), gDepth.view());
+    m_descriptors->bindSceneSet(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 }
 
 void PathTracer::pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std::uint32_t frameIndex) noexcept {
