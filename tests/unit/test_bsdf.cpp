@@ -832,7 +832,15 @@ estimateWhiteFurnaceEnergy(const harmonia::GpuMaterial& mat, const sm::float3& w
 // `mx_ggx_dir_albedo` = `mx_ggx_dir_albedo_analytic`) against ground-truth Monte-Carlo integration
 // of the actual BRDFs, and to check physical properties (reciprocity, energy normalization).
 
-// Smith-GGX VNDF (Heitz 2018, isotropic). Mirrors Harmonia math.slang sampleGGX_VNDF.
+// Smith-GGX VNDF (Heitz 2018), the STANDARD unbounded visible-normal sampler.
+//
+// NOTE: this is deliberately NOT a mirror of Harmonia math.slang's `sampleGGX_VNDF`,
+// which is the C9 BOUNDED variant (Eto & Tokuyoshi 2023, cap o_z in (-k*i_std.z, 1]). The
+// bounded sampler draws from a renormalised sub-range (Eq. 8), so the identity used below -
+// directional albedo = E_{m ~ standard VNDF}[G2/G1] - would be BIASED if this drew from
+// that sub-range. This helper is the ground-truth MC proposal; the shader's bounded
+// sampler and its matching PDF are tested separately (C9* tests at the bottom of this
+// file), including the sampler/PDF consistency check that a white furnace cannot make.
 [[nodiscard]] sm::float3 sampleGgxVndf(const sm::float3& Ve, float alpha, float u1, float u2) noexcept {
     const sm::float3 Vh = sm::normalize(sm::float3(alpha * Ve.x, alpha * Ve.y, Ve.z));
     const float lensq = (Vh.x * Vh.x) + (Vh.y * Vh.y);
@@ -1809,4 +1817,213 @@ TEST(Bsdf, OpenPbrV0_MediumExitFresnelReportsTirAboveCriticalAngle) {
         const float F = fresnelDielectricSigned(-0.9F, eta);
         EXPECT_NEAR(F + (1.0F - F), 1.0F, 1.0e-6F) << "eta=" << eta;
     }
+}
+
+// ─── C9 bounded VNDF: sampler ↔ PDF consistency ───────────────────────────────
+// This is the contract that let a bias of up to +/-35% ship unnoticed.
+//
+// `estimateWhiteFurnaceEnergy` integrates `evalBSDF` by uniform-hemisphere sampling, so it
+// never calls `sampleGGX_VNDF` or `pdfBSDF`. Every white-furnace / energy test above is
+// therefore blind to a sampler<->PDF mismatch: the integrand can be perfectly energy-
+// conserving while the estimator is biased, because the estimator divides by a density that
+// does not match the distribution it drew from. The mirrors below track the shaders exactly
+// (math.slang sampleGGX_VNDF = Eto & Tokuyoshi 2023 Listing 1; GGX_VNDF_PDF = Eq. 8 for
+// i_z >= 0 and the stable Eq. 7 below; bsdf_shared.slang reflectionPdf delegates to the
+// latter and converts with |dm/do| = 1/(4|i.m|)).
+//
+// The core assertion is importance-sampling consistency: for o drawn from the sampler,
+//   E[ f(o) / p(o) ] == integral_{o.z>0} f(o) dw
+// with f(o) = max(o.z, 0), whose exact value is pi.
+
+namespace {
+
+[[nodiscard]] double c9ggxD(const sm::float3& m, float alphaX, float alphaY) noexcept {
+    if (m.z <= 0.0F) {
+        return 0.0;
+    }
+    const double sx = m.x / alphaX;
+    const double sy = m.y / alphaY;
+    const double mz = m.z;
+    const double d = (sx * sx) + (sy * sy) + (mz * mz);
+    return 1.0 / (harmonia::Math::kPi * alphaX * alphaY * d * d);
+}
+
+// Eq. 5, with Eq. 6's conservative alpha = min(ax, ay, 1). k is built from the
+// UNSTRETCHED i_z even though the cap half-width below multiplies the stretched z.
+[[nodiscard]] double c9k(const sm::float3& v, float alphaX, float alphaY) noexcept {
+    const float a = std::min(std::min(alphaX, alphaY), 1.0F);
+    const float sLen = 1.0F + std::sqrt((v.x * v.x) + (v.y * v.y));
+    const double a2 = static_cast<double>(a) * a;
+    const double s2 = static_cast<double>(sLen) * sLen;
+    return (1.0 - a2) * s2 / (s2 + (a2 * static_cast<double>(v.z) * v.z));
+}
+
+// Listing 1. Returns the microfacet half-vector m.
+[[nodiscard]] sm::float3
+c9sampleVndf(const sm::float3& Ve, float alphaX, float alphaY, float u1, float u2) noexcept {
+    const sm::float3 Vh = sm::normalize(sm::float3(alphaX * Ve.x, alphaY * Ve.y, Ve.z));
+    // Cap half-width in STRETCHED z (i_std.z = Vh.z). Using the unstretched i_z here was the
+    // shipped defect: it sampled the wrong sub-range and paired it with the wrong density.
+    const float b = (Ve.z > 0.0F) ? (static_cast<float>(c9k(Ve, alphaX, alphaY)) * Vh.z) : Vh.z;
+    const float phi = harmonia::Math::k2Pi * u1;
+    const float z = ((1.0F - u2) * (1.0F + b)) - b;   // Listing 1: mad(1 - rand.y, 1 + b, -b)
+    const float sinTheta = std::sqrt(std::max(0.0F, 1.0F - (z * z)));
+    const sm::float3 oStd(sinTheta * std::cos(phi), sinTheta * std::sin(phi), z);
+    const sm::float3 mStd = Vh + oStd;                // mStd.z > 0 by construction
+    return sm::normalize(sm::float3(alphaX * mStd.x, alphaY * mStd.y, mStd.z));
+}
+
+// Half-vector density. Eq. 8 for i_z >= 0 (denominator k*i_z + t); the stable rearrangement
+// of Eq. 7 for a backfacing shading normal (i_z + t is a near-cancelling difference there).
+[[nodiscard]] double
+c9vndfPdf(const sm::float3& h, const sm::float3& v, float alphaX, float alphaY) noexcept {
+    const double d = c9ggxD(h, alphaX, alphaY);
+    const double dotVh = std::max(static_cast<double>(sm::dot(v, h)), 0.0);
+    if (dotVh <= 0.0) {
+        return 0.0;
+    }
+    const double tx = alphaX * v.x;
+    const double ty = alphaY * v.y;
+    const double vz = v.z;
+    const double t = std::sqrt((tx * tx) + (ty * ty) + (vz * vz));
+    if (v.z >= 0.0F) {
+        return (2.0 * d * dotVh) / std::max((c9k(v, alphaX, alphaY) * vz) + t, 1.0e-20);
+    }
+    const double len2 = (tx * tx) + (ty * ty);
+    return (2.0 * d * dotVh * (t - vz)) / std::max(len2, 1.0e-20);
+}
+
+// The UNBOUNDED Eq. 7 density, for the negative control below.
+[[nodiscard]] double
+c9vndfPdfUnbounded(const sm::float3& h, const sm::float3& v, float alphaX, float alphaY) noexcept {
+    const double d = c9ggxD(h, alphaX, alphaY);
+    const double dotVh = std::max(static_cast<double>(sm::dot(v, h)), 0.0);
+    if (dotVh <= 0.0) {
+        return 0.0;
+    }
+    const double tx = alphaX * v.x;
+    const double ty = alphaY * v.y;
+    const double t = std::sqrt((tx * tx) + (ty * ty) + (static_cast<double>(v.z) * v.z));
+    return (2.0 * d * dotVh) / std::max(static_cast<double>(v.z) + t, 1.0e-20);
+}
+
+// Solid-angle density of the reflection lobe. Mirrors bsdf_shared.slang reflectionPdf,
+// which delegates to GGX_VNDF_PDF and applies |dm/do| = 1/(4|i.m|).
+[[nodiscard]] double
+c9reflectionPdf(const sm::float3& wo, const sm::float3& wi, float alphaX, float alphaY) noexcept {
+    if (wo.z <= 0.0F || wi.z <= 0.0F) {
+        return 0.0;
+    }
+    const sm::float3 h = sm::normalize(wo + wi);
+    const double voH = std::abs(static_cast<double>(sm::dot(wo, h)));
+    if (voH <= 0.0) {
+        return 0.0;
+    }
+    return c9vndfPdf(h, wo, alphaX, alphaY) / std::max(4.0 * voH, 1.0e-20);
+}
+
+// E[ f(o)/p(o) ] for f(o) = max(o.z,0), with o = the reflection of -v about the sampled m.
+// p_o = p_m * |dm/do| = p_m / (4 |v.m|). Exact value of the integral is pi.
+[[nodiscard]] double c9ImportanceSamplingEstimate(
+    const sm::float3& i, float alphaX, float alphaY,
+    double (*pdfFn)(const sm::float3&, const sm::float3&, float, float),
+    std::size_t samples, std::uint32_t seed) {
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<float> dist(0.0F, 1.0F);
+    double sum = 0.0;
+    for (std::size_t n = 0; n < samples; ++n) {
+        const sm::float3 m = c9sampleVndf(i, alphaX, alphaY, dist(rng), dist(rng));
+        const sm::float3 o = sm::normalize((2.0F * sm::dot(i, m) * m) - i);
+        const double pM = pdfFn(m, i, alphaX, alphaY);
+        const double vDotM = std::abs(static_cast<double>(sm::dot(i, m)));
+        const double pO = pM / std::max(4.0 * vDotM, 1.0e-20);
+        if (pO <= 0.0) {
+            continue;
+        }
+        sum += std::max(static_cast<double>(o.z), 0.0) / pO;
+    }
+    return sum / static_cast<double>(samples);
+}
+
+} // namespace
+
+TEST(Bsdf, C9BoundedVndfPdfMatchesListing2ClosedForm) {
+    // Listing 2's solid-angle form is D / (2 (k i_z + t)). The half-vector density
+    // 2 D (v.h) / (k i_z + t) must reduce to exactly that through |dm/do| = 1/(4|v.h|).
+    for (const float ax : {0.25F, 0.5F, 0.9F}) {
+        for (const float ay : {0.25F, 0.5F, 0.9F}) {
+            for (const sm::float3 v : {
+                     sm::normalize(sm::float3(0.0F, 0.0F, 1.0F)),
+                     sm::normalize(sm::float3(0.52F, 0.22F, 0.825F)),
+                     sm::normalize(sm::float3(0.8F, 0.5F, 0.33F))}) {
+                const sm::float3 h = sm::normalize(sm::float3(0.31F, 0.17F, 0.94F));
+                const double impl = c9vndfPdf(h, v, ax, ay);
+                const double vDotH = std::max(static_cast<double>(sm::dot(v, h)), 0.0);
+                const double solidAngle = impl / std::max(4.0 * vDotH, 1.0e-20);
+
+                const double tx = ax * v.x;
+                const double ty = ay * v.y;
+                const double t = std::sqrt((tx * tx) + (ty * ty) + (static_cast<double>(v.z) * v.z));
+                const double closed = (v.z >= 0.0F)
+                    ? (c9ggxD(h, ax, ay) / (2.0 * ((c9k(v, ax, ay) * v.z) + t)))
+                    : (c9ggxD(h, ax, ay) * (t - v.z) / (2.0 * ((tx * tx) + (ty * ty))));
+
+                EXPECT_NEAR(solidAngle, closed, 1.0e-9 * std::max(1.0, closed))
+                    << "ax=" << ax << " ay=" << ay << " v=(" << v.x << "," << v.y << "," << v.z << ")";
+            }
+        }
+    }
+}
+
+TEST(Bsdf, C9BoundedSamplerIsUnbiasedForItsOwnPdf) {
+    // Importance-sampling consistency: E[f(o)/p(o)] == integral_{o.z>0} o.z dw == pi.
+    // The shipped defect (bounded sampler + unbounded Eq. 7 PDF, plus the wrong cap width)
+    // failed this by tens of percent while every white-furnace check still passed.
+    // Fixed RNG seed => deterministic, so a tight tolerance is safe (not flaky).
+    constexpr double kPi = 3.14159265358979323846;
+    const double tol = 0.02 * kPi;  // 2%: 17x tighter than the ~35% defect, loose enough for float32
+    for (const float ax : {0.2F, 0.5F, 0.9F}) {
+        for (const float ay : {0.2F, 0.5F, 0.9F}) {
+            for (const sm::float3 i : {
+                     sm::normalize(sm::float3(0.0F, 0.0F, 1.0F)),
+                     sm::normalize(sm::float3(0.52F, 0.22F, 0.825F)),
+                     sm::normalize(sm::float3(0.3F, 0.4F, 0.5F))}) {
+                const double est =
+                    c9ImportanceSamplingEstimate(i, ax, ay, c9vndfPdf, 200000U, 0x5EEDU);
+                EXPECT_NEAR(est, kPi, tol) << "ax=" << ax << " ay=" << ay;
+            }
+        }
+    }
+}
+
+TEST(Bsdf, C9ReflectionPdfMatchesHalfVectorDensity) {
+    // reflectionPdf must equal the half-vector density scaled by |dm/do| = 1/(4|i.m|) - i.e.
+    // it must be the SAME density the sampler draws from. A second, independent expression of
+    // the reflection PDF (the old G1-based Eq. 7 form) is what let the two drift apart.
+    for (const float ax : {0.3F, 0.7F}) {
+        for (const float ay : {0.3F, 0.7F}) {
+            const sm::float3 wo = sm::normalize(sm::float3(0.4F, 0.3F, 0.6F));
+            const sm::float3 wi = sm::normalize(sm::float3(-0.2F, 0.5F, 0.7F));
+            const sm::float3 h = sm::normalize(wo + wi);
+            const double expected =
+                c9vndfPdf(h, wo, ax, ay) / std::max(4.0 * std::abs(static_cast<double>(sm::dot(wo, h))), 1.0e-20);
+            EXPECT_NEAR(c9reflectionPdf(wo, wi, ax, ay), expected, 1.0e-12 * std::max(1.0, expected));
+        }
+    }
+}
+
+TEST(Bsdf, C9MismatchedPdfIsDetected_NegativeControl) {
+    // "Does this test have teeth?": pair the bounded sampler with the UNBOUNDED Eq. 7 PDF -
+    // one of the two shipped defects - and assert the estimator is visibly wrong. If this
+    // ever passes, the consistency check above has gone vacuous and protects nothing.
+    //
+    // Magnitude note: this pairing alone is biased tens of percent (largest at high
+    // roughness / oblique view); the fully shipped defect added a wrong cap width on top and
+    // reached ~35%. Asserting >10% keeps this robustly triggered while staying well clear
+    // of the 2% noise floor of the consistency test.
+    constexpr double kPi = 3.14159265358979323846;
+    const sm::float3 i = sm::normalize(sm::float3(0.52F, 0.22F, 0.825F));
+    const double est = c9ImportanceSamplingEstimate(i, 0.9F, 0.9F, c9vndfPdfUnbounded, 200000U, 0x5EEDU);
+    EXPECT_GT(std::abs(est - kPi), 0.10 * kPi)
+        << "bounded sampler + unbounded PDF should be clearly biased; est=" << est;
 }
