@@ -273,19 +273,40 @@ if(BUILD_TESTING)
         FetchContent_MakeAvailable(googletest)
     endif()
 
+    # gtest v1.15.2 has an implicit char8_t->char32_t conversion in C++23;
+    # suppress it - but only where the compiler actually KNOWS
+    # -Wno-character-conversion (clang added that group after the runner
+    # images' bundled clang; unknown -Wno-* options are silent until -Werror,
+    # where they hard-fail - observed in CI). The check runs with -Werror so
+    # it fails exactly like the real build would; a compiler whose check fails
+    # also cannot emit the warning, so flag and warning stay coupled.
+    include(CheckCXXCompilerFlag)
+    set(_hyperion_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror")
+    check_cxx_compiler_flag("-Wno-character-conversion" HYPERION_HAVE_WNO_CHARACTER_CONVERSION)
+    set(CMAKE_REQUIRED_FLAGS "${_hyperion_saved_required_flags}")
+
     if(TARGET gtest)
         set_property(TARGET gtest PROPERTY SYSTEM ON)
-        target_compile_options(gtest PRIVATE -Wno-character-conversion)
+        if(HYPERION_HAVE_WNO_CHARACTER_CONVERSION)
+            target_compile_options(gtest PRIVATE -Wno-character-conversion)
+        endif()
     endif()
     if(TARGET gtest_main)
         set_property(TARGET gtest_main PROPERTY SYSTEM ON)
-        target_compile_options(gtest_main PRIVATE -Wno-character-conversion)
+        if(HYPERION_HAVE_WNO_CHARACTER_CONVERSION)
+            target_compile_options(gtest_main PRIVATE -Wno-character-conversion)
+        endif()
     endif()
     if(TARGET gmock)
-        target_compile_options(gmock PRIVATE -Wno-character-conversion)
+        if(HYPERION_HAVE_WNO_CHARACTER_CONVERSION)
+            target_compile_options(gmock PRIVATE -Wno-character-conversion)
+        endif()
     endif()
     if(TARGET gmock_main)
-        target_compile_options(gmock_main PRIVATE -Wno-character-conversion)
+        if(HYPERION_HAVE_WNO_CHARACTER_CONVERSION)
+            target_compile_options(gmock_main PRIVATE -Wno-character-conversion)
+        endif()
     endif()
     if(NOT TARGET GTest::gtest AND TARGET gtest)
         add_library(GTest::gtest ALIAS gtest)
