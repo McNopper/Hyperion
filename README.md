@@ -1,5 +1,7 @@
 # Hyperion
 
+[![Build](https://github.com/McNopper/Hyperion/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/McNopper/Hyperion/actions/workflows/build.yml)
+
 Vulkan path-tracer for OpenPBR.
 
 > *[Hyperion](https://en.wikipedia.org/wiki/Hyperion_(mythology)) — Titan of heavenly light, father of Helios, Selene and Eos.*
