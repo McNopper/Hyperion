@@ -719,7 +719,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
         sm::float3 glossyF0 =
             sm::lerp(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
         const sm::float3 glossyF82 = specColor;
-        const float specF0 = harmonia::Math::luminance(dielectricF0 * specColor);
+        const float specF0 = harmonia::ColorSpace::luminance(dielectricF0 * specColor);
         auto underSpec = [&](float c) {
             return std::clamp(
                 1.0F -
@@ -795,7 +795,7 @@ estimateWhiteFurnaceEnergy(const harmonia::GpuMaterial& mat, const sm::float3& w
     for (std::size_t i = 0; i < sampleCount; ++i) {
         const sm::float3 wi = sampleUniformSphere(dist(rng), dist(rng));
         const sm::float3 f = evalBSDF(mat, wo, wi, N, T, B, N, T, B);
-        sum += static_cast<double>(harmonia::Math::luminance(f) * std::abs(wi.z) * (4.0 * harmonia::Math::kPi));
+        sum += static_cast<double>(harmonia::ColorSpace::luminance(f) * std::abs(wi.z) * (4.0 * harmonia::Math::kPi));
     }
     return sum / static_cast<double>(sampleCount);
 }
@@ -1702,7 +1702,7 @@ TEST(Bsdf, OpenPbrV0_ThinFilmUnderCoatStaysBounded) {
 [[nodiscard]] float sssExtinction(float radius, const sm::float3& radiusScale) noexcept {
     const float mfp =
         std::max(radius, 1.0e-4F) *
-        std::max(harmonia::Math::luminance(sm::clamp(radiusScale, sm::float3(0.0F), sm::float3(1.0F))), 1.0e-4F);
+        std::max(harmonia::ColorSpace::luminance(sm::clamp(radiusScale, sm::float3(0.0F), sm::float3(1.0F))), 1.0e-4F);
     return 1.0F / std::max(mfp, 1.0e-4F);
 }
 

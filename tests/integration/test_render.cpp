@@ -297,7 +297,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     double averageLuminance = 0.0;
     const std::size_t pixelCount = static_cast<std::size_t>(renderExtent.width) * renderExtent.height;
     for (std::size_t i = 0; i < pixelCount; ++i) {
-        averageLuminance += harmonia::Math::luminance(sm::max(sm::float3(pixels[i]), sm::float3(0.0F)));
+        averageLuminance += harmonia::ColorSpace::luminance(sm::max(sm::float3(pixels[i]), sm::float3(0.0F)));
     }
     averageLuminance /= static_cast<double>(pixelCount);
 
