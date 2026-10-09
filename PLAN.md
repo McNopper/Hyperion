@@ -114,7 +114,22 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
-- **v0.7.8** (current): consumes Harmonia v0.7.8 (VK11 `shaderDemoteToHelperInvocation`;
+- **v0.7.11** (current; consumes Harmonia v0.7.10 + transitive slang-math v0.3.0): **dual-OS
+  CI; refactoring wave 1 (HY-01 + H-04 follow-through); descriptor-range fix; regenerated
+  gallery.** Build-only CI on windows-latest + ubuntu-26.04 (the GPU suites stay local).
+  **HY-01:** dead MOD1 descriptor-write scaffolding deleted from
+  `PathTracer::writeFrameDescriptors` (~85 lines of never-consumed `VkWriteDescriptorSet`
+  payload; `tlasHandle` stays). **H-04 follow-through:** `Math::luminance` Middle Man inlined
+  at its four test call sites. **Fix** (`range-08045` follow-through): `updateSceneSet`/
+  `updateFrameSet` pass `Buffer` refs so descriptor ranges are the buffers' true creation
+  sizes. README gallery regenerated at release settings — **pixel-identical to the v0.7.10
+  gallery (MAD = 0 on all 30 scenes)**. 48/48 ctest green on both OSes; offscreen
+  `--validation` clean.
+- **v0.7.10**: **C9 sampler/PDF consistency tests (the net that caught a 35% shared-BSDF
+  bias).** (Entry backfilled 2026-10-09 from the release commit.)
+- **v0.7.9**: **--depth honoured, RT recursion depth corrected; consumes Harmonia v0.7.9.**
+  (Entry backfilled 2026-10-09 from the release commit.)
+- **v0.7.8**: consumes Harmonia v0.7.8 (VK11 `shaderDemoteToHelperInvocation`;
   OpenPBR 1.1.1 conformance: `specular_weight` > 1 with the spec's ξ_s·F_s ≤ 1 clamp, and the
   transmission negative-μ_a gray-shift) and Aether v0.7.4 (spec defaults: coat_ior 1.6,
   thin_film_ior 1.4, thin_film_thickness 500 nm). New conformance test
