@@ -102,7 +102,7 @@ void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
     // MOD1: write set 0 via descriptor buffer + bind both sets.
-    m_descriptors->updateFrameSet(*m_ctx, tlasHandle, hdrImage.view(), m_cameraBuffer.handle(),
+    m_descriptors->updateFrameSet(*m_ctx, tlasHandle, hdrImage.view(), m_cameraBuffer,
                                   gNormal.view(), gDepth.view());
     m_descriptors->bindSceneSet(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 }

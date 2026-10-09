@@ -199,13 +199,13 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     if (const VkResult descriptorResult = descriptors->updateSceneSet(context->deviceContext(),
-                                                                      scene.instanceBuffer().handle(),
-                                                                      scene.materialBuffer().handle(),
-                                                                      scene.vertexBuffer().handle(),
-                                                                      scene.indexBuffer().handle(),
-                                                                      scene.lightBuffer().handle(),
-                                                                      scene.emissiveTriangleBuffer().handle(),
-                                                                      scene.emissiveCdfBuffer().handle(),
+                                                                      scene.instanceBuffer(),
+                                                                      scene.materialBuffer(),
+                                                                      scene.vertexBuffer(),
+                                                                      scene.indexBuffer(),
+                                                                      scene.lightBuffer(),
+                                                                      scene.emissiveTriangleBuffer(),
+                                                                      scene.emissiveCdfBuffer(),
                                                                       scene.textures());
         descriptorResult != VK_SUCCESS) {
         GTEST_SKIP() << "Failed to update scene descriptor set: VkResult=" << static_cast<int>(descriptorResult);

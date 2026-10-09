@@ -209,13 +209,13 @@ void Application::buildCamera(const harmonia::SceneLoader::SceneConfig& config) 
 
 VkResult Application::setupSceneDescriptors() {
     return descriptors().updateSceneSet(deviceContext(),
-                                        m_scene.instanceBuffer().handle(),
-                                        m_scene.materialBuffer().handle(),
-                                        m_scene.vertexBuffer().handle(),
-                                        m_scene.indexBuffer().handle(),
-                                        m_scene.lightBuffer().handle(),
-                                        m_scene.emissiveTriangleBuffer().handle(),
-                                        m_scene.emissiveCdfBuffer().handle(),
+                                        m_scene.instanceBuffer(),
+                                        m_scene.materialBuffer(),
+                                        m_scene.vertexBuffer(),
+                                        m_scene.indexBuffer(),
+                                        m_scene.lightBuffer(),
+                                        m_scene.emissiveTriangleBuffer(),
+                                        m_scene.emissiveCdfBuffer(),
                                         m_scene.textures());
 }
 
