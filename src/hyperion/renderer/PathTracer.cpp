@@ -1,11 +1,9 @@
 #include "hyperion/renderer/PathTracer.hpp"
 
-#include <array>
 #include <cstdint>
 
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
-#include "hyperion/renderer/PathTracer.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "hyperion/scene/Scene.hpp"
 
@@ -100,95 +98,7 @@ void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
     const harmonia::CameraData cameraData = camera.getCameraData(frameIndex, m_config.maxDepth);
     m_cameraBuffer.uploadData(&cameraData, sizeof(cameraData), 0);
 
-    const VkDescriptorImageInfo hdrInfo{
-        .sampler = VK_NULL_HANDLE,
-        .imageView = hdrImage.view(),
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-    };
-    const VkDescriptorBufferInfo cameraInfo{
-        .buffer = m_cameraBuffer.handle(),
-        .offset = 0,
-        .range = sizeof(harmonia::CameraData),
-    };
-    const VkDescriptorImageInfo gNormalInfo{
-        .sampler = VK_NULL_HANDLE,
-        .imageView = gNormal.view(),
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-    };
-    const VkDescriptorImageInfo gDepthInfo{
-        .sampler = VK_NULL_HANDLE,
-        .imageView = gDepth.view(),
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-    };
     const VkAccelerationStructureKHR tlasHandle = scene.tlas();
-    const VkWriteDescriptorSetAccelerationStructureKHR asInfo{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
-        .pNext = nullptr,
-        .accelerationStructureCount = 1,
-        .pAccelerationStructures = &tlasHandle,
-    };
-
-    std::array<VkWriteDescriptorSet, 5> writes{};
-    writes[0] = VkWriteDescriptorSet{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = &asInfo,
-        .dstSet = VK_NULL_HANDLE,
-        .dstBinding = 0,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
-        .pImageInfo = nullptr,
-        .pBufferInfo = nullptr,
-        .pTexelBufferView = nullptr,
-    };
-    writes[1] = VkWriteDescriptorSet{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = nullptr,
-        .dstSet = VK_NULL_HANDLE,
-        .dstBinding = 1,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = &hdrInfo,
-        .pBufferInfo = nullptr,
-        .pTexelBufferView = nullptr,
-    };
-    writes[2] = VkWriteDescriptorSet{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = nullptr,
-        .dstSet = VK_NULL_HANDLE,
-        .dstBinding = 2,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .pImageInfo = nullptr,
-        .pBufferInfo = &cameraInfo,
-        .pTexelBufferView = nullptr,
-    };
-    writes[3] = VkWriteDescriptorSet{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = nullptr,
-        .dstSet = VK_NULL_HANDLE,
-        .dstBinding = 4,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = &gNormalInfo,
-        .pBufferInfo = nullptr,
-        .pTexelBufferView = nullptr,
-    };
-    writes[4] = VkWriteDescriptorSet{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .pNext = nullptr,
-        .dstSet = VK_NULL_HANDLE,
-        .dstBinding = 5,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = &gDepthInfo,
-        .pBufferInfo = nullptr,
-        .pTexelBufferView = nullptr,
-    };
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
     // MOD1: write set 0 via descriptor buffer + bind both sets.
