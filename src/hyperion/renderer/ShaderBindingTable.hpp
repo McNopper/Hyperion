@@ -8,15 +8,16 @@
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/core/Buffer.hpp"
 
-namespace harmonia {
+namespace harmonia::renderer {
 class Pipeline;
 }
 
+namespace hyperion {
 class ShaderBindingTable {
   public:
-    [[nodiscard]] static std::expected<ShaderBindingTable, VkResult>
+    [[nodiscard]] static std::expected<hyperion::ShaderBindingTable, VkResult>
     create(const harmonia::DeviceContext& ctx,
-           const harmonia::Pipeline& pipeline,
+           const harmonia::renderer::Pipeline& pipeline,
            const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps);
 
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& raygenRegion() const noexcept { return m_raygen; }
@@ -24,9 +25,10 @@ class ShaderBindingTable {
     [[nodiscard]] const VkStridedDeviceAddressRegionKHR& hitRegion() const noexcept { return m_hit; }
 
   private:
-    harmonia::Buffer m_sbtBuffer{};
+    harmonia::core::Buffer m_sbtBuffer{};
     VkStridedDeviceAddressRegionKHR m_raygen{};
     VkStridedDeviceAddressRegionKHR m_miss{};
     VkStridedDeviceAddressRegionKHR m_hit{};
 };
+} // namespace hyperion
 #endif // HYPERION_RENDERER_SHADERBINDINGTABLE_HPP

@@ -1,4 +1,4 @@
-// Module tests: ShaderBindingTable spec compliance.
+// Module tests: hyperion::ShaderBindingTable spec compliance.
 //
 // The raygen SBT region must satisfy VUID-vkCmdTraceRaysKHR-size-04023: its size must equal
 // the stride (always exactly 1 raygen shader), not alignUp(stride, baseAlignment). The
@@ -26,7 +26,7 @@ namespace {
 }
 } // namespace
 
-// Fixture that creates harmonia::Descriptors + harmonia::Pipeline + SBT once per test.
+// Fixture that creates harmonia::renderer::Descriptors + harmonia::renderer::Pipeline + SBT once per test.
 class SbtFixture : public RtFixture {
   protected:
     void SetUp() override {
@@ -38,23 +38,23 @@ class SbtFixture : public RtFixture {
             GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();
         }
 
-        auto desc = harmonia::Descriptors::create(deviceCtx());
-        ASSERT_TRUE(desc.has_value()) << "harmonia::Descriptors::create failed: " << static_cast<int>(desc.error());
-        m_descriptors = std::make_unique<harmonia::Descriptors>(std::move(*desc));
+        auto desc = harmonia::renderer::Descriptors::create(deviceCtx());
+        ASSERT_TRUE(desc.has_value()) << "harmonia::renderer::Descriptors::create failed: " << static_cast<int>(desc.error());
+        m_descriptors = std::make_unique<harmonia::renderer::Descriptors>(std::move(*desc));
 
-        auto pipeline = harmonia::Pipeline::create(deviceCtx(), *m_descriptors, paths, 2U);
+        auto pipeline = harmonia::renderer::Pipeline::create(deviceCtx(), *m_descriptors, paths, 2U);
         ASSERT_TRUE(pipeline.has_value())
-            << "harmonia::Pipeline::create failed: " << static_cast<int>(pipeline.error());
-        m_pipeline = std::make_unique<harmonia::Pipeline>(std::move(*pipeline));
+            << "harmonia::renderer::Pipeline::create failed: " << static_cast<int>(pipeline.error());
+        m_pipeline = std::make_unique<harmonia::renderer::Pipeline>(std::move(*pipeline));
 
-        auto sbt = ShaderBindingTable::create(deviceCtx(), *m_pipeline, physInfo().rtProps);
-        ASSERT_TRUE(sbt.has_value()) << "ShaderBindingTable::create failed: " << static_cast<int>(sbt.error());
-        m_sbt = std::make_unique<ShaderBindingTable>(std::move(*sbt));
+        auto sbt = hyperion::ShaderBindingTable::create(deviceCtx(), *m_pipeline, physInfo().rtProps);
+        ASSERT_TRUE(sbt.has_value()) << "hyperion::ShaderBindingTable::create failed: " << static_cast<int>(sbt.error());
+        m_sbt = std::make_unique<hyperion::ShaderBindingTable>(std::move(*sbt));
     }
 
-    std::unique_ptr<harmonia::Descriptors> m_descriptors;
-    std::unique_ptr<harmonia::Pipeline> m_pipeline;
-    std::unique_ptr<ShaderBindingTable> m_sbt;
+    std::unique_ptr<harmonia::renderer::Descriptors> m_descriptors;
+    std::unique_ptr<harmonia::renderer::Pipeline> m_pipeline;
+    std::unique_ptr<hyperion::ShaderBindingTable> m_sbt;
 };
 
 // VUID-vkCmdTraceRaysKHR-size-04023: the raygen region size MUST equal stride
@@ -78,7 +78,7 @@ TEST_F(SbtFixture, ShaderBindingTable_MissAndHitRegionsNonZero) {
     EXPECT_GT(m_sbt->hitRegion().size, VkDeviceSize{0}) << "Hit region size";
 }
 
-// harmonia::Pipeline's RT pipeline handle must be non-null after creation.
+// harmonia::renderer::Pipeline's RT pipeline handle must be non-null after creation.
 TEST_F(SbtFixture, Pipeline_HandlesNonNull) {
     EXPECT_NE(m_pipeline->rtPipeline(), VK_NULL_HANDLE) << "RT pipeline handle";
 }

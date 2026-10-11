@@ -114,7 +114,14 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
-- **v0.7.11** (current; consumes Harmonia v0.7.10 + transitive slang-math v0.3.0): **dual-OS
+- **v0.7.12** (current; consumes Harmonia v0.7.12): **the layering wave.** Hyperion's classes
+  (`PathTracer`, `ShaderBindingTable`, `Scene`, `Application`) move out of `harmonia::`/global
+  scope into **`namespace hyperion`**, symmetric with `theia::`; all `harmonia::` references
+  name their layer (`harmonia::core::Buffer`, `harmonia::rt::TlasBuilder`, …). Stale
+  `harmonia::Pipeline` forward declarations corrected to `harmonia::renderer::`. Docs
+  re-verified. README gallery regenerated from this code — **byte-identical** to the previous
+  set (clean tree). 48/48 ctest on Windows and Linux; zero validation errors and warnings.
+- **v0.7.11** (consumes Harmonia v0.7.10 + transitive slang-math v0.3.0): **dual-OS
   CI; refactoring wave 1 (HY-01 + H-04 follow-through); descriptor-range fix; regenerated
   gallery.** Build-only CI on windows-latest + ubuntu-26.04 (the GPU suites stay local).
   **HY-01:** dead MOD1 descriptor-write scaffolding deleted from

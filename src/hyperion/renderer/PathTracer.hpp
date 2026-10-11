@@ -15,43 +15,46 @@
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/OutputColorSpace.hpp"
 
-namespace harmonia {
+namespace hyperion {
 class Descriptors;
 }
-namespace harmonia {
+namespace harmonia::renderer {
 class Pipeline;
 }
+namespace hyperion {
 class Scene;
 class ShaderBindingTable;
+}
 
+namespace hyperion {
 class PathTracer {
   public:
     struct Config {
         std::uint32_t samplesPerPixel = 4;
         std::uint32_t maxDepth = 8;
         float envLuminance = 1.0f;
-        harmonia::OutputColorSpace outputColorSpace = harmonia::OutputColorSpace::eHDR10;
+        harmonia::utils::OutputColorSpace outputColorSpace = harmonia::utils::OutputColorSpace::eHDR10;
         std::uint32_t hasEnvMap = 0;           ///< 1 = IBL env map bound at set1/binding6
         std::uint32_t envImportanceWidth = 0;  ///< CDF grid width; 0 = importance sampling disabled
         std::uint32_t envImportanceHeight = 0; ///< CDF grid height
         harmonia::Tonemapper tonemapper = harmonia::Tonemapper::eACES;
-        harmonia::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::ColorSpace::WorkingColorSpace::LinRec2020;
+        harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
         bool serEnabled = false; ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
     };
 
-    [[nodiscard]] static std::expected<PathTracer, VkResult> create(const harmonia::DeviceContext& ctx,
+    [[nodiscard]] static std::expected<hyperion::PathTracer, VkResult> create(const harmonia::DeviceContext& ctx,
                                                                     VkExtent2D renderExtent,
-                                                                    const harmonia::Pipeline& pipeline,
-                                                                    const ShaderBindingTable& sbt,
-                                                                    harmonia::Descriptors& descriptors,
+                                                                    const harmonia::renderer::Pipeline& pipeline,
+                                                                    const hyperion::ShaderBindingTable& sbt,
+                                                                    harmonia::renderer::Descriptors& descriptors,
                                                                     const Config& config);
 
     VkResult render(VkCommandBuffer cmd,
-                    const Scene& scene,
-                    const harmonia::Camera& camera,
-                    const harmonia::Image& hdrImage,
-                    const harmonia::Image& gNormal,
-                    const harmonia::Image& gDepth,
+                    const hyperion::Scene& scene,
+                    const harmonia::renderer::Camera& camera,
+                    const harmonia::core::Image& hdrImage,
+                    const harmonia::core::Image& gNormal,
+                    const harmonia::core::Image& gDepth,
                     std::uint32_t frameIndex) noexcept;
 
     void setConfig(const Config& config) noexcept;
@@ -59,13 +62,13 @@ class PathTracer {
 
   private:
     void writeFrameDescriptors(VkCommandBuffer cmd,
-                               const Scene& scene,
-                               const harmonia::Camera& camera,
+                               const hyperion::Scene& scene,
+                               const harmonia::renderer::Camera& camera,
                                std::uint32_t frameIndex,
-                               const harmonia::Image& hdrImage,
-                               const harmonia::Image& gNormal,
-                               const harmonia::Image& gDepth) noexcept;
-    void pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std::uint32_t frameIndex) noexcept;
+                               const harmonia::core::Image& hdrImage,
+                               const harmonia::core::Image& gNormal,
+                               const harmonia::core::Image& gDepth) noexcept;
+    void pushFrameConstants(VkCommandBuffer cmd, const hyperion::Scene& scene, std::uint32_t frameIndex) noexcept;
     void dispatchRays(VkCommandBuffer cmd) noexcept;
 
     void updateIndirectBuffer() noexcept;
@@ -73,14 +76,15 @@ class PathTracer {
     VkPipeline m_rtPipeline{VK_NULL_HANDLE};
     VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
     /// MOD1: descriptor buffer — scene set bound via Descriptors::bindSceneSet().
-    harmonia::Descriptors* m_descriptors{nullptr};
+    harmonia::renderer::Descriptors* m_descriptors{nullptr};
     VkExtent2D m_extent{};
     Config m_config;
-    harmonia::Buffer m_cameraBuffer{};
-    harmonia::Buffer m_indirectDispatchBuffer{}; ///< GPU buffer for VkTraceRaysIndirectCommand2KHR (B2).
+    harmonia::core::Buffer m_cameraBuffer{};
+    harmonia::core::Buffer m_indirectDispatchBuffer{}; ///< GPU buffer for VkTraceRaysIndirectCommand2KHR (B2).
     VkStridedDeviceAddressRegionKHR m_raygen{};
     VkStridedDeviceAddressRegionKHR m_miss{};
     VkStridedDeviceAddressRegionKHR m_hit{};
     VkStridedDeviceAddressRegionKHR m_callable{};
 };
+} // namespace hyperion
 #endif // HYPERION_RENDERER_PATHTRACER_HPP

@@ -39,8 +39,9 @@ flowchart LR
     H --> T["Theia<br/>real-time renderer"]
 ```
 
-Consumes Aether + Harmonia via CMake FetchContent. The demo is a thin `harmonia::App`
-subclass injecting `harmonia::IRenderer`.
+Consumes Aether + Harmonia via CMake FetchContent. The demo is a thin `harmonia::app::App`
+subclass injecting `harmonia::app::IRenderer`. Hyperion's classes live in `namespace hyperion`
+(the shared layers are `harmonia::<layer>` — see Harmonia's AGENTS).
 
 ## Running
 

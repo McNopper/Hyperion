@@ -17,13 +17,13 @@ constexpr std::uint32_t kLcgMultiplier = 1664525u;
 constexpr std::uint32_t kLcgIncrement = 1013904223u;
 } // namespace
 
-std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceContext& ctx,
+std::expected<hyperion::PathTracer, VkResult> hyperion::PathTracer::create(const harmonia::DeviceContext& ctx,
                                                        VkExtent2D renderExtent,
-                                                       const harmonia::Pipeline& pipeline,
-                                                       const ShaderBindingTable& sbt,
-                                                       harmonia::Descriptors& descriptors,
+                                                       const harmonia::renderer::Pipeline& pipeline,
+                                                       const hyperion::ShaderBindingTable& sbt,
+                                                       harmonia::renderer::Descriptors& descriptors,
                                                        const Config& config) {
-    auto cameraBuffer = harmonia::Buffer::create(ctx,
+    auto cameraBuffer = harmonia::core::Buffer::create(ctx,
                                                  sizeof(harmonia::CameraData),
                                                  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
                                                      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
@@ -33,9 +33,9 @@ std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceCon
         return std::unexpected(cameraBuffer.error());
     }
 
-    harmonia::Buffer indirectDispatchBuffer{};
+    harmonia::core::Buffer indirectDispatchBuffer{};
     auto indirectBuf =
-        harmonia::Buffer::create(ctx,
+        harmonia::core::Buffer::create(ctx,
                                  sizeof(VkTraceRaysIndirectCommand2KHR),
                                  VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                                  VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
@@ -45,7 +45,7 @@ std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceCon
     }
     indirectDispatchBuffer = std::move(*indirectBuf);
 
-    PathTracer tracer;
+    hyperion::PathTracer tracer;
     tracer.m_ctx = &ctx;
     tracer.m_rtPipeline = pipeline.rtPipeline();
     tracer.m_pipelineLayout = descriptors.pipelineLayout();
@@ -61,12 +61,12 @@ std::expected<PathTracer, VkResult> PathTracer::create(const harmonia::DeviceCon
     return tracer;
 }
 
-VkResult PathTracer::render(VkCommandBuffer cmd,
-                            const Scene& scene,
-                            const harmonia::Camera& camera,
-                            const harmonia::Image& hdrImage,
-                            const harmonia::Image& gNormal,
-                            const harmonia::Image& gDepth,
+VkResult hyperion::PathTracer::render(VkCommandBuffer cmd,
+                            const hyperion::Scene& scene,
+                            const harmonia::renderer::Camera& camera,
+                            const harmonia::core::Image& hdrImage,
+                            const harmonia::core::Image& gNormal,
+                            const harmonia::core::Image& gDepth,
                             std::uint32_t frameIndex) noexcept {
     if (cmd == VK_NULL_HANDLE || scene.tlas() == VK_NULL_HANDLE) {
         return VK_ERROR_INITIALIZATION_FAILED;
@@ -88,13 +88,13 @@ VkResult PathTracer::render(VkCommandBuffer cmd,
     return VK_SUCCESS;
 }
 
-void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
-                                       const Scene& scene,
-                                       const harmonia::Camera& camera,
+void hyperion::PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
+                                       const hyperion::Scene& scene,
+                                       const harmonia::renderer::Camera& camera,
                                        std::uint32_t frameIndex,
-                                       const harmonia::Image& hdrImage,
-                                       const harmonia::Image& gNormal,
-                                       const harmonia::Image& gDepth) noexcept {
+                                       const harmonia::core::Image& hdrImage,
+                                       const harmonia::core::Image& gNormal,
+                                       const harmonia::core::Image& gDepth) noexcept {
     const harmonia::CameraData cameraData = camera.getCameraData(frameIndex, m_config.maxDepth);
     m_cameraBuffer.uploadData(&cameraData, sizeof(cameraData), 0);
 
@@ -107,7 +107,7 @@ void PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
     m_descriptors->bindSceneSet(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 }
 
-void PathTracer::pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std::uint32_t frameIndex) noexcept {
+void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd, const hyperion::Scene& scene, std::uint32_t frameIndex) noexcept {
     const harmonia::PushConstants pushConstants{
         .frameIndex = frameIndex,
         .maxDepth = m_config.maxDepth,
@@ -126,23 +126,23 @@ void PathTracer::pushFrameConstants(VkCommandBuffer cmd, const Scene& scene, std
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(harmonia::PushConstants), &pushConstants);
 }
 
-void PathTracer::dispatchRays(VkCommandBuffer cmd) noexcept {
+void hyperion::PathTracer::dispatchRays(VkCommandBuffer cmd) noexcept {
     static auto pfnTraceRaysIndirect2 = reinterpret_cast<PFN_vkCmdTraceRaysIndirect2KHR>(
         vkGetDeviceProcAddr(m_ctx->device, "vkCmdTraceRaysIndirect2KHR"));
 
     pfnTraceRaysIndirect2(cmd, m_indirectDispatchBuffer.deviceAddress());
 }
 
-void PathTracer::setConfig(const Config& config) noexcept {
+void hyperion::PathTracer::setConfig(const Config& config) noexcept {
     m_config = config;
 }
 
-void PathTracer::onResize(VkExtent2D newExtent) noexcept {
+void hyperion::PathTracer::onResize(VkExtent2D newExtent) noexcept {
     m_extent = newExtent;
     updateIndirectBuffer();
 }
 
-void PathTracer::updateIndirectBuffer() noexcept {
+void hyperion::PathTracer::updateIndirectBuffer() noexcept {
     VkTraceRaysIndirectCommand2KHR indirectCmd{};
     indirectCmd.raygenShaderRecordAddress = m_raygen.deviceAddress;
     indirectCmd.raygenShaderRecordSize = m_raygen.size;

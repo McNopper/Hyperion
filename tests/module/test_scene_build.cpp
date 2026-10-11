@@ -1,10 +1,10 @@
-// Module tests: Scene acceleration structure build (BLAS + TLAS).
+// Module tests: hyperion::Scene acceleration structure build (BLAS + TLAS).
 //
-// These tests verify that Scene::build() correctly builds BLASes and a TLAS
+// These tests verify that hyperion::Scene::build() correctly builds BLASes and a TLAS
 // under the mesh/instance model (unique meshes registered once; instances placed
 // with a transform) and returns a non-null TLAS handle.
 //
-// Scene::build() must be valid Vulkan usage even when the validation layer is absent —
+// hyperion::Scene::build() must be valid Vulkan usage even when the validation layer is absent —
 // the layer can mask invalid usage that otherwise surfaces as VK_ERROR_DEVICE_LOST in Debug.
 
 #include <cstdint>
@@ -17,23 +17,23 @@
 #include "harmonia/scene/ProceduralGeometry.hpp"
 #include "hyperion/scene/Scene.hpp"
 
-// harmonia::Mesh + sphere: the same geometry combination used in the integration render test.
+// harmonia::scene::Mesh + sphere: the same geometry combination used in the integration render test.
 TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {
-    Scene scene;
-    const std::uint32_t matDiffuse = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.8F), 1.0F));
-    const std::uint32_t matMetal = scene.addMaterial(harmonia::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
+    hyperion::Scene scene;
+    const std::uint32_t matDiffuse = scene.addMaterial(harmonia::scene::Material::diffuse(sm::float3(0.8F), 1.0F));
+    const std::uint32_t matMetal = scene.addMaterial(harmonia::scene::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
 
-    harmonia::MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
+    harmonia::scene::MeshData box = harmonia::scene::ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
     const std::uint32_t boxMesh =
-        scene.addMesh(deviceCtx(), commandPool(), std::move(box), harmonia::MeshOpacity{}, "test.box");
+        scene.addMesh(deviceCtx(), commandPool(), std::move(box), harmonia::scene::MeshOpacity{}, "test.box");
     ASSERT_NE(boxMesh, std::numeric_limits<std::uint32_t>::max()) << "Failed to upload floor mesh";
 
     const std::uint32_t sphereMesh = scene.addSphereMesh(deviceCtx(), commandPool(), 0.5F, "test.sphere");
     ASSERT_NE(sphereMesh, std::numeric_limits<std::uint32_t>::max()) << "Failed to add sphere mesh";
 
-    ASSERT_NE(scene.addInstance(boxMesh, harmonia::Xform{.translation = {0.0F, 0.0F, 0.0F}}, matDiffuse),
+    ASSERT_NE(scene.addInstance(boxMesh, harmonia::scene::Xform{.translation = {0.0F, 0.0F, 0.0F}}, matDiffuse),
               std::numeric_limits<std::uint32_t>::max());
-    ASSERT_NE(scene.addInstance(sphereMesh, harmonia::Xform{.translation = {0.0F, 0.5F, 0.0F}}, matMetal),
+    ASSERT_NE(scene.addInstance(sphereMesh, harmonia::scene::Xform{.translation = {0.0F, 0.5F, 0.0F}}, matMetal),
               std::numeric_limits<std::uint32_t>::max());
 
     const VkResult result = scene.build(deviceCtx(), commandPool());
@@ -44,30 +44,30 @@ TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {
     EXPECT_EQ(scene.instanceCount(), 2U);
 }
 
-// harmonia::Mesh-only scene: no analytic sphere, single BLAS type.
+// harmonia::scene::Mesh-only scene: no analytic sphere, single BLAS type.
 TEST_F(RtFixture, Scene_BuildWithMeshOnly) {
-    Scene scene;
-    const std::uint32_t mat = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.5F), 1.0F));
+    hyperion::Scene scene;
+    const std::uint32_t mat = scene.addMaterial(harmonia::scene::Material::diffuse(sm::float3(0.5F), 1.0F));
 
-    harmonia::MeshData tri = harmonia::ProceduralGeometry::makeBox(sm::float3(1.0F));
+    harmonia::scene::MeshData tri = harmonia::scene::ProceduralGeometry::makeBox(sm::float3(1.0F));
     const std::uint32_t mesh =
-        scene.addMesh(deviceCtx(), commandPool(), std::move(tri), harmonia::MeshOpacity{}, "test.solo");
+        scene.addMesh(deviceCtx(), commandPool(), std::move(tri), harmonia::scene::MeshOpacity{}, "test.solo");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
-    ASSERT_NE(scene.addInstance(mesh, harmonia::Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
+    ASSERT_NE(scene.addInstance(mesh, harmonia::scene::Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
 
     ASSERT_EQ(scene.build(deviceCtx(), commandPool()), VK_SUCCESS);
     EXPECT_NE(scene.tlas(), VK_NULL_HANDLE);
     EXPECT_EQ(scene.instanceCount(), 1U);
 }
 
-// harmonia::Sphere-only scene: only AABB-based BLASes, no triangle geometry.
+// harmonia::scene::Sphere-only scene: only AABB-based BLASes, no triangle geometry.
 TEST_F(RtFixture, Scene_BuildWithSphereOnly) {
-    Scene scene;
-    const std::uint32_t mat = scene.addMaterial(harmonia::Material::metal(sm::float3(0.9F, 0.1F, 0.1F), 0.2F));
+    hyperion::Scene scene;
+    const std::uint32_t mat = scene.addMaterial(harmonia::scene::Material::metal(sm::float3(0.9F, 0.1F, 0.1F), 0.2F));
 
     const std::uint32_t mesh = scene.addSphereMesh(deviceCtx(), commandPool(), 1.0F, "test.soloSphere");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
-    ASSERT_NE(scene.addInstance(mesh, harmonia::Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
+    ASSERT_NE(scene.addInstance(mesh, harmonia::scene::Xform{}, mat), std::numeric_limits<std::uint32_t>::max());
 
     ASSERT_EQ(scene.build(deviceCtx(), commandPool()), VK_SUCCESS);
     EXPECT_NE(scene.tlas(), VK_NULL_HANDLE);
@@ -77,16 +77,16 @@ TEST_F(RtFixture, Scene_BuildWithSphereOnly) {
 // One mesh instanced N times: the core instancing case — a single BLAS shared by
 // multiple TLAS instances placed at different transforms.
 TEST_F(RtFixture, Scene_BuildWithMultipleInstancesOfOneMesh) {
-    Scene scene;
-    const std::uint32_t mat = scene.addMaterial(harmonia::Material::diffuse(sm::float3(0.7F), 1.0F));
+    hyperion::Scene scene;
+    const std::uint32_t mat = scene.addMaterial(harmonia::scene::Material::diffuse(sm::float3(0.7F), 1.0F));
 
-    harmonia::MeshData box = harmonia::ProceduralGeometry::makeBox(sm::float3(0.8F)); // one unique mesh
+    harmonia::scene::MeshData box = harmonia::scene::ProceduralGeometry::makeBox(sm::float3(0.8F)); // one unique mesh
     const std::uint32_t mesh =
-        scene.addMesh(deviceCtx(), commandPool(), std::move(box), harmonia::MeshOpacity{}, "test.shared");
+        scene.addMesh(deviceCtx(), commandPool(), std::move(box), harmonia::scene::MeshOpacity{}, "test.shared");
     ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
 
     for (std::size_t i = 0; i < 4; ++i) {
-        const harmonia::Xform xform{.translation = sm::float3(static_cast<float>(i) * 2.0F, 0.0F, 0.0F)};
+        const harmonia::scene::Xform xform{.translation = sm::float3(static_cast<float>(i) * 2.0F, 0.0F, 0.0F)};
         ASSERT_NE(scene.addInstance(mesh, xform, mat), std::numeric_limits<std::uint32_t>::max()) << "instance " << i;
     }
 
