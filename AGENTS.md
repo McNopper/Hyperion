@@ -120,14 +120,18 @@ SDL3-bridge recipe lives in Harmonia's AGENTS.md. CI: `.github/workflows/build.y
 (clang-diagnostic/clang-analyzer/bugprone fail the run; modernize/performance/portability
 are report-only). Also registered as ctest `test_tidy` (label `analysis`; the fast test loop is `ctest -LE analysis`; skips when
 clang-tidy, Python3 or the database is missing).
-**Architecture gate:** `python tools/check_layers.py` (ctest `test_layers`, label
-`analysis`) — `hyperion/scene` is the leaf (plus the root `hyperion` vocabulary,
+**Architecture gate:** `ARCHITECTURE.md` is the machine-checked architecture contract
+(the check-arch reflexion gate - the document is the contract, the include graph is measured
+against it). ctest `test_arch` runs the vendored `tools/check_arch.py` engine (label
+`analysis`; registered only where the check-arch skill exists — local, not CI). Contract:
+`hyperion/scene` is the leaf (plus the root `hyperion` vocabulary,
 `ShaderPaths.hpp`), `hyperion/renderer` consumes it, `demo` consumes both; includes may
 only go **down** that order (cross-repo includes of harmonia/slang-math/aether are
-downward by design) and there must be **no include cycles** (file-level SCC detection).
+downward by design), only **declared edges** exist (default deny), and there must be **no
+include cycles** (file-level SCC detection).
 Hyperion's classes live in `namespace hyperion`, opened in both headers and translation
 units. **Hyperion never depends on Theia** — the sibling renderers are independent;
-shared code goes down into Harmonia (gate fails on any `theia/` include).
+shared code goes down into Harmonia (a `theia/` include is a hard violation).
 Sanitizer lane (Clang/GCC configures only):
 `-DHYPERION_SANITIZER=address|undefined|thread`. Host-side FP is deterministic
 (`/fp:strict` / `-ffp-contract=off -fno-fast-math`).
