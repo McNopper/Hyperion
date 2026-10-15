@@ -52,7 +52,7 @@ bool hyperion::Application::onInitialize() {
     harmonia::core::Logger::info("VK_KHR_ray_tracing_maintenance1 (indirect RT2): required");
 
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
-    harmonia::renderer::Pipeline::ShaderPaths shaderPaths = makeHyperionShaderPaths(m_shaderDir);
+    harmonia::renderer::Pipeline::ShaderPaths shaderPaths = hyperion::makeHyperionShaderPaths(m_shaderDir);
     if (m_positionFetchSupported) {
         const std::filesystem::path closestHitPath = m_shaderDir / "closesthit_pf.spv";
         shaderPaths.closesthitTriangle = closestHitPath;

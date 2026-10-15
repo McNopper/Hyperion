@@ -7,6 +7,8 @@
 
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
+namespace hyperion {
+
 
 std::expected<hyperion::ShaderBindingTable, VkResult>
 hyperion::ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
@@ -73,3 +75,5 @@ hyperion::ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
     sbt.m_hit = VkStridedDeviceAddressRegionKHR{baseAddress + hitOffset, stride, hitSize};
     return sbt;
 }
+
+} // namespace hyperion

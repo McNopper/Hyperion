@@ -32,7 +32,7 @@ class SbtFixture : public RtFixture {
     void SetUp() override {
         RtFixture::SetUp();
 
-        const auto paths = makeHyperionShaderPaths(shaderRoot());
+        const auto paths = hyperion::makeHyperionShaderPaths(shaderRoot());
         if (!std::filesystem::exists(paths.raygen) || !std::filesystem::exists(paths.miss) ||
             !std::filesystem::exists(paths.closesthitTriangle) || !std::filesystem::exists(paths.intersection)) {
             GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();

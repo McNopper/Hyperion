@@ -6,6 +6,8 @@
 #include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "hyperion/scene/Scene.hpp"
+namespace hyperion {
+
 
 // VK_EXT_ray_tracing_invocation_reorder runtime command. Not yet in the SDK volk/headers
 // on all toolchains, so load it dynamically and fall back to a no-op if unavailable.
@@ -160,3 +162,5 @@ void hyperion::PathTracer::updateIndirectBuffer() noexcept {
     indirectCmd.depth = 1;
     m_indirectDispatchBuffer.uploadData(&indirectCmd, sizeof(indirectCmd), 0);
 }
+
+} // namespace hyperion

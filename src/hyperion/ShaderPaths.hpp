@@ -4,6 +4,8 @@
 #include <filesystem>
 
 #include "harmonia/renderer/Pipeline.hpp"
+namespace hyperion {
+
 
 [[nodiscard]] inline harmonia::renderer::Pipeline::ShaderPaths makeHyperionShaderPaths(const std::filesystem::path& rootDir) {
     return harmonia::renderer::Pipeline::ShaderPaths{
@@ -16,5 +18,7 @@
         .shadowAnyHit = rootDir / "anyhit.spv",
     };
 }
+
+} // namespace hyperion
 
 #endif // HYPERION_SHADERPATHS_HPP

@@ -93,7 +93,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "No Vulkan RT-capable device/context available: VkResult=" << static_cast<int>(context.error());
     }
 
-    const auto shaderPaths = makeHyperionShaderPaths(shaderRoot());
+    const auto shaderPaths = hyperion::makeHyperionShaderPaths(shaderRoot());
     if (!shadersExist(shaderPaths)) {
         GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();
     }
@@ -173,7 +173,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     const std::uint32_t floorMeshIdx = scene.addMesh(
         context->deviceContext(), *commandPool, std::move(floorMesh), harmonia::scene::MeshOpacity{}, "test.floor");
     if (floorMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
-        scene.addInstance(floorMeshIdx, harmonia::scene::Xform{.translation = {0.0F, -1.5F, 0.0F}}, floorMaterial) ==
+        scene.addInstance(floorMeshIdx, harmonia::scene::Transform{.translation = {0.0F, -1.5F, 0.0F}}, floorMaterial) ==
             std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload floor mesh";
     }
@@ -181,7 +181,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     const std::uint32_t sphereMeshIdx =
         scene.addSphereMesh(context->deviceContext(), *commandPool, 1.0F, "test.sphere");
     if (sphereMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
-        scene.addInstance(sphereMeshIdx, harmonia::scene::Xform{.translation = {0.0F, -0.25F, 0.5F}}, sphereMaterial) ==
+        scene.addInstance(sphereMeshIdx, harmonia::scene::Transform{.translation = {0.0F, -0.25F, 0.5F}}, sphereMaterial) ==
             std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload sphere";
     }
@@ -189,7 +189,7 @@ TEST(PathTracer, CornellBoxNonBlack) {
     // Emissive sphere positioned above scene, fully visible from camera.
     const std::uint32_t lightMeshIdx = scene.addSphereMesh(context->deviceContext(), *commandPool, 1.5F, "test.light");
     if (lightMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
-        scene.addInstance(lightMeshIdx, harmonia::scene::Xform{.translation = {0.0F, 5.0F, 0.0F}}, lightMaterial) ==
+        scene.addInstance(lightMeshIdx, harmonia::scene::Transform{.translation = {0.0F, 5.0F, 0.0F}}, lightMaterial) ==
             std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload light sphere";
     }

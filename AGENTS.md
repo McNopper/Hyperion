@@ -125,6 +125,9 @@ clang-tidy, Python3 or the database is missing).
 `ShaderPaths.hpp`), `hyperion/renderer` consumes it, `demo` consumes both; includes may
 only go **down** that order (cross-repo includes of harmonia/slang-math/aether are
 downward by design) and there must be **no include cycles** (file-level SCC detection).
+Hyperion's classes live in `namespace hyperion`, opened in both headers and translation
+units. **Hyperion never depends on Theia** — the sibling renderers are independent;
+shared code goes down into Harmonia (gate fails on any `theia/` include).
 Sanitizer lane (Clang/GCC configures only):
 `-DHYPERION_SANITIZER=address|undefined|thread`. Host-side FP is deterministic
 (`/fp:strict` / `-ffp-contract=off -fno-fast-math`).

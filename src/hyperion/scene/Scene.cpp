@@ -21,6 +21,8 @@
 #include "harmonia/scene/EmissiveBuilder.hpp"
 #include "harmonia/scene/Geometry.hpp"
 
+namespace hyperion {
+
 std::uint32_t hyperion::Scene::addSphereMesh(const harmonia::DeviceContext& ctx,
                                    const harmonia::core::CommandPool& pool,
                                    float radius,
@@ -224,3 +226,5 @@ VkResult hyperion::Scene::uploadAllBuffers(const harmonia::DeviceContext& ctx,
 
     return VK_SUCCESS;
 }
+
+} // namespace hyperion
