@@ -114,7 +114,15 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
-- **v0.7.12** (current; consumes Harmonia v0.7.12): **the layering wave.** Hyperion's classes
+- **v0.7.13** (current; consumes Harmonia v0.7.13): **code-health wave: translation units
+  open `namespace hyperion` + the arch gate.** `PathTracer.cpp`, `ShaderBindingTable.cpp`,
+  `scene/Scene.cpp` and `ShaderPaths.hpp` defined their methods fully qualified at global
+  scope — inconsistent with the family style; they now open `namespace hyperion` (call
+  sites qualified). `tools/check_layers.py` (ctest `test_layers`, label `analysis`): the
+  `scene` ← `renderer` ← `demo` DAG, file-level cycle detection, and any `theia/` include
+  fails (**Hyperion never depends on Theia**). 49/49 ctest on Windows; Linux build-only
+  green; 3-scene smoke at release settings pixel-identical (MAD = 0) to the gallery.
+- **v0.7.12** (consumes Harmonia v0.7.12): **the layering wave.** Hyperion's classes
   (`PathTracer`, `ShaderBindingTable`, `Scene`, `Application`) move out of `harmonia::`/global
   scope into **`namespace hyperion`**, symmetric with `theia::`; all `harmonia::` references
   name their layer (`harmonia::core::Buffer`, `harmonia::rt::TlasBuilder`, …). Stale
