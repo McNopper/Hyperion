@@ -71,6 +71,16 @@ class Scene : public harmonia::scene::SceneBase {
 
     VkResult buildSceneBuffers(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) override;
 
+    [[nodiscard]] std::unique_ptr<harmonia::scene::Geometry>
+    createTriangleMesh(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool,
+                       harmonia::scene::MeshData&& data, const harmonia::scene::MeshOpacity& opacity,
+                       std::string_view name) override;
+
+    VkResult finishBuild(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) override;
+
+    harmonia::rt::AccelerationStructure m_tlas{};
+    VkDeviceAddress m_tlasAddress{};
+
     void buildGpuInstances();
     VkResult uploadAllBuffers(const harmonia::DeviceContext& ctx,
                               const harmonia::core::CommandPool& pool,

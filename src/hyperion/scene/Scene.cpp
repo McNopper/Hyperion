@@ -18,10 +18,28 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/rt/TlasBuilder.hpp"
-#include "harmonia/scene/EmissiveBuilder.hpp"
+#include "harmonia/scene_rt/EmissiveBuilder.hpp"
+#include "harmonia/scene_rt/SceneRt.hpp"
+#include "harmonia/scene_rt/Sphere.hpp"
+#include "harmonia/scene_rt/TriangleMesh.hpp"
 #include "harmonia/scene/Geometry.hpp"
 
 namespace hyperion {
+
+std::unique_ptr<harmonia::scene::Geometry>
+hyperion::Scene::createTriangleMesh(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool,
+                                    harmonia::scene::MeshData&& data, const harmonia::scene::MeshOpacity& opacity,
+                                    std::string_view name) {
+    auto mesh = harmonia::scene_rt::TriangleMesh::create(ctx, pool, std::move(data), opacity, name);
+    if (!mesh) {
+        return nullptr;
+    }
+    return std::move(*mesh);
+}
+
+VkResult hyperion::Scene::finishBuild(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) {
+    return harmonia::scene_rt::buildTlas(*this, ctx, pool, m_tlas, m_tlasAddress);
+}
 
 std::uint32_t hyperion::Scene::addSphereMesh(const harmonia::DeviceContext& ctx,
                                    const harmonia::core::CommandPool& pool,
@@ -30,7 +48,7 @@ std::uint32_t hyperion::Scene::addSphereMesh(const harmonia::DeviceContext& ctx,
     const std::uint32_t meshIndex = static_cast<std::uint32_t>(m_meshes.size());
     const std::string debugName = name.empty() ? std::string{"sphere."} + std::to_string(meshIndex) : std::string{name};
 
-    auto sphere = harmonia::scene::Sphere::create(ctx, pool, radius, debugName);
+    auto sphere = harmonia::scene_rt::Sphere::create(ctx, pool, radius, debugName);
     if (!sphere) {
         return std::numeric_limits<std::uint32_t>::max();
     }
@@ -55,7 +73,7 @@ VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx, 
     m_meshGpu.assign(m_meshes.size(), MeshGpu{});
 
     for (std::size_t mi = 0; mi < m_meshes.size(); ++mi) {
-        if (const auto* mesh = dynamic_cast<const harmonia::scene::TriangleMesh*>(m_meshes[mi].get())) {
+        if (const auto* mesh = dynamic_cast<const harmonia::scene_rt::TriangleMesh*>(m_meshes[mi].get())) {
             MeshGpu& gpu = m_meshGpu[mi];
             gpu.vertexOffset = static_cast<std::uint32_t>(vertices.size());
             gpu.indexOffset = static_cast<std::uint32_t>(indices.size());
@@ -64,7 +82,7 @@ VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx, 
             for (std::uint32_t index : mesh->data().indices) {
                 indices.push_back(index + gpu.vertexOffset);
             }
-        } else if (const auto* sphere = dynamic_cast<const harmonia::scene::Sphere*>(m_meshes[mi].get())) {
+        } else if (const auto* sphere = dynamic_cast<const harmonia::scene_rt::Sphere*>(m_meshes[mi].get())) {
             MeshGpu& gpu = m_meshGpu[mi];
             gpu.vertexOffset = static_cast<std::uint32_t>(vertices.size());
             gpu.indexOffset = 0;
@@ -103,7 +121,7 @@ VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx, 
     }
 
     // Build emissive triangle buffer via the shared harmonia utility.
-    harmonia::scene::EmissiveData emissiveData = harmonia::scene::buildEmissiveData(m_meshes, m_instances, m_materials, gpuMaterials);
+    harmonia::scene_rt::EmissiveData emissiveData = harmonia::scene_rt::buildEmissiveData(m_meshes, m_instances, m_materials, gpuMaterials);
 
     m_emissiveTriangleCount = static_cast<std::uint32_t>(emissiveData.triangles.size());
     harmonia::core::Logger::info("hyperion::Scene: built {} emissive triangle(s) for NEE", m_emissiveTriangleCount);
@@ -113,7 +131,7 @@ VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx, 
 
     // Power-proportional selection CDF for emissive-triangle NEE (shared helper —
     // identical across renderers, so the NEE sampling CDF cannot drift).
-    const std::vector<float> emissiveCdf = harmonia::scene::buildEmissiveCdf(emissiveData.power);
+    const std::vector<float> emissiveCdf = harmonia::scene_rt::buildEmissiveCdf(emissiveData.power);
 
     return uploadAllBuffers(ctx, pool, gpuMaterials, vertices, indices, gpuLights, emissiveData.triangles, emissiveCdf);
 }

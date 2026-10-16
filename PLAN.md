@@ -43,6 +43,10 @@ gate measures against. Most estimator work is therefore owned by Harmonia (see
 
 ## How to continue
 
+AR1 executed (2026-10-15): Hyperion's Scene implements the harmonia/scene_rt hooks
+(`createTriangleMesh` / `finishBuild`) and owns its TLAS; harmonia/scene is rt-free.
+
+
 ### Owned items
 
 | ID | Task | Deps | Status |
