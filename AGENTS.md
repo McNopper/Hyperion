@@ -133,6 +133,12 @@ Hyperion's classes live in `namespace hyperion`, opened in both headers and tran
 units. **Hyperion never depends on Theia** — the sibling renderers are independent;
 shared code goes down into Harmonia (a `theia/` include is a hard violation).
 Sanitizer lane (Clang/GCC configures only):
+**Coverage lane (Clang/GCC configures only):** configure a separate build with
+`-DHYPERION_COVERAGE=ON` (e.g. `-B build/coverage`), then run `python tools/coverage.py` - it
+builds the instrumented tree, runs the tests with `LLVM_PROFILE_FILE` set, merges the
+profiles and prints the llvm-cov report for `src/` (gcc builds report via gcov; exit 77
+when the LLVM tools are missing). Not wired into CI yet.
+
 `-DHYPERION_SANITIZER=address|undefined|thread`. Host-side FP is deterministic
 (`/fp:strict` / `-ffp-contract=off -fno-fast-math`).
 

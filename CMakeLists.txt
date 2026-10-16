@@ -72,6 +72,28 @@ if(PROJECT_IS_TOP_LEVEL)
         add_compile_options("-fsanitize=${HYPERION_SANITIZER}" -fno-omit-frame-pointer)
         add_link_options("-fsanitize=${HYPERION_SANITIZER}")
     endif()
+    # Coverage lane (Clang/GCC only):
+    #   cmake -DHYPERION_COVERAGE=ON -B build/coverage ...   then: python tools/coverage.py
+    set(HYPERION_COVERAGE OFF CACHE BOOL "Instrument for source coverage (Clang/GCC only)")
+    if(HYPERION_COVERAGE)
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+            message(FATAL_ERROR "HYPERION_COVERAGE requires Clang/GCC (use a Ninja+clang or WSL configure)")
+        endif()
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+            add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+            if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+                # clang-cl + MSVC linker: the profile runtime only links when
+                # lld-link drives the link step
+                add_link_options(-fprofile-instr-generate -fuse-ld=lld)
+            else()
+                add_link_options(-fprofile-instr-generate)
+            endif()
+        else()
+            add_compile_options(--coverage)
+            add_link_options(--coverage)
+        endif()
+    endif()
+
 
     # All first-party C/C++ sources (clang-format); compiled translation units
     # only (clang-tidy) — headers are analysed transitively via HeaderFilterRegex.
