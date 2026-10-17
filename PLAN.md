@@ -32,7 +32,7 @@ gate measures against. Most estimator work is therefore owned by Harmonia (see
 
 ## At a glance
 
-- **Release:** v0.7.14 - AR1 consumption (scene_rt hooks, TLAS ownership) + Q1
+- **Release:** v0.7.15 - pins (Aether v0.7.8, Harmonia v0.7.15; consumes H-05 + SM6). Prior v0.7.14 - AR1 consumption (scene_rt hooks, TLAS ownership) + Q1
   coverage lane. Lockstep reference: Harmonia v0.7.14, Theia v0.7.15 (Aether v0.7.7,
   slang-math v0.4.0).
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
