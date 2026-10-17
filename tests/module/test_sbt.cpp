@@ -39,7 +39,8 @@ class SbtFixture : public RtFixture {
         }
 
         auto desc = harmonia::renderer::Descriptors::create(deviceCtx());
-        ASSERT_TRUE(desc.has_value()) << "harmonia::renderer::Descriptors::create failed: " << static_cast<int>(desc.error());
+        ASSERT_TRUE(desc.has_value()) << "harmonia::renderer::Descriptors::create failed: "
+                                      << static_cast<int>(desc.error());
         m_descriptors = std::make_unique<harmonia::renderer::Descriptors>(std::move(*desc));
 
         auto pipeline = harmonia::renderer::Pipeline::create(deviceCtx(), *m_descriptors, paths, 2U);
@@ -48,7 +49,8 @@ class SbtFixture : public RtFixture {
         m_pipeline = std::make_unique<harmonia::renderer::Pipeline>(std::move(*pipeline));
 
         auto sbt = hyperion::ShaderBindingTable::create(deviceCtx(), *m_pipeline, physInfo().rtProps);
-        ASSERT_TRUE(sbt.has_value()) << "hyperion::ShaderBindingTable::create failed: " << static_cast<int>(sbt.error());
+        ASSERT_TRUE(sbt.has_value()) << "hyperion::ShaderBindingTable::create failed: "
+                                     << static_cast<int>(sbt.error());
         m_sbt = std::make_unique<hyperion::ShaderBindingTable>(std::move(*sbt));
     }
 

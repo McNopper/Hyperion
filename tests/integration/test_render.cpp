@@ -98,7 +98,8 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Compiled shaders not found under " << shaderRoot().string();
     }
 
-    auto commandPool = harmonia::core::CommandPool::create(context->deviceContext(), context->deviceContext().graphicsFamily);
+    auto commandPool =
+        harmonia::core::CommandPool::create(context->deviceContext(), context->deviceContext().graphicsFamily);
     if (!commandPool) {
         GTEST_SKIP() << "Failed to create command pool: VkResult=" << static_cast<int>(commandPool.error());
     }
@@ -113,38 +114,39 @@ TEST(PathTracer, CornellBoxNonBlack) {
         GTEST_SKIP() << "Failed to create ray tracing pipeline: VkResult=" << static_cast<int>(pipeline.error());
     }
 
-    auto sbt = hyperion::ShaderBindingTable::create(context->deviceContext(), *pipeline, context->physicalDeviceInfo().rtProps);
+    auto sbt = hyperion::ShaderBindingTable::create(
+        context->deviceContext(), *pipeline, context->physicalDeviceInfo().rtProps);
     if (!sbt) {
         GTEST_SKIP() << "Failed to create SBT: VkResult=" << static_cast<int>(sbt.error());
     }
 
     constexpr VkExtent2D renderExtent{64U, 64U};
     auto hdrImage = harmonia::core::Image::create(context->deviceContext(),
-                                            renderExtent,
-                                            VK_FORMAT_R32G32B32A32_SFLOAT,
-                                            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                                            VK_IMAGE_ASPECT_COLOR_BIT,
-                                            "hyperion.test.hdr");
+                                                  renderExtent,
+                                                  VK_FORMAT_R32G32B32A32_SFLOAT,
+                                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                                  VK_IMAGE_ASPECT_COLOR_BIT,
+                                                  "hyperion.test.hdr");
     if (!hdrImage) {
         GTEST_SKIP() << "Failed to create HDR image: VkResult=" << static_cast<int>(hdrImage.error());
     }
 
     auto gNormal = harmonia::core::Image::create(context->deviceContext(),
-                                           renderExtent,
-                                           VK_FORMAT_R16G16B16A16_SFLOAT,
-                                           VK_IMAGE_USAGE_STORAGE_BIT,
-                                           VK_IMAGE_ASPECT_COLOR_BIT,
-                                           "hyperion.test.gNormal");
+                                                 renderExtent,
+                                                 VK_FORMAT_R16G16B16A16_SFLOAT,
+                                                 VK_IMAGE_USAGE_STORAGE_BIT,
+                                                 VK_IMAGE_ASPECT_COLOR_BIT,
+                                                 "hyperion.test.gNormal");
     if (!gNormal) {
         GTEST_SKIP() << "Failed to create G-buffer normal: VkResult=" << static_cast<int>(gNormal.error());
     }
 
     auto gDepth = harmonia::core::Image::create(context->deviceContext(),
-                                          renderExtent,
-                                          VK_FORMAT_R32_SFLOAT,
-                                          VK_IMAGE_USAGE_STORAGE_BIT,
-                                          VK_IMAGE_ASPECT_COLOR_BIT,
-                                          "hyperion.test.gDepth");
+                                                renderExtent,
+                                                VK_FORMAT_R32_SFLOAT,
+                                                VK_IMAGE_USAGE_STORAGE_BIT,
+                                                VK_IMAGE_ASPECT_COLOR_BIT,
+                                                "hyperion.test.gDepth");
     if (!gDepth) {
         GTEST_SKIP() << "Failed to create G-buffer depth: VkResult=" << static_cast<int>(gDepth.error());
     }
@@ -152,10 +154,10 @@ TEST(PathTracer, CornellBoxNonBlack) {
     const VkDeviceSize readbackSize =
         static_cast<VkDeviceSize>(renderExtent.width) * renderExtent.height * sizeof(sm::float4);
     auto readback = harmonia::core::Buffer::create(context->deviceContext(),
-                                             readbackSize,
-                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                             VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                             "hyperion.test.readback");
+                                                   readbackSize,
+                                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                                   VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                   "hyperion.test.readback");
     if (!readback || readback->mappedData() == nullptr) {
         GTEST_SKIP() << "Failed to create mapped readback buffer";
     }
@@ -167,22 +169,26 @@ TEST(PathTracer, CornellBoxNonBlack) {
     // Emissive sphere as area light: replaces the removed procedural sky.
     // 50 000 cd/m² at EV100=0 (exposure≈0.833) → display-space ≈ 41 667, clamped to 100
     // by kMaxDisplayLuminance.  At r=1.5, d=6.5 → P(hit)≈1.7 % → average luminance ≫ 1e-3.
-    const std::uint32_t lightMaterial = scene.addMaterial(harmonia::scene::Material::emissive(sm::float3(1.0F), 50000.0F));
+    const std::uint32_t lightMaterial =
+        scene.addMaterial(harmonia::scene::Material::emissive(sm::float3(1.0F), 50000.0F));
 
-    harmonia::scene::MeshData floorMesh = harmonia::scene::ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
+    harmonia::scene::MeshData floorMesh =
+        harmonia::scene::ProceduralGeometry::makeBox(sm::float3(4.0F, 0.1F, 4.0F)); // object space
     const std::uint32_t floorMeshIdx = scene.addMesh(
         context->deviceContext(), *commandPool, std::move(floorMesh), harmonia::scene::MeshOpacity{}, "test.floor");
     if (floorMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
-        scene.addInstance(floorMeshIdx, harmonia::scene::Transform{.translation = {0.0F, -1.5F, 0.0F}}, floorMaterial) ==
-            std::numeric_limits<std::uint32_t>::max()) {
+        scene.addInstance(floorMeshIdx,
+                          harmonia::scene::Transform{.translation = {0.0F, -1.5F, 0.0F}},
+                          floorMaterial) == std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload floor mesh";
     }
 
     const std::uint32_t sphereMeshIdx =
         scene.addSphereMesh(context->deviceContext(), *commandPool, 1.0F, "test.sphere");
     if (sphereMeshIdx == std::numeric_limits<std::uint32_t>::max() ||
-        scene.addInstance(sphereMeshIdx, harmonia::scene::Transform{.translation = {0.0F, -0.25F, 0.5F}}, sphereMaterial) ==
-            std::numeric_limits<std::uint32_t>::max()) {
+        scene.addInstance(sphereMeshIdx,
+                          harmonia::scene::Transform{.translation = {0.0F, -0.25F, 0.5F}},
+                          sphereMaterial) == std::numeric_limits<std::uint32_t>::max()) {
         GTEST_SKIP() << "Failed to upload sphere";
     }
 
@@ -212,11 +218,11 @@ TEST(PathTracer, CornellBoxNonBlack) {
     }
 
     auto pathTracer = hyperion::PathTracer::create(context->deviceContext(),
-                                         renderExtent,
-                                         *pipeline,
-                                         *sbt,
-                                         *descriptors,
-                                         hyperion::PathTracer::Config{.samplesPerPixel = 1U, .maxDepth = 2U});
+                                                   renderExtent,
+                                                   *pipeline,
+                                                   *sbt,
+                                                   *descriptors,
+                                                   hyperion::PathTracer::Config{.samplesPerPixel = 1U, .maxDepth = 2U});
     if (!pathTracer) {
         GTEST_SKIP() << "Failed to create path tracer: VkResult=" << static_cast<int>(pathTracer.error());
     }

@@ -21,9 +21,11 @@
 TEST_F(RtFixture, Scene_BuildWithMeshAndSphere) {
     hyperion::Scene scene;
     const std::uint32_t matDiffuse = scene.addMaterial(harmonia::scene::Material::diffuse(sm::float3(0.8F), 1.0F));
-    const std::uint32_t matMetal = scene.addMaterial(harmonia::scene::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
+    const std::uint32_t matMetal =
+        scene.addMaterial(harmonia::scene::Material::metal(sm::float3(0.9F, 0.3F, 0.2F), 0.15F));
 
-    harmonia::scene::MeshData box = harmonia::scene::ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
+    harmonia::scene::MeshData box =
+        harmonia::scene::ProceduralGeometry::makeBox(sm::float3(2.0F, 0.1F, 2.0F)); // object space
     const std::uint32_t boxMesh =
         scene.addMesh(deviceCtx(), commandPool(), std::move(box), harmonia::scene::MeshOpacity{}, "test.box");
     ASSERT_NE(boxMesh, std::numeric_limits<std::uint32_t>::max()) << "Failed to upload floor mesh";
@@ -87,7 +89,8 @@ TEST_F(RtFixture, Scene_BuildWithMultipleInstancesOfOneMesh) {
 
     for (std::size_t i = 0; i < 4; ++i) {
         const harmonia::scene::Transform transform{.translation = sm::float3(static_cast<float>(i) * 2.0F, 0.0F, 0.0F)};
-        ASSERT_NE(scene.addInstance(mesh, transform, mat), std::numeric_limits<std::uint32_t>::max()) << "instance " << i;
+        ASSERT_NE(scene.addInstance(mesh, transform, mat), std::numeric_limits<std::uint32_t>::max())
+            << "instance " << i;
     }
 
     ASSERT_EQ(scene.build(deviceCtx(), commandPool()), VK_SUCCESS);

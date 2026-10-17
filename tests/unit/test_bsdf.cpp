@@ -210,8 +210,8 @@ void orientFrame(const sm::float3& wo,
     const sm::float3 val(5.4856e-13F, 4.4201e-13F, 5.2481e-13F);
     const sm::float3 pos(1.6810e+06F, 1.7953e+06F, 2.2084e+06F);
     const sm::float3 var(4.3278e+09F, 9.3046e+09F, 6.6121e+09F);
-    sm::float3 xyz =
-        val * sm::sqrt(2.0F * harmonia::utils::Math::kPi * var) * sm::cos(pos * phase + shift) * sm::exp(-var * phase * phase);
+    sm::float3 xyz = val * sm::sqrt(2.0F * harmonia::utils::Math::kPi * var) * sm::cos(pos * phase + shift) *
+                     sm::exp(-var * phase * phase);
     xyz.x += 9.7470e-14F * std::sqrt(2.0F * harmonia::utils::Math::kPi * 4.5282e+09F) *
              std::cos(2.2399e+06F * phase + shift.x) * std::exp(-4.5282e+09F * phase * phase);
     return xyz / 1.0685e-7F;
@@ -469,7 +469,8 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
     const float s = y * (0.0206607F + 1.58491F * y) / (0.0379424F + y * (1.32227F + y));
     const float m = y * (-0.193854F + y * (-1.14885F + y * (1.7932F - 0.95943F * y * y))) / (0.046391F + y);
     const float o = y * (0.000654023F + (-0.0207818F + 0.119681F * y) * y) / (1.26264F + y * (-1.92021F + y));
-    const float g = std::exp(-0.5F * ((x - m) / s) * ((x - m) / s)) / (s * std::sqrt(2.0F * harmonia::utils::Math::kPi)) + o;
+    const float g =
+        std::exp(-0.5F * ((x - m) / s) * ((x - m) / s)) / (s * std::sqrt(2.0F * harmonia::utils::Math::kPi)) + o;
     return std::clamp(g, 0.0F, 1.0F);
 }
 
@@ -795,7 +796,8 @@ estimateWhiteFurnaceEnergy(const harmonia::GpuMaterial& mat, const sm::float3& w
     for (std::size_t i = 0; i < sampleCount; ++i) {
         const sm::float3 wi = sampleUniformSphere(dist(rng), dist(rng));
         const sm::float3 f = evalBSDF(mat, wo, wi, N, T, B, N, T, B);
-        sum += static_cast<double>(harmonia::utils::ColorSpace::luminance(f) * std::abs(wi.z) * (4.0 * harmonia::utils::Math::kPi));
+        sum += static_cast<double>(harmonia::utils::ColorSpace::luminance(f) * std::abs(wi.z) *
+                                   (4.0 * harmonia::utils::Math::kPi));
     }
     return sum / static_cast<double>(sampleCount);
 }
@@ -1702,7 +1704,8 @@ TEST(Bsdf, OpenPbrV0_ThinFilmUnderCoatStaysBounded) {
 [[nodiscard]] float sssExtinction(float radius, const sm::float3& radiusScale) noexcept {
     const float mfp =
         std::max(radius, 1.0e-4F) *
-        std::max(harmonia::utils::ColorSpace::luminance(sm::clamp(radiusScale, sm::float3(0.0F), sm::float3(1.0F))), 1.0e-4F);
+        std::max(harmonia::utils::ColorSpace::luminance(sm::clamp(radiusScale, sm::float3(0.0F), sm::float3(1.0F))),
+                 1.0e-4F);
     return 1.0F / std::max(mfp, 1.0e-4F);
 }
 
@@ -1859,24 +1862,22 @@ namespace {
 }
 
 // Listing 1. Returns the microfacet half-vector m.
-[[nodiscard]] sm::float3
-c9sampleVndf(const sm::float3& Ve, float alphaX, float alphaY, float u1, float u2) noexcept {
+[[nodiscard]] sm::float3 c9sampleVndf(const sm::float3& Ve, float alphaX, float alphaY, float u1, float u2) noexcept {
     const sm::float3 Vh = sm::normalize(sm::float3(alphaX * Ve.x, alphaY * Ve.y, Ve.z));
     // Cap half-width in STRETCHED z (i_std.z = Vh.z). Using the unstretched i_z here was the
     // shipped defect: it sampled the wrong sub-range and paired it with the wrong density.
     const float b = (Ve.z > 0.0F) ? (static_cast<float>(c9k(Ve, alphaX, alphaY)) * Vh.z) : Vh.z;
     const float phi = harmonia::utils::Math::k2Pi * u1;
-    const float z = ((1.0F - u2) * (1.0F + b)) - b;   // Listing 1: mad(1 - rand.y, 1 + b, -b)
+    const float z = ((1.0F - u2) * (1.0F + b)) - b; // Listing 1: mad(1 - rand.y, 1 + b, -b)
     const float sinTheta = std::sqrt(std::max(0.0F, 1.0F - (z * z)));
     const sm::float3 oStd(sinTheta * std::cos(phi), sinTheta * std::sin(phi), z);
-    const sm::float3 mStd = Vh + oStd;                // mStd.z > 0 by construction
+    const sm::float3 mStd = Vh + oStd; // mStd.z > 0 by construction
     return sm::normalize(sm::float3(alphaX * mStd.x, alphaY * mStd.y, mStd.z));
 }
 
 // Half-vector density. Eq. 8 for i_z >= 0 (denominator k*i_z + t); the stable rearrangement
 // of Eq. 7 for a backfacing shading normal (i_z + t is a near-cancelling difference there).
-[[nodiscard]] double
-c9vndfPdf(const sm::float3& h, const sm::float3& v, float alphaX, float alphaY) noexcept {
+[[nodiscard]] double c9vndfPdf(const sm::float3& h, const sm::float3& v, float alphaX, float alphaY) noexcept {
     const double d = c9ggxD(h, alphaX, alphaY);
     const double dotVh = std::max(static_cast<double>(sm::dot(v, h)), 0.0);
     if (dotVh <= 0.0) {
@@ -1894,8 +1895,7 @@ c9vndfPdf(const sm::float3& h, const sm::float3& v, float alphaX, float alphaY) 
 }
 
 // The UNBOUNDED Eq. 7 density, for the negative control below.
-[[nodiscard]] double
-c9vndfPdfUnbounded(const sm::float3& h, const sm::float3& v, float alphaX, float alphaY) noexcept {
+[[nodiscard]] double c9vndfPdfUnbounded(const sm::float3& h, const sm::float3& v, float alphaX, float alphaY) noexcept {
     const double d = c9ggxD(h, alphaX, alphaY);
     const double dotVh = std::max(static_cast<double>(sm::dot(v, h)), 0.0);
     if (dotVh <= 0.0) {
@@ -1909,8 +1909,7 @@ c9vndfPdfUnbounded(const sm::float3& h, const sm::float3& v, float alphaX, float
 
 // Solid-angle density of the reflection lobe. Mirrors bsdf_shared.slang reflectionPdf,
 // which delegates to GGX_VNDF_PDF and applies |dm/do| = 1/(4|i.m|).
-[[nodiscard]] double
-c9reflectionPdf(const sm::float3& wo, const sm::float3& wi, float alphaX, float alphaY) noexcept {
+[[nodiscard]] double c9reflectionPdf(const sm::float3& wo, const sm::float3& wi, float alphaX, float alphaY) noexcept {
     if (wo.z <= 0.0F || wi.z <= 0.0F) {
         return 0.0;
     }
@@ -1924,10 +1923,12 @@ c9reflectionPdf(const sm::float3& wo, const sm::float3& wi, float alphaX, float 
 
 // E[ f(o)/p(o) ] for f(o) = max(o.z,0), with o = the reflection of -v about the sampled m.
 // p_o = p_m * |dm/do| = p_m / (4 |v.m|). Exact value of the integral is pi.
-[[nodiscard]] double c9ImportanceSamplingEstimate(
-    const sm::float3& i, float alphaX, float alphaY,
-    double (*pdfFn)(const sm::float3&, const sm::float3&, float, float),
-    std::size_t samples, std::uint32_t seed) {
+[[nodiscard]] double c9ImportanceSamplingEstimate(const sm::float3& i,
+                                                  float alphaX,
+                                                  float alphaY,
+                                                  double (*pdfFn)(const sm::float3&, const sm::float3&, float, float),
+                                                  std::size_t samples,
+                                                  std::uint32_t seed) {
     std::mt19937 rng(seed);
     std::uniform_real_distribution<float> dist(0.0F, 1.0F);
     double sum = 0.0;
@@ -1952,10 +1953,9 @@ TEST(Bsdf, C9BoundedVndfPdfMatchesListing2ClosedForm) {
     // 2 D (v.h) / (k i_z + t) must reduce to exactly that through |dm/do| = 1/(4|v.h|).
     for (const float ax : {0.25F, 0.5F, 0.9F}) {
         for (const float ay : {0.25F, 0.5F, 0.9F}) {
-            for (const sm::float3 v : {
-                     sm::normalize(sm::float3(0.0F, 0.0F, 1.0F)),
-                     sm::normalize(sm::float3(0.52F, 0.22F, 0.825F)),
-                     sm::normalize(sm::float3(0.8F, 0.5F, 0.33F))}) {
+            for (const sm::float3 v : {sm::normalize(sm::float3(0.0F, 0.0F, 1.0F)),
+                                       sm::normalize(sm::float3(0.52F, 0.22F, 0.825F)),
+                                       sm::normalize(sm::float3(0.8F, 0.5F, 0.33F))}) {
                 const sm::float3 h = sm::normalize(sm::float3(0.31F, 0.17F, 0.94F));
                 const double impl = c9vndfPdf(h, v, ax, ay);
                 const double vDotH = std::max(static_cast<double>(sm::dot(v, h)), 0.0);
@@ -1964,9 +1964,8 @@ TEST(Bsdf, C9BoundedVndfPdfMatchesListing2ClosedForm) {
                 const double tx = ax * v.x;
                 const double ty = ay * v.y;
                 const double t = std::sqrt((tx * tx) + (ty * ty) + (static_cast<double>(v.z) * v.z));
-                const double closed = (v.z >= 0.0F)
-                    ? (c9ggxD(h, ax, ay) / (2.0 * ((c9k(v, ax, ay) * v.z) + t)))
-                    : (c9ggxD(h, ax, ay) * (t - v.z) / (2.0 * ((tx * tx) + (ty * ty))));
+                const double closed = (v.z >= 0.0F) ? (c9ggxD(h, ax, ay) / (2.0 * ((c9k(v, ax, ay) * v.z) + t)))
+                                                    : (c9ggxD(h, ax, ay) * (t - v.z) / (2.0 * ((tx * tx) + (ty * ty))));
 
                 EXPECT_NEAR(solidAngle, closed, 1.0e-9 * std::max(1.0, closed))
                     << "ax=" << ax << " ay=" << ay << " v=(" << v.x << "," << v.y << "," << v.z << ")";
@@ -1981,15 +1980,13 @@ TEST(Bsdf, C9BoundedSamplerIsUnbiasedForItsOwnPdf) {
     // failed this by tens of percent while every white-furnace check still passed.
     // Fixed RNG seed => deterministic, so a tight tolerance is safe (not flaky).
     constexpr double kPi = 3.14159265358979323846;
-    const double tol = 0.02 * kPi;  // 2%: 17x tighter than the ~35% defect, loose enough for float32
+    const double tol = 0.02 * kPi; // 2%: 17x tighter than the ~35% defect, loose enough for float32
     for (const float ax : {0.2F, 0.5F, 0.9F}) {
         for (const float ay : {0.2F, 0.5F, 0.9F}) {
-            for (const sm::float3 i : {
-                     sm::normalize(sm::float3(0.0F, 0.0F, 1.0F)),
-                     sm::normalize(sm::float3(0.52F, 0.22F, 0.825F)),
-                     sm::normalize(sm::float3(0.3F, 0.4F, 0.5F))}) {
-                const double est =
-                    c9ImportanceSamplingEstimate(i, ax, ay, c9vndfPdf, 200000U, 0x5EEDU);
+            for (const sm::float3 i : {sm::normalize(sm::float3(0.0F, 0.0F, 1.0F)),
+                                       sm::normalize(sm::float3(0.52F, 0.22F, 0.825F)),
+                                       sm::normalize(sm::float3(0.3F, 0.4F, 0.5F))}) {
+                const double est = c9ImportanceSamplingEstimate(i, ax, ay, c9vndfPdf, 200000U, 0x5EEDU);
                 EXPECT_NEAR(est, kPi, tol) << "ax=" << ax << " ay=" << ay;
             }
         }
