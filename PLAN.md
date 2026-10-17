@@ -32,15 +32,17 @@ gate measures against. Most estimator work is therefore owned by Harmonia (see
 
 ## At a glance
 
-- **Release:** v0.7.8 — lockstep with Harmonia/Theia (slang-math v0.2.1, Aether v0.7.4;
-  all tag-synced with GitHub).
-- **Last shipped (v0.7.7):** C14/VK2 — real OpenPBR `geometry_opacity` cutout; Hyperion's
-  slice was the shadow-only any-hit hit-group pair (see Baseline). **v0.7.8** is a
-  conformance/tooling wave (see Baseline).
-- **Next:** nothing Hyperion-owned is on the family's next-up list right now — the active
-  items (GI-SMS, C9, DN3, LS2, PERF5/PERF4, C11, C12) land in the **shared estimator**
-  (Harmonia/PLAN.md) and are consumed here. Hyperion-owned backlog: PERF3, PERF6, ANI7.
-
+- **Release:** v0.7.14 - AR1 consumption (scene_rt hooks, TLAS ownership) + Q1
+  coverage lane. Lockstep reference: Harmonia v0.7.14, Theia v0.7.15 (Aether v0.7.7,
+  slang-math v0.4.0).
+- **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
+  clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
+  bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
+  suite needs a GPU).
+- **Next:** nothing Hyperion-owned is on the family's next-up list right now - the
+  active items (GI-SMS, C9, DN3, LS2, PERF5/PERF4, C11, C12) land in the **shared
+  estimator** (Harmonia/PLAN.md) and are consumed here. Hyperion-owned backlog:
+  PERF3, PERF6, ANI7.
 ## How to continue
 
 AR1 executed (2026-10-15): Hyperion's Scene implements the harmonia/scene_rt hooks
