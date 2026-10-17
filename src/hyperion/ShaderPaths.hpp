@@ -6,8 +6,8 @@
 #include "harmonia/renderer/Pipeline.hpp"
 namespace hyperion {
 
-
-[[nodiscard]] inline harmonia::renderer::Pipeline::ShaderPaths makeHyperionShaderPaths(const std::filesystem::path& rootDir) {
+[[nodiscard]] inline harmonia::renderer::Pipeline::ShaderPaths
+makeHyperionShaderPaths(const std::filesystem::path& rootDir) {
     return harmonia::renderer::Pipeline::ShaderPaths{
         .raygen = rootDir / "raygen.spv",
         .closesthitTriangle = rootDir / "closesthit.spv",

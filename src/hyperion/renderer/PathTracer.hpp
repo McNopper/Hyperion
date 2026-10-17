@@ -24,7 +24,7 @@ class Pipeline;
 namespace hyperion {
 class Scene;
 class ShaderBindingTable;
-}
+} // namespace hyperion
 
 namespace hyperion {
 class PathTracer {
@@ -38,16 +38,18 @@ class PathTracer {
         std::uint32_t envImportanceWidth = 0;  ///< CDF grid width; 0 = importance sampling disabled
         std::uint32_t envImportanceHeight = 0; ///< CDF grid height
         harmonia::Tonemapper tonemapper = harmonia::Tonemapper::eACES;
-        harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace = harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
+        harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace =
+            harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
         bool serEnabled = false; ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
     };
 
-    [[nodiscard]] static std::expected<hyperion::PathTracer, VkResult> create(const harmonia::DeviceContext& ctx,
-                                                                    VkExtent2D renderExtent,
-                                                                    const harmonia::renderer::Pipeline& pipeline,
-                                                                    const hyperion::ShaderBindingTable& sbt,
-                                                                    harmonia::renderer::Descriptors& descriptors,
-                                                                    const Config& config);
+    [[nodiscard]] static std::expected<hyperion::PathTracer, VkResult>
+    create(const harmonia::DeviceContext& ctx,
+           VkExtent2D renderExtent,
+           const harmonia::renderer::Pipeline& pipeline,
+           const hyperion::ShaderBindingTable& sbt,
+           harmonia::renderer::Descriptors& descriptors,
+           const Config& config);
 
     VkResult render(VkCommandBuffer cmd,
                     const hyperion::Scene& scene,

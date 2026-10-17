@@ -46,9 +46,10 @@ int hyperion::Application::run(Config&& config, DemoConfig&& demoConfig) {
 
 bool hyperion::Application::onInitialize() {
     m_positionFetchSupported = deviceContext().positionFetchSupported;
-    harmonia::core::Logger::info("VK_KHR_ray_tracing_position_fetch: {}", m_positionFetchSupported ? "enabled" : "disabled");
+    harmonia::core::Logger::info("VK_KHR_ray_tracing_position_fetch: {}",
+                                 m_positionFetchSupported ? "enabled" : "disabled");
     harmonia::core::Logger::info("VK_EXT_ray_tracing_invocation_reorder: {}",
-                           deviceContext().serSupported ? "enabled" : "disabled");
+                                 deviceContext().serSupported ? "enabled" : "disabled");
     harmonia::core::Logger::info("VK_KHR_ray_tracing_maintenance1 (indirect RT2): required");
 
     m_shaderDir = resolveShaderDir(m_demoConfig.shaderDir);
@@ -70,14 +71,17 @@ bool hyperion::Application::onInitialize() {
     // first, a max_depth=1 scene would have declared a recursion limit of 1 and broken
     // every NEE shadow ray.
     constexpr std::uint32_t kRayRecursionDepth = 2;
-    auto pipeline = harmonia::renderer::Pipeline::create(deviceContext(), descriptors(), shaderPaths, kRayRecursionDepth);
+    auto pipeline =
+        harmonia::renderer::Pipeline::create(deviceContext(), descriptors(), shaderPaths, kRayRecursionDepth);
     if (!pipeline) {
-        harmonia::core::Logger::error("harmonia::renderer::Pipeline creation failed: VkResult {}", static_cast<int>(pipeline.error()));
+        harmonia::core::Logger::error("harmonia::renderer::Pipeline creation failed: VkResult {}",
+                                      static_cast<int>(pipeline.error()));
         return false;
     }
     m_pipeline = std::move(*pipeline);
 
-    auto sbt = hyperion::ShaderBindingTable::create(deviceContext(), m_pipeline, context().physicalDeviceInfo().rtProps);
+    auto sbt =
+        hyperion::ShaderBindingTable::create(deviceContext(), m_pipeline, context().physicalDeviceInfo().rtProps);
     if (!sbt) {
         harmonia::core::Logger::error("SBT creation failed: VkResult {}", static_cast<int>(sbt.error()));
         return false;
@@ -98,23 +102,24 @@ bool hyperion::Application::onInitialize() {
 
 bool hyperion::Application::createGBuffers(VkExtent2D extent) {
     auto gNormal = harmonia::core::Image::create(deviceContext(),
-                                           extent,
-                                           VK_FORMAT_R16G16B16A16_SFLOAT,
-                                           VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                           VK_IMAGE_ASPECT_COLOR_BIT,
-                                           "demo.gNormal");
+                                                 extent,
+                                                 VK_FORMAT_R16G16B16A16_SFLOAT,
+                                                 VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                 VK_IMAGE_ASPECT_COLOR_BIT,
+                                                 "demo.gNormal");
     if (!gNormal) {
-        harmonia::core::Logger::error("G-buffer normal creation failed: VkResult {}", static_cast<int>(gNormal.error()));
+        harmonia::core::Logger::error("G-buffer normal creation failed: VkResult {}",
+                                      static_cast<int>(gNormal.error()));
         return false;
     }
     m_gNormal = std::move(*gNormal);
 
     auto gDepth = harmonia::core::Image::create(deviceContext(),
-                                          extent,
-                                          VK_FORMAT_R32_SFLOAT,
-                                          VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                          VK_IMAGE_ASPECT_COLOR_BIT,
-                                          "demo.gDepth");
+                                                extent,
+                                                VK_FORMAT_R32_SFLOAT,
+                                                VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                VK_IMAGE_ASPECT_COLOR_BIT,
+                                                "demo.gDepth");
     if (!gDepth) {
         harmonia::core::Logger::error("G-buffer depth creation failed: VkResult {}", static_cast<int>(gDepth.error()));
         return false;
@@ -149,23 +154,24 @@ bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::Sc
 
     const auto& probe = iblProbe();
     const bool hasIbl = probe.has_value() && probe->isValid();
-    auto tracer =
-        hyperion::PathTracer::create(deviceContext(),
-                           swapchain().extent(),
-                           m_pipeline,
-                           m_sbt,
-                           descriptors(),
-                           hyperion::PathTracer::Config{.samplesPerPixel = m_demoConfig.spp,
-                                              .maxDepth = m_demoConfig.maxDepth,
-                                              .envLuminance = envLuminance,
-                                              .hasEnvMap = hasIbl ? 1u : 0u,
-                                              .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,
-                                              .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
-                                              .tonemapper = static_cast<harmonia::Tonemapper>(tonemapper()),
-                                              .workingColorSpace = workingColorSpace(),
-                                              .serEnabled = deviceContext().serSupported});
+    auto tracer = hyperion::PathTracer::create(
+        deviceContext(),
+        swapchain().extent(),
+        m_pipeline,
+        m_sbt,
+        descriptors(),
+        hyperion::PathTracer::Config{.samplesPerPixel = m_demoConfig.spp,
+                                     .maxDepth = m_demoConfig.maxDepth,
+                                     .envLuminance = envLuminance,
+                                     .hasEnvMap = hasIbl ? 1u : 0u,
+                                     .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,
+                                     .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
+                                     .tonemapper = static_cast<harmonia::Tonemapper>(tonemapper()),
+                                     .workingColorSpace = workingColorSpace(),
+                                     .serEnabled = deviceContext().serSupported});
     if (!tracer) {
-        harmonia::core::Logger::error("hyperion::PathTracer creation failed: VkResult {}", static_cast<int>(tracer.error()));
+        harmonia::core::Logger::error("hyperion::PathTracer creation failed: VkResult {}",
+                                      static_cast<int>(tracer.error()));
         return false;
     }
     m_pathTracer = std::move(*tracer);
@@ -236,26 +242,26 @@ void hyperion::Application::transitionTargetsOnFirstUse(VkCommandBuffer cmd) noe
     // renderer owns its layout — bring everything to GENERAL once.
     const std::array barriers{
         harmonia::core::imageBarrier(hdrImage().handle(),
-                               VK_IMAGE_LAYOUT_UNDEFINED,
-                               VK_IMAGE_LAYOUT_GENERAL,
-                               VK_PIPELINE_STAGE_2_NONE,
-                               0,
-                               VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                               VK_ACCESS_2_SHADER_WRITE_BIT),
+                                     VK_IMAGE_LAYOUT_UNDEFINED,
+                                     VK_IMAGE_LAYOUT_GENERAL,
+                                     VK_PIPELINE_STAGE_2_NONE,
+                                     0,
+                                     VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                                     VK_ACCESS_2_SHADER_WRITE_BIT),
         harmonia::core::imageBarrier(m_gNormal.handle(),
-                               VK_IMAGE_LAYOUT_UNDEFINED,
-                               VK_IMAGE_LAYOUT_GENERAL,
-                               VK_PIPELINE_STAGE_2_NONE,
-                               0,
-                               VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                               VK_ACCESS_2_SHADER_WRITE_BIT),
+                                     VK_IMAGE_LAYOUT_UNDEFINED,
+                                     VK_IMAGE_LAYOUT_GENERAL,
+                                     VK_PIPELINE_STAGE_2_NONE,
+                                     0,
+                                     VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                                     VK_ACCESS_2_SHADER_WRITE_BIT),
         harmonia::core::imageBarrier(m_gDepth.handle(),
-                               VK_IMAGE_LAYOUT_UNDEFINED,
-                               VK_IMAGE_LAYOUT_GENERAL,
-                               VK_PIPELINE_STAGE_2_NONE,
-                               0,
-                               VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
-                               VK_ACCESS_2_SHADER_WRITE_BIT),
+                                     VK_IMAGE_LAYOUT_UNDEFINED,
+                                     VK_IMAGE_LAYOUT_GENERAL,
+                                     VK_PIPELINE_STAGE_2_NONE,
+                                     0,
+                                     VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                                     VK_ACCESS_2_SHADER_WRITE_BIT),
     };
     harmonia::core::pipelineBarrier(cmd, barriers);
     m_targetsFirstUse = false;

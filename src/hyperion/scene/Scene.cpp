@@ -18,17 +18,19 @@
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/rt/TlasBuilder.hpp"
+#include "harmonia/scene/Geometry.hpp"
 #include "harmonia/scene_rt/EmissiveBuilder.hpp"
 #include "harmonia/scene_rt/SceneRt.hpp"
 #include "harmonia/scene_rt/Sphere.hpp"
 #include "harmonia/scene_rt/TriangleMesh.hpp"
-#include "harmonia/scene/Geometry.hpp"
 
 namespace hyperion {
 
 std::unique_ptr<harmonia::scene::Geometry>
-hyperion::Scene::createTriangleMesh(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool,
-                                    harmonia::scene::MeshData&& data, const harmonia::scene::MeshOpacity& opacity,
+hyperion::Scene::createTriangleMesh(const harmonia::DeviceContext& ctx,
+                                    const harmonia::core::CommandPool& pool,
+                                    harmonia::scene::MeshData&& data,
+                                    const harmonia::scene::MeshOpacity& opacity,
                                     std::string_view name) {
     auto mesh = harmonia::scene_rt::TriangleMesh::create(ctx, pool, std::move(data), opacity, name);
     if (!mesh) {
@@ -42,9 +44,9 @@ VkResult hyperion::Scene::finishBuild(const harmonia::DeviceContext& ctx, const 
 }
 
 std::uint32_t hyperion::Scene::addSphereMesh(const harmonia::DeviceContext& ctx,
-                                   const harmonia::core::CommandPool& pool,
-                                   float radius,
-                                   std::string_view name) {
+                                             const harmonia::core::CommandPool& pool,
+                                             float radius,
+                                             std::string_view name) {
     const std::uint32_t meshIndex = static_cast<std::uint32_t>(m_meshes.size());
     const std::string debugName = name.empty() ? std::string{"sphere."} + std::to_string(meshIndex) : std::string{name};
 
@@ -56,7 +58,8 @@ std::uint32_t hyperion::Scene::addSphereMesh(const harmonia::DeviceContext& ctx,
     return meshIndex;
 }
 
-VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) {
+VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx,
+                                            const harmonia::core::CommandPool& pool) {
     std::vector<harmonia::GpuMaterial> gpuMaterials;
     gpuMaterials.reserve(std::max<std::size_t>(m_materials.size(), 1));
     for (const harmonia::scene::Material& material : m_materials) {
@@ -121,7 +124,8 @@ VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx, 
     }
 
     // Build emissive triangle buffer via the shared harmonia utility.
-    harmonia::scene_rt::EmissiveData emissiveData = harmonia::scene_rt::buildEmissiveData(m_meshes, m_instances, m_materials, gpuMaterials);
+    harmonia::scene_rt::EmissiveData emissiveData =
+        harmonia::scene_rt::buildEmissiveData(m_meshes, m_instances, m_materials, gpuMaterials);
 
     m_emissiveTriangleCount = static_cast<std::uint32_t>(emissiveData.triangles.size());
     harmonia::core::Logger::info("hyperion::Scene: built {} emissive triangle(s) for NEE", m_emissiveTriangleCount);
@@ -155,13 +159,13 @@ void hyperion::Scene::buildGpuInstances() {
 }
 
 VkResult hyperion::Scene::uploadAllBuffers(const harmonia::DeviceContext& ctx,
-                                 const harmonia::core::CommandPool& pool,
-                                 const std::vector<harmonia::GpuMaterial>& gpuMaterials,
-                                 const std::vector<harmonia::GpuVertex>& vertices,
-                                 const std::vector<std::uint32_t>& indices,
-                                 const std::vector<harmonia::GpuLight>& gpuLights,
-                                 const std::vector<harmonia::GpuEmissiveTriangle>& emissiveTriangles,
-                                 const std::vector<float>& emissiveCdf) {
+                                           const harmonia::core::CommandPool& pool,
+                                           const std::vector<harmonia::GpuMaterial>& gpuMaterials,
+                                           const std::vector<harmonia::GpuVertex>& vertices,
+                                           const std::vector<std::uint32_t>& indices,
+                                           const std::vector<harmonia::GpuLight>& gpuLights,
+                                           const std::vector<harmonia::GpuEmissiveTriangle>& emissiveTriangles,
+                                           const std::vector<float>& emissiveCdf) {
     constexpr VkBufferUsageFlags kStorageAddr =
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 

@@ -52,7 +52,9 @@ class Scene : public harmonia::scene::SceneBase {
     [[nodiscard]] const harmonia::core::Buffer& vertexBuffer() const noexcept { return m_vertexBuffer; }
     [[nodiscard]] const harmonia::core::Buffer& indexBuffer() const noexcept { return m_indexBuffer; }
     [[nodiscard]] const harmonia::core::Buffer& lightBuffer() const noexcept { return m_lightBuffer; }
-    [[nodiscard]] const harmonia::core::Buffer& emissiveTriangleBuffer() const noexcept { return m_emissiveTriangleBuffer; }
+    [[nodiscard]] const harmonia::core::Buffer& emissiveTriangleBuffer() const noexcept {
+        return m_emissiveTriangleBuffer;
+    }
     [[nodiscard]] const harmonia::core::Buffer& emissiveCdfBuffer() const noexcept { return m_emissiveCdfBuffer; }
     [[nodiscard]] std::uint32_t instanceCount() const noexcept {
         return static_cast<std::uint32_t>(m_instances.size());
@@ -72,8 +74,10 @@ class Scene : public harmonia::scene::SceneBase {
     VkResult buildSceneBuffers(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) override;
 
     [[nodiscard]] std::unique_ptr<harmonia::scene::Geometry>
-    createTriangleMesh(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool,
-                       harmonia::scene::MeshData&& data, const harmonia::scene::MeshOpacity& opacity,
+    createTriangleMesh(const harmonia::DeviceContext& ctx,
+                       const harmonia::core::CommandPool& pool,
+                       harmonia::scene::MeshData&& data,
+                       const harmonia::scene::MeshOpacity& opacity,
                        std::string_view name) override;
 
     VkResult finishBuild(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) override;

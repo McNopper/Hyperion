@@ -8,7 +8,6 @@
 #include "hyperion/scene/Scene.hpp"
 namespace hyperion {
 
-
 // VK_EXT_ray_tracing_invocation_reorder runtime command. Not yet in the SDK volk/headers
 // on all toolchains, so load it dynamically and fall back to a no-op if unavailable.
 using PFN_vkCmdSetRayTracingInvocationReorderModeEXT =
@@ -20,17 +19,17 @@ constexpr std::uint32_t kLcgIncrement = 1013904223u;
 } // namespace
 
 std::expected<hyperion::PathTracer, VkResult> hyperion::PathTracer::create(const harmonia::DeviceContext& ctx,
-                                                       VkExtent2D renderExtent,
-                                                       const harmonia::renderer::Pipeline& pipeline,
-                                                       const hyperion::ShaderBindingTable& sbt,
-                                                       harmonia::renderer::Descriptors& descriptors,
-                                                       const Config& config) {
-    auto cameraBuffer = harmonia::core::Buffer::create(ctx,
-                                                 sizeof(harmonia::CameraData),
-                                                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-                                                     VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                                 "hyperion.camera");
+                                                                           VkExtent2D renderExtent,
+                                                                           const harmonia::renderer::Pipeline& pipeline,
+                                                                           const hyperion::ShaderBindingTable& sbt,
+                                                                           harmonia::renderer::Descriptors& descriptors,
+                                                                           const Config& config) {
+    auto cameraBuffer =
+        harmonia::core::Buffer::create(ctx,
+                                       sizeof(harmonia::CameraData),
+                                       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                       "hyperion.camera");
     if (!cameraBuffer) {
         return std::unexpected(cameraBuffer.error());
     }
@@ -38,10 +37,10 @@ std::expected<hyperion::PathTracer, VkResult> hyperion::PathTracer::create(const
     harmonia::core::Buffer indirectDispatchBuffer{};
     auto indirectBuf =
         harmonia::core::Buffer::create(ctx,
-                                 sizeof(VkTraceRaysIndirectCommand2KHR),
-                                 VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                 "hyperion.indirectDispatch");
+                                       sizeof(VkTraceRaysIndirectCommand2KHR),
+                                       VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                       VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                       "hyperion.indirectDispatch");
     if (!indirectBuf) {
         return std::unexpected(indirectBuf.error());
     }
@@ -64,12 +63,12 @@ std::expected<hyperion::PathTracer, VkResult> hyperion::PathTracer::create(const
 }
 
 VkResult hyperion::PathTracer::render(VkCommandBuffer cmd,
-                            const hyperion::Scene& scene,
-                            const harmonia::renderer::Camera& camera,
-                            const harmonia::core::Image& hdrImage,
-                            const harmonia::core::Image& gNormal,
-                            const harmonia::core::Image& gDepth,
-                            std::uint32_t frameIndex) noexcept {
+                                      const hyperion::Scene& scene,
+                                      const harmonia::renderer::Camera& camera,
+                                      const harmonia::core::Image& hdrImage,
+                                      const harmonia::core::Image& gNormal,
+                                      const harmonia::core::Image& gDepth,
+                                      std::uint32_t frameIndex) noexcept {
     if (cmd == VK_NULL_HANDLE || scene.tlas() == VK_NULL_HANDLE) {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
@@ -91,12 +90,12 @@ VkResult hyperion::PathTracer::render(VkCommandBuffer cmd,
 }
 
 void hyperion::PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
-                                       const hyperion::Scene& scene,
-                                       const harmonia::renderer::Camera& camera,
-                                       std::uint32_t frameIndex,
-                                       const harmonia::core::Image& hdrImage,
-                                       const harmonia::core::Image& gNormal,
-                                       const harmonia::core::Image& gDepth) noexcept {
+                                                 const hyperion::Scene& scene,
+                                                 const harmonia::renderer::Camera& camera,
+                                                 std::uint32_t frameIndex,
+                                                 const harmonia::core::Image& hdrImage,
+                                                 const harmonia::core::Image& gNormal,
+                                                 const harmonia::core::Image& gDepth) noexcept {
     const harmonia::CameraData cameraData = camera.getCameraData(frameIndex, m_config.maxDepth);
     m_cameraBuffer.uploadData(&cameraData, sizeof(cameraData), 0);
 
@@ -104,12 +103,13 @@ void hyperion::PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_rtPipeline);
     // MOD1: write set 0 via descriptor buffer + bind both sets.
-    m_descriptors->updateFrameSet(*m_ctx, tlasHandle, hdrImage.view(), m_cameraBuffer,
-                                  gNormal.view(), gDepth.view());
+    m_descriptors->updateFrameSet(*m_ctx, tlasHandle, hdrImage.view(), m_cameraBuffer, gNormal.view(), gDepth.view());
     m_descriptors->bindSceneSet(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
 }
 
-void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd, const hyperion::Scene& scene, std::uint32_t frameIndex) noexcept {
+void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd,
+                                              const hyperion::Scene& scene,
+                                              std::uint32_t frameIndex) noexcept {
     const harmonia::PushConstants pushConstants{
         .frameIndex = frameIndex,
         .maxDepth = m_config.maxDepth,

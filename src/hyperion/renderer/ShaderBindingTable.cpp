@@ -9,11 +9,10 @@
 #include "harmonia/renderer/Pipeline.hpp"
 namespace hyperion {
 
-
 std::expected<hyperion::ShaderBindingTable, VkResult>
 hyperion::ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
-                           const harmonia::renderer::Pipeline& pipeline,
-                           const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps) {
+                                     const harmonia::renderer::Pipeline& pipeline,
+                                     const VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rtProps) {
     constexpr std::uint32_t raygenCount = 1;
     constexpr std::uint32_t missCount = 2;
     constexpr std::uint32_t hitCount = harmonia::renderer::Pipeline::kHitGroupCount;
@@ -35,9 +34,11 @@ hyperion::ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
     const VkDeviceSize raygenSize =
         harmonia::core::bufferAlignUp(static_cast<VkDeviceSize>(stride) * raygenCount, baseAlignment);
     const VkDeviceSize missOffset = harmonia::core::bufferAlignUp(raygenOffset + raygenSize, baseAlignment);
-    const VkDeviceSize missSize = harmonia::core::bufferAlignUp(static_cast<VkDeviceSize>(stride) * missCount, baseAlignment);
+    const VkDeviceSize missSize =
+        harmonia::core::bufferAlignUp(static_cast<VkDeviceSize>(stride) * missCount, baseAlignment);
     const VkDeviceSize hitOffset = harmonia::core::bufferAlignUp(missOffset + missSize, baseAlignment);
-    const VkDeviceSize hitSize = harmonia::core::bufferAlignUp(static_cast<VkDeviceSize>(stride) * hitCount, baseAlignment);
+    const VkDeviceSize hitSize =
+        harmonia::core::bufferAlignUp(static_cast<VkDeviceSize>(stride) * hitCount, baseAlignment);
     const VkDeviceSize totalSize = hitOffset + hitSize;
 
     std::vector<std::byte> sbtBytes(static_cast<std::size_t>(totalSize), std::byte{0});
@@ -55,11 +56,11 @@ hyperion::ShaderBindingTable::create(const harmonia::DeviceContext& ctx,
     }
 
     auto buffer = harmonia::core::Buffer::create(ctx,
-                                           totalSize,
-                                           VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
-                                               VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-                                           "hyperion.sbt");
+                                                 totalSize,
+                                                 VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
+                                                     VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                                                 "hyperion.sbt");
     if (!buffer) {
         return std::unexpected(buffer.error());
     }

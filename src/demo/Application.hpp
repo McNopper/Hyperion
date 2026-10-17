@@ -28,7 +28,7 @@ class Application final : public harmonia::app::App, public harmonia::app::IRend
     struct DemoConfig {
         std::uint32_t spp = 4;
         std::uint32_t maxDepth = 8;
-        bool sppExplicit = false; ///< true if --spp was given on the command line
+        bool sppExplicit = false;      ///< true if --spp was given on the command line
         bool maxDepthExplicit = false; ///< true if --depth was given on the command line
         std::filesystem::path shaderDir;
     };
@@ -69,8 +69,8 @@ class Application final : public harmonia::app::App, public harmonia::app::IRend
     hyperion::PathTracer m_pathTracer{};
     hyperion::Scene m_scene{};
     harmonia::renderer::Camera m_camera{};
-    harmonia::core::Image m_gNormal{};           ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
-    harmonia::core::Image m_gDepth{};            ///< G-buffer ray hit distance  (R32_SFLOAT)
+    harmonia::core::Image m_gNormal{};     ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
+    harmonia::core::Image m_gDepth{};      ///< G-buffer ray hit distance  (R32_SFLOAT)
     bool m_targetsFirstUse = true;         ///< HDR/G-buffer images need UNDEFINED→GENERAL
     bool m_positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is active.
 };
