@@ -1,6 +1,6 @@
 # AGENTS.md â€” Hyperion
 
-Quick-start context for AI agents so basic facts don't have to be rediscovered each session.
+Quick-start context for AI agents so basic facts don't have to be rediscovered.
 
 **Outstanding work, governance (definition of done + guardrails) and release history: see
 [`PLAN.md`](PLAN.md).**
@@ -129,10 +129,9 @@ same commands from the repo root before pushing a lint-affecting change.
 (clang-diagnostic/clang-analyzer/bugprone fail the run; modernize/performance/portability
 are report-only). Also registered as ctest `test_tidy` (label `analysis`; the fast test loop is `ctest -LE analysis`; skips when
 clang-tidy, Python3 or the database is missing).
-**Architecture gate:** `ARCHITECTURE.md` is the machine-checked architecture contract
-(the check-arch reflexion gate - the document is the contract, the include graph is measured
-against it). ctest `test_arch` runs the vendored `tools/check_arch.py` engine (label
-`analysis`; registered only where the check-arch skill exists — local, not CI). Contract:
+**Architecture gate:** `ARCHITECTURE.md` is the machine-checked architecture contract —
+the document is the contract, the include graph is measured against it. ctest `test_arch`
+runs the vendored `tools/check_arch.py` engine (label `analysis`; local; not wired into CI). Contract:
 `hyperion/scene` is the leaf (plus the root `hyperion` vocabulary,
 `ShaderPaths.hpp`), `hyperion/renderer` consumes it, `demo` consumes both; includes may
 only go **down** that order (cross-repo includes of harmonia/slang-math/aether are

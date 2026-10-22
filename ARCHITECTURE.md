@@ -1,7 +1,6 @@
 # Architecture
 
-The checked-in architecture contract for Hyperion (the check-arch reflexion
-gate). The root vocabulary (`hyperion/ShaderPaths.hpp`), the scene leaf, the
+The checked-in architecture contract for Hyperion. The root vocabulary (`hyperion/ShaderPaths.hpp`), the scene leaf, the
 renderer consuming it, and the thin `demo` host on top. **Hyperion never
 depends on Theia** — the sibling renderers are independent; shared code goes
 down into Harmonia (a `theia/` include is a hard violation).
@@ -65,7 +64,7 @@ namespace_module:
 namespace_require:
 unresolved: info
 within_layer: deny              # undeclared same-layer edges: violations
-header_size: error               # the standing bloat rule (hard gate; the 2026-10 bloat queue is drained)
+header_size: error               # the standing bloat rule (hard gate)
 smells: report                 # refactoring-catalog proxies: report-only review signals
 
 layer vocabulary
