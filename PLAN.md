@@ -120,7 +120,7 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
-- **v0.7.13** (current; consumes Harmonia v0.7.13): **translation units
+- **v0.7.13** (consumes Harmonia v0.7.13): **translation units
   open `namespace hyperion` + the arch gate.** `PathTracer.cpp`, `ShaderBindingTable.cpp`,
   `scene/Scene.cpp` and `ShaderPaths.hpp` defined their methods fully qualified at global
   scope — inconsistent with the family style; they now open `namespace hyperion` (call
@@ -147,9 +147,9 @@ the low-spp trap, Aether/AGENTS.md).
   gallery (MAD = 0 on all 30 scenes)**. 48/48 ctest green on both OSes; offscreen
   `--validation` clean.
 - **v0.7.10**: **C9 sampler/PDF consistency tests (the net that caught a 35% shared-BSDF
-  bias).** (Entry backfilled from the release commit.)
+  bias).**
 - **v0.7.9**: **--depth honoured, RT recursion depth corrected; consumes Harmonia v0.7.9.**
-  (Entry backfilled from the release commit.)
+ 
 - **v0.7.8**: consumes Harmonia v0.7.8 (VK11 `shaderDemoteToHelperInvocation`;
   OpenPBR 1.1.1 conformance: `specular_weight` > 1 with the spec's ξ_s·F_s ≤ 1 clamp, and the
   transmission negative-μ_a gray-shift) and Aether v0.7.4 (spec defaults: coat_ior 1.6,
