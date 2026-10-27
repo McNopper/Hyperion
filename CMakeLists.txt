@@ -230,7 +230,7 @@ endif()
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v0.7.8
+    GIT_TAG v0.8.0
 )
 FetchContent_Declare(
     harmonia
