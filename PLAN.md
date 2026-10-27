@@ -32,7 +32,7 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 
 ## At a glance
 
-- **Release:** v0.7.15 - pins (Aether v0.7.8, Harmonia v0.7.15; consumes H-05 + SM6). Prior v0.7.14 - AR1 consumption (scene_rt hooks, Hyperion-side TLAS) + Q1
+- **Release:** v0.7.16 - pins: Aether v0.8.0 + Harmonia v0.7.16 (consumes VK16 forensics + SM6 remainder transitively); no Hyperion source changes.
   coverage lane. Lockstep reference: Harmonia v0.7.14, Theia v0.7.15 (Aether v0.7.7,
   slang-math v0.4.0).
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
