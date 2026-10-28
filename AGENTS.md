@@ -140,6 +140,9 @@ include cycles** (file-level SCC detection).
 Hyperion's classes live in `namespace hyperion`, opened in both headers and translation
 units. **Hyperion never depends on Theia** — the sibling renderers are independent;
 shared code goes down into Harmonia (a `theia/` include is a hard violation).
+
+**Dead-code gate:** `python tools/check_dead.py` - orphan headers, never-compiled sources (absent from `compile_commands.json` AND unreferenced by any CMake file), and FetchContent declare/consume mismatches. Also registered as ctest `test_dead` (label `analysis`; local only - registration is gated on the per-user check-dead skill install, so CI runners skip it). Justified findings go into `tools/check_dead.exceptions` with a reason; real dead code is deleted in a fix commit.
+
 Sanitizer lane (Clang/GCC configures only):
 **Coverage lane (Clang/GCC configures only):** configure a separate build with
 `-DHYPERION_COVERAGE=ON` (e.g. `-B build/coverage`), then run `python tools/coverage.py` - it

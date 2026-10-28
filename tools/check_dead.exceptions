@@ -1,0 +1,4 @@
+# check_dead exceptions - justified findings only (one per line:
+# <check> <path-or-name> <reason>). Never silence real findings here;
+# delete dead code in a fix commit instead.
+never-compiled tools/check_exr.cpp # manual EXR sanity inspector (NaN/Inf/negative counts) - compiled ad hoc, intentionally not wired into the build
