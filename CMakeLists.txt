@@ -251,16 +251,26 @@ set(HYPERION_ENTRY_SHADERS
     shadow_miss.slang
 )
 
-# Hyperion-specific sources only. Everything common now lives in Harmonia, and
-# the file-format parsers in Aether; both are linked via harmonia::harmonia.
-set(HYPERION_LIBRARY_SOURCES
-    src/hyperion/renderer/PathTracer.cpp
-    src/hyperion/renderer/ShaderBindingTable.cpp
+# Per-band sources (AR2), bottom-up. Everything common lives in Harmonia, the
+# file-format parsers in Aether; the bands below carry the Hyperion-side
+# module DAG of ARCHITECTURE.md (hyperion vocabulary + hyperion/scene leaves
+# -> hyperion/renderer -> demo).
+# The vocabulary band (src/hyperion/ShaderPaths.hpp) is header-only — no
+# source list, an INTERFACE target below.
+set(HYPERION_scene_SOURCES
     src/hyperion/scene/Scene.cpp
+    src/hyperion/scene/Scene.hpp
+)
+set(HYPERION_renderer_SOURCES
+    src/hyperion/renderer/PathTracer.cpp
+    src/hyperion/renderer/PathTracer.hpp
+    src/hyperion/renderer/ShaderBindingTable.cpp
+    src/hyperion/renderer/ShaderBindingTable.hpp
 )
 
 set(HYPERION_DEMO_SOURCES
     src/demo/Application.cpp
+    src/demo/Application.hpp
 )
 
 set(HYPERION_APP_SOURCES
@@ -353,26 +363,57 @@ unset(COMPILE_SLANG_EXTRA_DEFINES)
 unset(COMPILE_SLANG_EXTRA_DEPENDS)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
 
-add_library(hyperion_lib STATIC ${HYPERION_LIBRARY_SOURCES})
-add_dependencies(hyperion_lib hyperion_shaders hyperion_shaders_pf)
-
-target_include_directories(hyperion_lib
-    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
-)
-
+# ── Layered targets (AR2, Harmonia pattern) ──────────────────────────────────
+# The include-DAG of ARCHITECTURE.md expressed as target_link_libraries — an
+# upward include of an out-of-band symbol is now a LINK error. Bottom-up;
+# the two leaves (vocabulary, scene) publish src/.
+#
+#   hyperion (vocabulary)   hyperion/scene          (layer leaves)
+#              \_______________/
+#              hyperion/renderer -> scene
+#              hyperion_demo -> renderer, scene, vocabulary
+#              hyperion (exe) -> demo
+#
+# hyperion_vocab is header-only (no .cpp, no symbols of its own): an INTERFACE
+# target — no archive, include dirs propagate to its consumers through the
+# link interface. hyperion_lib stays the consumer-facing alias of the highest
+# Hyperion library band (hyperion_unit_tests links it).
 # harmonia::harmonia brings the common Vulkan library plus Aether, Vulkan SDK,
 # volk, stb and OpenEXR (incl. HARMONIA_HAS_OPENEXR) transitively.
-target_link_libraries(hyperion_lib
-    PUBLIC hyperion_project_options harmonia::harmonia
+add_library(hyperion_vocab INTERFACE)
+target_include_directories(hyperion_vocab
+    INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+target_link_libraries(hyperion_vocab
+    INTERFACE hyperion_project_options hyperion_vulkan_sdk harmonia::harmonia
 )
 
-target_compile_definitions(hyperion_lib
+add_library(hyperion_scene STATIC ${HYPERION_scene_SOURCES})
+target_include_directories(hyperion_scene
+    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+target_link_libraries(hyperion_scene
+    PUBLIC hyperion_project_options hyperion_vulkan_sdk harmonia::harmonia
+)
+
+add_library(hyperion_renderer STATIC ${HYPERION_renderer_SOURCES})
+target_link_libraries(hyperion_renderer
+    PUBLIC hyperion_project_options hyperion_vulkan_sdk harmonia::harmonia
+           hyperion_scene
+)
+
+add_library(hyperion_demo STATIC ${HYPERION_DEMO_SOURCES})
+add_dependencies(hyperion_demo hyperion_shaders hyperion_shaders_pf)
+target_link_libraries(hyperion_demo
+    PUBLIC hyperion_project_options hyperion_vulkan_sdk harmonia::harmonia
+           hyperion_renderer hyperion_scene hyperion_vocab
+)
+target_compile_definitions(hyperion_demo
     PUBLIC HYPERION_SHADER_DIR=\"${HYPERION_SHADER_OUTPUT_DIR}\"
            HYPERION_ASSETS_DIR=\"${AETHER_ASSETS_DIR}\"
 )
 
-add_library(hyperion_demo STATIC ${HYPERION_DEMO_SOURCES})
-target_link_libraries(hyperion_demo PUBLIC hyperion_lib)
+add_library(hyperion_lib ALIAS hyperion_renderer)
 
 add_executable(hyperion ${HYPERION_APP_SOURCES})
 add_dependencies(hyperion hyperion_shaders hyperion_shaders_pf)
