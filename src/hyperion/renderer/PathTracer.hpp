@@ -36,6 +36,7 @@ class PathTracer {
         std::uint32_t samplesPerPixel = 4;
         std::uint32_t maxDepth = 8;
         std::uint32_t rngSeed = harmonia::pipeline::kDefaultRngSeed;
+        std::uint32_t smsPartitionResolution = 16; ///< Hong 3x3 trust regions; 1 is the base-SMS limit.
         float envLuminance = 1.0f;
         harmonia::utils::OutputColorSpace outputColorSpace = harmonia::utils::OutputColorSpace::eHDR10;
         std::uint32_t hasEnvMap = 0;           ///< 1 = IBL env map bound at set1/binding6

@@ -32,6 +32,13 @@ normal convention are reused; internal reflections/scattering remain PT-owned.
 Focused source review finds no introduced blocker. Latest full family: H137,
 Hy59, T33 all pass validation-clean with architecture/tidy/dead as applicable.
 Curved-caustic final scenes, Hong and Theia reuse remain outstanding.
+Hong trust-region/conditional sampling is now implemented and checked: N=16
+reflected-energy ratios 0.99822 / 0.999659 / 0.996928 / 1.00662 at 4096 samples,
+with N=1 preserving the prior reference receipts. Numeric boundary/pole coverage
+is conservative over the unchanged root-equivalence tolerance; missing marginal
+factor controls fail/restores pass. Full family H140, Hy60, T33 validation-clean;
+architecture and applicable tidy/dead pass. Next: per-frame prior, Theia local /
+inverse-checked spatial reuse, then final equal-time scene and gallery evidence.
 
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is

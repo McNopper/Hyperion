@@ -169,7 +169,7 @@ void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
     if (exited) {
         payload.insideMedium = false;
     }
-    if (pushConst.smsPad != 0u && payload.smsClass == 4u) {
+    if (pushConst.smsPartitionResolution != 0u && payload.smsClass == 4u) {
         // Only the FIRST direct entry→exit crossing is SMS-owned. An internal
         // reflection or other object's boundary keeps the whole path on PT.
         bool sameObject = hit.instanceIndex == payload.smsCaster &&
@@ -210,7 +210,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     SurfaceFrame f = applyOpenPbrTextureMaps(mat, tex, wo, hit.normal, hit.geoNormal, hit.tangent, hit.uv);
 
     uint previousSmsClass = payload.smsClass;
-    if (pushConst.smsPad != 0u) {
+    if (pushConst.smsPartitionResolution != 0u) {
         // Ownership depends on ACTUAL path events, never on a seed's solve result.
         // Preserve the emitter's original termination, without adding its energy twice.
         if ((previousSmsClass == 3u || previousSmsClass == 5u) && smsCollectableHit(hit, mat, wo)) {
@@ -277,7 +277,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         envMap, envSampler,
         state);
 
-    if (pushConst.smsPad != 0u) {
+    if (pushConst.smsPartitionResolution != 0u) {
         uint nextClass = 0u;
         bool front = dot(wo, hit.geoNormal) > 0.0;
         bool reflected = dot(wo, hit.geoNormal) * dot(state.nextDirection, hit.geoNormal) > 0.0;

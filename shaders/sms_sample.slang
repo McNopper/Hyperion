@@ -47,7 +47,7 @@ bool prepareLight(inout SmsWorkRecord work) {
 }
 
 bool samplePath(inout HyperionSmsScene scene, float3 receiver, float3 light, float4 u,
-    uint maxDepth, out SmsManifoldVertex root[2], out uint count) {
+    uint maxDepth,uint resolution,out SmsManifoldVertex root[2],out uint count) {
     root[0] = root[1] = (SmsManifoldVertex)0;
     count = 0u;
     float z = 1.0 - 2.0*u.x, r = sqrt(max(0.0, 1.0-z*z)), phi = 2.0*kPi*u.y;
@@ -63,7 +63,8 @@ bool samplePath(inout HyperionSmsScene scene, float3 receiver, float3 light, flo
     reference[1] = (SmsManifoldVertex)0;
     reference[0].event = count == 1u ? kSmsReflection : kSmsTransmission;
     if (!scene.project(receiver, hit.vertex.position, reference, count, root)) return false;
-    if (!solveSmsManifold(scene, receiver, light, root, count, 32u, 1.0e-5)) return false;
+    if (!solveSmsManifold(scene, receiver, light, root, count, 32u, 1.0e-5,
+        resolution,smsPrimaryTile(u.xy,resolution))) return false;
     float3 edge = light - root[count-1u].position;
     float distance = length(edge);
     if (!(distance > kRayEpsilon + kMediumEpsilon)) return false;
@@ -126,6 +127,10 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
     if (!smsQueueSlot(pc, group, lane, slot)) return;
     SmsWorkRecord work = pc.work[slot];
     uint phase = smsPhase(work);
+    uint resolution=work.words[12].w;
+    if (phase!=kSmsAbsent && (resolution==0u || resolution>32u)) {
+        smsQueueError(pc,kSmsQueueInvalidWork); return;
+    }
     if (pc.inputHeader->mode == 0u) {
         if (phase == kSmsAbsent) return;
         if (phase != kSmsPrepare) { smsQueueError(pc, kSmsQueueInvalidWork); return; }
@@ -149,11 +154,18 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
             if (all(trial == uint2(0,0))) { smsQueueError(pc, kSmsQueueNumericError); return; }
         }
         float4 u = smsTrialSample(work.words[7].zw, trial, uint2(0,0));
+        uint2 origin=uint2(0,0);
+        uint2 extent=resolution.xx;
+        if (phase!=kSmsInitial) {
+            origin=work.words[14].zw;
+            extent=work.words[15].xy;
+        }
+        u.xy=smsSampleTileRectangle(u.xy,origin,extent,resolution);
         SmsManifoldVertex root[2];
         uint count;
         // ONE common call site, same compute context, same frozen endpoint loads.
         // Initial and repeat differ only in integer counter; phase logic is below.
-        bool solved = samplePath(scene, receiver, light, u, work.words[13].w, root, count);
+        bool solved = samplePath(scene,receiver,light,u,work.words[13].w,resolution,root,count);
         if (phase == kSmsInitial) {
             if (!solved) { phase = kSmsDone; break; }
             float3 base;
@@ -161,17 +173,24 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
             work.words[11].xyz = asuint(base);
             if (all(base == 0.0.xxx)) { phase = kSmsDone; break; }
             smsStoreRoot(work, root, count);
+            SmsConditionalRegion conditional=makeSmsConditionalRegion(normalize(root[0].position-receiver),resolution);
+            work.words[11].w=asuint(conditional.probability);
+            work.words[14].zw=conditional.origin;
+            work.words[15].xy=conditional.extent;
             reciprocal = beginSmsReciprocal();
             phase = kSmsRepeat;
         } else {
             SmsManifoldVertex initial[2]; uint initialCount;
             smsLoadRoot(work, initial, initialCount);
-            bool same = solved && sameSmsRoot(receiver, initial, initialCount, root, count, 1.0e-4);
+            bool same = solved && sameSmsRoot(receiver, initial, initialCount, root, count, kSmsRootDirectionTolerance);
             observeSmsReciprocal(reciprocal, same);
             if (reciprocal.status == 2u) { smsQueueError(pc, kSmsQueueNumericError); return; }
             if (reciprocal.status == 1u) {
                 float weight;
                 if (!completedSmsReciprocal(reciprocal, weight)) { smsQueueError(pc, kSmsQueueNumericError); return; }
+                // Hong Eq. 5: conditional inverse probability is missing the
+                // known marginal probability P(C). Include it exactly once.
+                weight=smsConditionalWeight(weight,asfloat(work.words[11].w));
                 float3 estimate = asfloat(work.words[11].xyz) * weight;
                 if (!all(isfinite(estimate))) { smsQueueError(pc, kSmsQueueNumericError); return; }
                 work.words[11].xyz = asuint(estimate);

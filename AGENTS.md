@@ -79,6 +79,10 @@ errors abort the logical frame. Shared/core algorithms follow the SMS papers;
 the current verified renderer milestones are exact-delta mirror and flat closed-
 glass / colored pure-absorption energy, not the whole GI-SMS / Theia feature.
 Scattering, dispersion and longer chains stay PT-owned. See PLAN.md for remaining scope.
+`PathTracer::Config::smsPartitionResolution` selects Hong's 3×3 periodic walk
+trust regions (default 16, supported 1–32); 1 is the exact unpartitioned limit.
+Conditional repeat sampling includes the known region-probability correction.
+Per-frame prior and Theia reuse remain ongoing work, not completed capabilities.
 
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 

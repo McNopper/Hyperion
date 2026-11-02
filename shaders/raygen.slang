@@ -56,13 +56,14 @@ void pathTracingRaygen()
         payload.smsSlot = pixelKey*spp+s;
         payload.smsClass = 1u; // clean primary; null/unsupported interactions clear it
         payload.smsCaster = payload.smsCasterMat = 0u;
-        if (pushConst.smsPad != 0u) {
+        if (pushConst.smsPartitionResolution != 0u) {
             SmsWorkRecord work = {};
             work.words[7].zw = uint2(hashCombine(pixelKey, pushConst.rngSeed),
                 hashCombine(pushConst.frameIndex, s));
             work.words[13].zw = uint2(pushConst.emissiveTriangleCount, pushConst.maxDepth);
             work.words[14] = uint4(asuint(camera.exposure), spp, pushConst.frameIndex, pushConst.rngSeed);
             work.words[15] = uint4(s, 0u, launchDim);
+            work.words[12].w = pushConst.smsPartitionResolution;
             pushConst.smsWork[payload.smsSlot] = work; // initialize EVERY slot, including misses
         }
 

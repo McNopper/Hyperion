@@ -133,7 +133,7 @@ void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd,
         .envImportanceHeight = m_config.envImportanceHeight,
         .tonemapper = static_cast<std::uint32_t>(m_config.tonemapper),
         .workingColorSpace = static_cast<std::uint32_t>(m_config.workingColorSpace),
-        .smsPad = 1,
+        .smsPartitionResolution = m_config.smsPartitionResolution,
         .smsWork = m_sms.workBuffer().deviceAddress(),
     };
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(harmonia::PushConstants), &pushConstants);
@@ -149,6 +149,8 @@ void hyperion::PathTracer::dispatchRays(VkCommandBuffer cmd) noexcept {
 void hyperion::PathTracer::setConfig(const Config& config) noexcept {
     const auto oldSamples = std::max(m_config.samplesPerPixel, 1U);
     m_config = config;
+    if (config.smsPartitionResolution == 0 || config.smsPartitionResolution > 32)
+        m_frameError = VK_ERROR_INITIALIZATION_FAILED;
     if (m_ctx != nullptr && oldSamples != std::max(config.samplesPerPixel, 1U) && m_frameError == VK_SUCCESS)
         m_frameError = resetSmsWork();
 }
@@ -163,6 +165,8 @@ void hyperion::PathTracer::onResize(VkExtent2D newExtent) noexcept {
 }
 
 VkResult hyperion::PathTracer::resetSmsWork() {
+    if (m_config.smsPartitionResolution == 0 || m_config.smsPartitionResolution > 32)
+        return VK_ERROR_INITIALIZATION_FAILED;
     const auto pixels = std::uint64_t{m_extent.width} * m_extent.height;
     const auto samples = std::max(m_config.samplesPerPixel, 1U);
     if (pixels == 0 || pixels > harmonia::pipeline::SmsPass::kMaxCapacity / samples)

@@ -53,6 +53,7 @@ class SmsFrameFixture : public RtFixture {
   protected:
     [[nodiscard]] virtual bool glassSlab() const noexcept { return false; }
     [[nodiscard]] virtual float absorptionDepth() const noexcept { return 0; }
+    [[nodiscard]] virtual std::uint32_t partitionResolution() const noexcept { return 1; }
     void SetUp() override {
         RtFixture::SetUp();
         if (IsSkipped())
@@ -142,7 +143,8 @@ class SmsFrameFixture : public RtFixture {
         hdr = std::move(*image);
         normal = std::move(*n);
         depth = std::move(*z);
-        hyperion::PathTracer::Config config{.samplesPerPixel = 1, .maxDepth = glassSlab() ? 4U : 3U};
+        hyperion::PathTracer::Config config{
+            .samplesPerPixel = 1, .maxDepth = glassSlab() ? 4U : 3U, .smsPartitionResolution = partitionResolution()};
         auto pt = hyperion::PathTracer::create(ctx, kExtent, *pipeline, sbt, *descriptors, config);
         ASSERT_TRUE(pt.has_value()) << static_cast<int>(pt.error());
         tracer = std::move(*pt);
@@ -514,10 +516,16 @@ class SmsAbsorptionFrameFixture : public SmsGlassFrameFixture {
     [[nodiscard]] float absorptionDepth() const noexcept override { return 1; }
 };
 
+class SmsPartitionFrameFixture : public SmsFrameFixture {
+  protected:
+    [[nodiscard]] std::uint32_t partitionResolution() const noexcept override { return 16; }
+};
+
 TEST_F(SmsFrameFixture, MirrorMatchesVirtualEmitterEnergyAcrossSeedsAndConverges) {
     double shortMse = 0, longMse = 0;
     for (auto seed : {17U, 91U, 1234U, 2026U}) {
-        hyperion::PathTracer::Config config{.samplesPerPixel = 1, .maxDepth = 3, .rngSeed = seed};
+        hyperion::PathTracer::Config config{
+            .samplesPerPixel = 1, .maxDepth = 3, .rngSeed = seed, .smsPartitionResolution = partitionResolution()};
         tracer.setConfig(config);
         std::uint64_t continuations = 0;
         std::vector<sm::float4> pixels;
@@ -548,7 +556,8 @@ TEST_F(SmsFrameFixture, MirrorMatchesVirtualEmitterEnergyAcrossSeedsAndConverges
 TEST_F(SmsGlassFrameFixture, ClosedGlassMatchesSnellAreaEnergyAcrossSeedsAndConverges) {
     double shortMse = 0, longMse = 0;
     for (auto seed : {17U, 91U, 1234U, 2026U}) {
-        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1, .maxDepth = 4, .rngSeed = seed});
+        tracer.setConfig(hyperion::PathTracer::Config{
+            .samplesPerPixel = 1, .maxDepth = 4, .rngSeed = seed, .smsPartitionResolution = partitionResolution()});
         std::uint64_t continuations = 0;
         std::vector<sm::float4> pixels;
         for (std::uint32_t f = 0; f < kFrames; ++f) {
@@ -577,7 +586,8 @@ TEST_F(SmsGlassFrameFixture, ClosedGlassMatchesSnellAreaEnergyAcrossSeedsAndConv
 TEST_F(SmsAbsorptionFrameFixture, PureAbsorberMatchesSnellBeerRgbEnergyAndConverges) {
     double shortMse = 0, longMse = 0;
     for (auto seed : {17U, 91U, 1234U, 2026U}) {
-        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1, .maxDepth = 4, .rngSeed = seed});
+        tracer.setConfig(hyperion::PathTracer::Config{
+            .samplesPerPixel = 1, .maxDepth = 4, .rngSeed = seed, .smsPartitionResolution = partitionResolution()});
         std::uint64_t continuations = 0;
         std::vector<sm::float4> pixels;
         for (std::uint32_t f = 0; f < kFrames; ++f) {
@@ -604,4 +614,29 @@ TEST_F(SmsAbsorptionFrameFixture, PureAbsorberMatchesSnellBeerRgbEnergyAndConver
     }
     std::cout << "SMS absorption aggregate MSE 128/32=" << longMse / shortMse << '\n';
     EXPECT_LT(longMse, shortMse * .65);
+}
+
+TEST_F(SmsPartitionFrameFixture, PartitionedMirrorMatchesIndependentEnergy) {
+    // Hong Section 3.4: without the following prior stage, smaller trust regions
+    // trade variance for cost. Use the predeclared larger budget, not the base
+    // estimator's 128-sample variance gate or a relaxed energy tolerance.
+    constexpr std::uint32_t frames = 4096;
+    for (auto seed : {17U, 91U, 1234U, 2026U}) {
+        tracer.setConfig(hyperion::PathTracer::Config{
+            .samplesPerPixel = 1, .maxDepth = 3, .rngSeed = seed, .smsPartitionResolution = 16});
+        std::uint64_t continuations = 0;
+        for (std::uint32_t f = 0; f < frames; ++f)
+            ASSERT_NO_FATAL_FAILURE(frame(f, seed, continuations));
+        std::vector<sm::float4> pixels;
+        ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+        const auto measured = energy(pixels);
+        const double ratio = (measured.observed - measured.direct) / measured.reflected;
+        std::cout << "Partitioned SMS N=16 seed=" << seed << " caustic ratio=" << ratio
+                  << " continuations=" << continuations << '\n';
+        EXPECT_NEAR(ratio, 1.0, .02);
+        EXPECT_GT(continuations, frames);
+        const auto output = std::filesystem::path(HYPERION_TEST_SHADER_DIR).parent_path() /
+                            ("sms_partition_seed" + std::to_string(seed) + ".exr");
+        ASSERT_TRUE(harmonia::presentation::ImageCapture::saveExr(deviceCtx(), commandPool(), hdr, output));
+    }
 }

@@ -30,7 +30,7 @@ struct PushConstants {
     uint  envImportanceHeight;   ///< CDF grid height
     uint  tonemapper;            ///< Tonemapper enum (used by tonemap pass)
     uint  workingColorSpace;     ///< 0 = linear Rec.2020, 1 = linear Rec.709 (used by tonemap pass)
-    uint  smsPad;
+    uint  smsPartitionResolution;
     SmsWorkRecord* smsWork;
 };
 
