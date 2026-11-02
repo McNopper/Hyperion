@@ -1,5 +1,29 @@
 # PLAN — Hyperion
 
+**Active local GI-SMS production batch:** Harmonia `c323d94` provides verified
+resumable queues. Hyperion now has the production scene reader, single-compute-
+call-site root sampler, receiver recording / resolve and IFrameCompletion adapter.
+Exact-delta mirror energy EXRs pass across four seeds; Theia is still unwired.
+Production glass / absorption energy and remaining paper stages are outstanding. Verification
+contract / independent oracles live in Harmonia/PLAN.md's next production batch.
+Run `hyperion_module_tests.exe --gtest_filter=SmsSceneFixture.*:SmsFrameFixture.*`,
+the full validation-enabled family suites and missing/doubled-energy controls.
+TOML zero-roughness metal is continuous floored GGX, not Material::mirror; do not
+silently reclassify it. Existing rough/dispersive/medium transport stays PT-owned.
+No push, tags, release or dependency-pin changes are authorized.
+
+Mirror checkpoint acceptance: exact-delta mirror reflected-energy ratios across
+four seeds are 0.991267 / 1.01098 / 0.981383 / 1.00834, with 128/32-sample MSE ratio
+0.24561. EXRs: `build/tests/sms_mirror_seed{17,91,1234,2026}.exr`. Missing/doubled
+energy and trial-zero replay mutants fail, exact restores pass. Actual RT
+ellipsoid-normal old-code control fails/restores. Injected GPU error makes the
+real App exit 1 without EXR/PNG; normal capture restores exit 0. Three source-
+review boundary findings are corrected and covered by actual GPU controls:
+zero CDF mass stays PT-owned, tiny glass weights stay PT-owned, sampler grazing
+zero events remain zero. Final full suites 137/137 H, 56/56 Hy, 33/33 T with
+validation ON / zero messages; architecture and local tidy/dead pass. Closed
+glass / absorption energy, Hong and Theia reuse remain outstanding.
+
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is
 tracked here.

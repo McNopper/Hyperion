@@ -70,6 +70,15 @@ is rejected rather than exporting the last one-sample frame. A single-sample
 capture may omit temporal history. Requested accumulation creation failures are
 fatal in the shared host, not a warning-and-continue fallback.
 
+**Local GI-SMS work:** PathTracer::render records bounded initial work, not an
+implicitly completed image. Direct API callers must submit/wait, query
+frameReady(), and submit/wait recordContinuation() until ready before reading,
+accumulating or exporting HDR. The Application's IFrameCompletion adapter does
+this automatically. Ready includes GPU full-slot validation and SMS HDR resolve;
+errors abort the logical frame. Shared/core algorithms follow the SMS papers;
+the current verified renderer milestone is exact-delta mirror energy, not the
+whole GI-SMS / Theia feature. See PLAN.md for remaining scope.
+
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 
 ## Gotchas (these waste a cycle every time they're forgotten)

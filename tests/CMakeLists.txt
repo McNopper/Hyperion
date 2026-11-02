@@ -40,10 +40,23 @@ set(HYPERION_MODULE_TEST_SOURCES
     module/test_scene_build.cpp
     module/test_sbt.cpp
     module/test_frame_sampling.cpp
+    module/test_sms_scene.cpp
+    module/test_sms_frame.cpp
 )
 
 add_executable(hyperion_module_tests ${HYPERION_MODULE_TEST_SOURCES})
 add_dependencies(hyperion_module_tests hyperion_shaders)
+set(COMPILE_SLANG_SHADER_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/shaders" "${HARMONIA_SHADER_SOURCE_DIR}")
+set(COMPILE_SLANG_EXTRA_DEPENDS "${PROJECT_SOURCE_DIR}/shaders/sms_scene.slang"
+    "${HARMONIA_SHADER_SOURCE_DIR}/sms_transport.slang" "${HARMONIA_SHADER_SOURCE_DIR}/sms_solver.slang"
+    "${HARMONIA_SHADER_SOURCE_DIR}/sms_geometry.slang")
+compile_slang_shaders(hyperion_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders" sms_scene_test.slang)
+unset(COMPILE_SLANG_SHADER_ROOT)
+unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
+unset(COMPILE_SLANG_EXTRA_DEPENDS)
+add_dependencies(hyperion_module_tests hyperion_test_shaders)
+target_compile_definitions(hyperion_module_tests PRIVATE HYPERION_TEST_SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders")
 target_link_libraries(hyperion_module_tests
     PRIVATE
         hyperion_demo

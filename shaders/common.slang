@@ -1,4 +1,5 @@
 import rng;
+import sms_types;
 __exported import gpu_types;
 
 /// Hyperion-specific per-instance GPU layout (std430, 32 bytes).
@@ -29,6 +30,8 @@ struct PushConstants {
     uint  envImportanceHeight;   ///< CDF grid height
     uint  tonemapper;            ///< Tonemapper enum (used by tonemap pass)
     uint  workingColorSpace;     ///< 0 = linear Rec.2020, 1 = linear Rec.709 (used by tonemap pass)
+    uint  smsPad;
+    SmsWorkRecord* smsWork;
 };
 
 [raypayload]
@@ -57,6 +60,10 @@ struct RayPayload {
     float  mediumG        : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     float  mediumEta      : read(caller, closesthit, miss) : write(caller, closesthit, miss);
     float  mediumFreeDist : read(caller, closesthit, miss) : write(caller, closesthit, miss);
+    uint   smsSlot       : read(caller, closesthit) : write(caller);
+    uint   smsClass      : read(caller, closesthit) : write(caller, closesthit);
+    uint   smsCaster     : read(caller, closesthit) : write(caller, closesthit);
+    uint   smsCasterMat  : read(caller, closesthit) : write(caller, closesthit);
 };
 
 /// Shadow-ray payload. `transmittance` is the running ∏(1-α) accumulated by the

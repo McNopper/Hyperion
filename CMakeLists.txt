@@ -249,6 +249,8 @@ set(HYPERION_ENTRY_SHADERS
     intersection.slang
     miss.slang
     shadow_miss.slang
+    sms_sample.slang
+    sms_resolve.slang
 )
 
 # Per-band sources (AR2), bottom-up. Everything common lives in Harmonia, the
@@ -397,6 +399,7 @@ target_link_libraries(hyperion_scene
 )
 
 add_library(hyperion_renderer STATIC ${HYPERION_renderer_SOURCES})
+target_compile_definitions(hyperion_renderer PRIVATE HYPERION_SHADER_DIR="${HYPERION_SHADER_OUTPUT_DIR}")
 target_link_libraries(hyperion_renderer
     PUBLIC hyperion_project_options hyperion_vulkan_sdk harmonia::harmonia
            hyperion_scene

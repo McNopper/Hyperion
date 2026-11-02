@@ -5,12 +5,14 @@
 
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 
 #include "harmonia/DeviceContext.hpp"
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Image.hpp"
 #include "harmonia/pipeline/PassContext.hpp"
+#include "harmonia/pipeline/SmsPass.hpp"
 #include "harmonia/renderer/Camera.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
@@ -51,8 +53,11 @@ class PathTracer {
            const harmonia::renderer::Pipeline& pipeline,
            const hyperion::ShaderBindingTable& sbt,
            harmonia::renderer::Descriptors& descriptors,
-           const Config& config);
+           const Config& config,
+           const std::filesystem::path& shaderDirectory = {});
 
+    /// Records bounded initial work. Output is usable only after a waited
+    /// frameReady() succeeds; resume with recordContinuation while pending.
     VkResult render(VkCommandBuffer cmd,
                     const hyperion::Scene& scene,
                     const harmonia::renderer::Camera& camera,
@@ -61,8 +66,13 @@ class PathTracer {
                     const harmonia::core::Image& gDepth,
                     std::uint32_t frameIndex) noexcept;
 
+    /// Retire the previous frame before changing sampling capacity/resizing.
     void setConfig(const Config& config) noexcept;
     void onResize(VkExtent2D newExtent) noexcept;
+    /// Queried only after the previous submission has retired. Ready includes
+    /// full-slot validation AND HDR resolve; no pending work enters accumulation.
+    [[nodiscard]] std::expected<bool, VkResult> frameReady() const noexcept;
+    [[nodiscard]] VkResult recordContinuation(VkCommandBuffer cmd) noexcept;
 
   private:
     void writeFrameDescriptors(VkCommandBuffer cmd,
@@ -76,6 +86,7 @@ class PathTracer {
     void dispatchRays(VkCommandBuffer cmd) noexcept;
 
     void updateIndirectBuffer() noexcept;
+    [[nodiscard]] VkResult resetSmsWork();
     const harmonia::DeviceContext* m_ctx{};
     VkPipeline m_rtPipeline{VK_NULL_HANDLE};
     VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
@@ -89,6 +100,10 @@ class PathTracer {
     VkStridedDeviceAddressRegionKHR m_miss{};
     VkStridedDeviceAddressRegionKHR m_hit{};
     VkStridedDeviceAddressRegionKHR m_callable{};
+    std::filesystem::path m_shaderDirectory;
+    harmonia::pipeline::SmsPass m_sms;
+    VkResult m_frameError = VK_SUCCESS;
+    bool m_frameRecorded = false;
 };
 } // namespace hyperion
 #endif // HYPERION_RENDERER_PATHTRACER_HPP

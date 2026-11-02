@@ -145,7 +145,7 @@ class FrameSamplingFixture : public RtFixture {
     }
 
     void frame(float emission, std::uint32_t index, bool accumulate) {
-        const auto cmd = commandPool().beginOneShot();
+        auto cmd = commandPool().beginOneShot();
         ASSERT_TRUE(cmd.has_value());
         if (index == 0) {
             for (auto* image : {&m_hdr, &m_normal, &m_depth})
@@ -176,6 +176,11 @@ class FrameSamplingFixture : public RtFixture {
                                           .pImageMemoryBarriers = nullptr};
         vkCmdPipelineBarrier2(*cmd, &dependency);
         ASSERT_EQ(m_tracer.render(*cmd, m_scene, m_camera, m_hdr, m_normal, m_depth, index), VK_SUCCESS);
+        ASSERT_EQ(commandPool().endOneShot(*cmd), VK_SUCCESS);
+        const auto ready = m_tracer.frameReady();
+        ASSERT_TRUE(ready.has_value() && *ready) << "Primary-emitter depth-1 frames must complete immediately";
+        cmd = commandPool().beginOneShot();
+        ASSERT_TRUE(cmd.has_value());
         if (accumulate) {
             const harmonia::pipeline::PassContext context{.cmd = *cmd,
                                                           .frameIndex = index,

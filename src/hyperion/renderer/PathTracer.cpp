@@ -1,7 +1,9 @@
 #include "hyperion/renderer/PathTracer.hpp"
 
+#include <algorithm>
 #include <cstdint>
 
+#include "harmonia/core/Logger.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
@@ -13,12 +15,14 @@ namespace hyperion {
 using PFN_vkCmdSetRayTracingInvocationReorderModeEXT =
     void(VKAPI_PTR*)(VkCommandBuffer commandBuffer, VkRayTracingInvocationReorderModeEXT reorderMode);
 
-std::expected<hyperion::PathTracer, VkResult> hyperion::PathTracer::create(const harmonia::DeviceContext& ctx,
-                                                                           VkExtent2D renderExtent,
-                                                                           const harmonia::renderer::Pipeline& pipeline,
-                                                                           const hyperion::ShaderBindingTable& sbt,
-                                                                           harmonia::renderer::Descriptors& descriptors,
-                                                                           const Config& config) {
+std::expected<hyperion::PathTracer, VkResult>
+hyperion::PathTracer::create(const harmonia::DeviceContext& ctx,
+                             VkExtent2D renderExtent,
+                             const harmonia::renderer::Pipeline& pipeline,
+                             const hyperion::ShaderBindingTable& sbt,
+                             harmonia::renderer::Descriptors& descriptors,
+                             const Config& config,
+                             const std::filesystem::path& shaderDirectory) {
     auto cameraBuffer =
         harmonia::core::Buffer::create(ctx,
                                        sizeof(harmonia::CameraData),
@@ -48,12 +52,15 @@ std::expected<hyperion::PathTracer, VkResult> hyperion::PathTracer::create(const
     tracer.m_descriptors = &descriptors; // MOD1: bindSceneSet() replaces set1()
     tracer.m_extent = renderExtent;
     tracer.m_config = config;
+    tracer.m_shaderDirectory = shaderDirectory.empty() ? std::filesystem::path(HYPERION_SHADER_DIR) : shaderDirectory;
     tracer.m_cameraBuffer = std::move(*cameraBuffer);
     tracer.m_indirectDispatchBuffer = std::move(indirectDispatchBuffer);
     tracer.m_raygen = sbt.raygenRegion();
     tracer.m_miss = sbt.missRegion();
     tracer.m_hit = sbt.hitRegion();
     tracer.updateIndirectBuffer();
+    if (const auto result = tracer.resetSmsWork(); result != VK_SUCCESS)
+        return std::unexpected(result);
     return tracer;
 }
 
@@ -64,8 +71,11 @@ VkResult hyperion::PathTracer::render(VkCommandBuffer cmd,
                                       const harmonia::core::Image& gNormal,
                                       const harmonia::core::Image& gDepth,
                                       std::uint32_t frameIndex) noexcept {
+    if (m_frameError != VK_SUCCESS)
+        return m_frameError;
     if (cmd == VK_NULL_HANDLE || scene.tlas() == VK_NULL_HANDLE) {
-        return VK_ERROR_INITIALIZATION_FAILED;
+        m_frameError = VK_ERROR_INITIALIZATION_FAILED;
+        return m_frameError;
     }
 
     writeFrameDescriptors(cmd, scene, camera, frameIndex, hdrImage, gNormal, gDepth);
@@ -80,8 +90,12 @@ VkResult hyperion::PathTracer::render(VkCommandBuffer cmd,
     }
 
     dispatchRays(cmd);
-
-    return VK_SUCCESS;
+    m_descriptors->bindSceneSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    m_frameError = m_sms.recordBegin(cmd);
+    if (m_frameError == VK_SUCCESS)
+        m_frameError = m_sms.recordBatch(cmd);
+    m_frameRecorded = m_frameError == VK_SUCCESS;
+    return m_frameError;
 }
 
 void hyperion::PathTracer::writeFrameDescriptors(VkCommandBuffer cmd,
@@ -119,6 +133,8 @@ void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd,
         .envImportanceHeight = m_config.envImportanceHeight,
         .tonemapper = static_cast<std::uint32_t>(m_config.tonemapper),
         .workingColorSpace = static_cast<std::uint32_t>(m_config.workingColorSpace),
+        .smsPad = 1,
+        .smsWork = m_sms.workBuffer().deviceAddress(),
     };
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(harmonia::PushConstants), &pushConstants);
 }
@@ -131,12 +147,68 @@ void hyperion::PathTracer::dispatchRays(VkCommandBuffer cmd) noexcept {
 }
 
 void hyperion::PathTracer::setConfig(const Config& config) noexcept {
+    const auto oldSamples = std::max(m_config.samplesPerPixel, 1U);
     m_config = config;
+    if (m_ctx != nullptr && oldSamples != std::max(config.samplesPerPixel, 1U) && m_frameError == VK_SUCCESS)
+        m_frameError = resetSmsWork();
 }
 
 void hyperion::PathTracer::onResize(VkExtent2D newExtent) noexcept {
     m_extent = newExtent;
+    if (m_ctx == nullptr)
+        return;
     updateIndirectBuffer();
+    if (m_frameError == VK_SUCCESS)
+        m_frameError = resetSmsWork();
+}
+
+VkResult hyperion::PathTracer::resetSmsWork() {
+    const auto pixels = std::uint64_t{m_extent.width} * m_extent.height;
+    const auto samples = std::max(m_config.samplesPerPixel, 1U);
+    if (pixels == 0 || pixels > harmonia::pipeline::SmsPass::kMaxCapacity / samples)
+        return VK_ERROR_INITIALIZATION_FAILED;
+    const auto capacity = static_cast<std::uint32_t>(pixels * samples);
+    if (m_sms.workBuffer().isValid() && m_sms.capacity() == capacity)
+        return VK_SUCCESS;
+    const std::filesystem::path shared{HARMONIA_SHADER_DIR};
+    auto sms = harmonia::pipeline::SmsPass::create(*m_ctx,
+                                                   capacity,
+                                                   m_pipelineLayout,
+                                                   shared / "sms_queue_control.spv",
+                                                   m_shaderDirectory / "sms_sample.spv",
+                                                   m_shaderDirectory / "sms_resolve.spv",
+                                                   1,
+                                                   VK_SHADER_STAGE_ALL);
+    if (!sms)
+        return sms.error();
+    m_sms = std::move(*sms);
+    m_frameRecorded = false;
+    return VK_SUCCESS;
+}
+
+std::expected<bool, VkResult> hyperion::PathTracer::frameReady() const noexcept {
+    if (m_frameError != VK_SUCCESS)
+        return std::unexpected(m_frameError);
+    if (!m_frameRecorded)
+        return std::unexpected(VK_ERROR_INITIALIZATION_FAILED);
+    const auto status = m_sms.completion();
+    if (!status)
+        return std::unexpected(status.error());
+    if (status->status == harmonia::pipeline::SmsQueueCompletion::Failed) {
+        harmonia::core::Logger::error("SMS logical frame failed: GPU error bits {}", status->error);
+        return std::unexpected(VK_ERROR_UNKNOWN);
+    }
+    return status->status == harmonia::pipeline::SmsQueueCompletion::Ready;
+}
+
+VkResult hyperion::PathTracer::recordContinuation(VkCommandBuffer cmd) noexcept {
+    if (m_frameError != VK_SUCCESS)
+        return m_frameError;
+    if (!m_frameRecorded || cmd == VK_NULL_HANDLE)
+        return VK_ERROR_INITIALIZATION_FAILED;
+    m_descriptors->bindSceneSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    m_frameError = m_sms.recordBatch(cmd);
+    return m_frameError;
 }
 
 void hyperion::PathTracer::updateIndirectBuffer() noexcept {

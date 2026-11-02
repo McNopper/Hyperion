@@ -1,6 +1,7 @@
 import common;
 import math;
 import medium_walk;
+import sms_work;
 
 [shader("raygeneration")]
 void pathTracingRaygen()
@@ -52,6 +53,18 @@ void pathTracingRaygen()
         payload.mediumG        = 0.0;
         payload.mediumEta      = 1.0;
         payload.mediumFreeDist = 0.0;
+        payload.smsSlot = pixelKey*spp+s;
+        payload.smsClass = 1u; // clean primary; null/unsupported interactions clear it
+        payload.smsCaster = payload.smsCasterMat = 0u;
+        if (pushConst.smsPad != 0u) {
+            SmsWorkRecord work = {};
+            work.words[7].zw = uint2(hashCombine(pixelKey, pushConst.rngSeed),
+                hashCombine(pushConst.frameIndex, s));
+            work.words[13].zw = uint2(pushConst.emissiveTriangleCount, pushConst.maxDepth);
+            work.words[14] = uint4(asuint(camera.exposure), spp, pushConst.frameIndex, pushConst.rngSeed);
+            work.words[15] = uint4(s, 0u, launchDim);
+            pushConst.smsWork[payload.smsSlot] = work; // initialize EVERY slot, including misses
+        }
 
         // Surface-bounce budget vs volumetric-walk budget are SEPARATE. A dense subsurface/
         // transmission medium has a tiny mean free path, so one surface bounce can expand into

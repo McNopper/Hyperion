@@ -6,6 +6,8 @@ import path_integrator;
 import medium_walk;
 import surface;
 import texsampler;
+import sms_work;
+import sms_transport;
 
 #ifdef POSITION_FETCH_ENABLED
 /// Fetch the object-space position of a hit-triangle vertex via
@@ -94,21 +96,24 @@ HitInfo makeSphereHit(SphereIntersectionAttributes attr)
     uint instanceIndex = (uint)InstanceID();
     GpuInstance instance = instances[instanceIndex];
 
-    // Analytic sphere mesh is centred at the object-space origin; its world centre is
-    // the instance translation (ObjectToWorld applied to the origin).
+    // The object-space sphere can become an ellipsoid. Use inverse-transpose
+    // normals, matching SMS scene queries and the object-space intersection law.
     float3x4 o2w = ObjectToWorld3x4();
-    float3 center = mul(o2w, float4(0.0, 0.0, 0.0, 1.0));
+    float3x4 w2o = WorldToObject3x4();
 
     hit.position = WorldRayOrigin() + WorldRayDirection() * attr.t;
-    hit.geoNormal = normalize(hit.position - center);
+    float3 objectPoint = mul(w2o, float4(hit.position, 1.0));
+    float3 objectNormal = normalize(objectPoint);
+    hit.geoNormal = normalize(mul(transpose((float3x3)w2o), objectPoint));
     hit.normal = hit.geoNormal;
     hit.smoothPosition = hit.position; // analytic sphere: exact normals, no terminator lift needed
 
-    float phi = atan2(hit.geoNormal.z, hit.geoNormal.x);
-    float theta = acos(clamp(hit.geoNormal.y, -1.0, 1.0));
+    float phi = atan2(objectNormal.z, objectNormal.x);
+    float theta = acos(clamp(objectNormal.y, -1.0, 1.0));
     hit.uv = float2((phi + kPi) / (2.0 * kPi), theta / kPi);
     // Tangent along increasing longitude (∂P/∂φ) for normal mapping.
-    hit.tangent = normalize(float3(-hit.geoNormal.z, 0.0, hit.geoNormal.x));
+    float3 longitude = mul((float3x3)o2w, float3(-objectNormal.z, 0.0, objectNormal.x));
+    hit.tangent = dot(longitude, longitude) > 0.0 ? normalize(longitude) : buildFrameFromZ(hit.geoNormal)[0];
     hit.instanceIndex = instanceIndex;
     hit.primitiveIndex = 0u;
     hit.frontFace = dot(WorldRayDirection(), hit.geoNormal) < 0.0;
@@ -166,6 +171,17 @@ void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
     }
 }
 
+bool smsCollectableHit(HitInfo hit, GpuMaterial mat, float3 wo) {
+    if (!smsEmitterMaterial(mat) || dot(wo, hit.geoNormal) <= 0.0) return false;
+    for (uint i = 0u; i < pushConst.emissiveTriangleCount; ++i) {
+        GpuEmissiveTriangle light = emissiveTriangles[i];
+        float mass = smsEmitterSelectionMass(emissiveCdf[i], i == 0u ? 0.0 : emissiveCdf[i-1u]);
+        if (smsProposableEmitter(light, mat, mass) && light.kind_pad.y == instances[hit.instanceIndex].materialIndex &&
+            light.kind_pad.z == hit.instanceIndex && light.kind_pad.w == hit.primitiveIndex) return true;
+    }
+    return false;
+}
+
 void shadeSurface(inout RayPayload payload, HitInfo hit)
 {
     // Write G-buffer for primary rays before any early returns.
@@ -184,6 +200,26 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     // and the coat frame all live in Harmonia's `surface` module (shared 1:1 with Theia).
     HyperionTextureSampler tex;
     SurfaceFrame f = applyOpenPbrTextureMaps(mat, tex, wo, hit.normal, hit.geoNormal, hit.tangent, hit.uv);
+
+    uint previousSmsClass = payload.smsClass;
+    if (pushConst.smsPad != 0u) {
+        // Ownership depends on ACTUAL path events, never on a seed's solve result.
+        // Preserve the emitter's original termination, without adding its energy twice.
+        if ((previousSmsClass == 3u || previousSmsClass == 5u) && smsCollectableHit(hit, mat, wo)) {
+            payload.terminated = true;
+            return;
+        }
+        if (payload.depth == 0u && previousSmsClass == 1u && pushConst.maxDepth >= 3u && smsOpaqueReceiver(mat)) {
+            SmsWorkRecord work = pushConst.smsWork[payload.smsSlot];
+            work.words[0] = uint4(asuint(hit.position), instance.materialIndex);
+            work.words[1] = uint4(asuint(hit.normal), kSmsPrepare);
+            work.words[2] = uint4(asuint(hit.geoNormal), asuint(hit.uv.x));
+            work.words[3] = uint4(asuint(hit.tangent), asuint(hit.uv.y));
+            work.words[4] = uint4(asuint(wo), DispatchRaysIndex().y*DispatchRaysDimensions().x+DispatchRaysIndex().x);
+            pushConst.smsWork[payload.smsSlot] = work; // endpoints only; NO root solve in RT
+            previousSmsClass = 2u;
+        }
+    }
 
     // ── Shared surface estimator ─────────────────────────────────────────────────
     // Emission guard, stochastic opacity gate, emissive-triangle + environment NEE,
@@ -232,6 +268,26 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         (pushConst.hasEnvMap != 0u), pushConst.envLuminanceScale,
         envMap, envSampler,
         state);
+
+    if (pushConst.smsPad != 0u) {
+        uint nextClass = 0u;
+        bool front = dot(wo, hit.geoNormal) > 0.0;
+        bool reflected = dot(wo, hit.geoNormal) * dot(state.nextDirection, hit.geoNormal) > 0.0;
+        if (!state.terminated && !state.passedThrough && !state.insideMedium) {
+            if (previousSmsClass == 2u && payload.depth == 0u) nextClass = 2u;
+            else if (previousSmsClass == 2u && state.specularBounce && front && smsReflectionCaster(mat)) {
+                if (reflected) nextClass = 3u;
+                else if (smsSmoothGlass(mat) && pushConst.maxDepth >= 4u) {
+                    nextClass = 4u;
+                    payload.smsCaster = hit.instanceIndex;
+                    payload.smsCasterMat = instance.materialIndex;
+                }
+            } else if (previousSmsClass == 4u && state.specularBounce && !front && !reflected &&
+                hit.instanceIndex == payload.smsCaster && instance.materialIndex == payload.smsCasterMat &&
+                smsSmoothGlass(mat)) nextClass = 5u;
+        }
+        payload.smsClass = nextClass;
+    }
 
     payload.radiance       = state.radiance;
     payload.throughput     = state.throughput;

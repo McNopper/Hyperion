@@ -24,7 +24,9 @@
 /// contract, record() produces a linear image in the scene-referred working
 /// color space and leaves it in VK_IMAGE_LAYOUT_GENERAL.
 namespace hyperion {
-class Application final : public harmonia::app::App, public harmonia::app::IRenderer {
+class Application final : public harmonia::app::App,
+                          public harmonia::app::IRenderer,
+                          public harmonia::app::IFrameCompletion {
   public:
     struct DemoConfig {
         std::uint32_t spp = 4;
@@ -40,11 +42,16 @@ class Application final : public harmonia::app::App, public harmonia::app::IRend
     void record(VkCommandBuffer cmd, const harmonia::app::RenderTarget& target) noexcept override;
     void onResize(VkExtent2D extent) noexcept override;
     [[nodiscard]] VkPipelineStageFlags2 outputStageMask() const noexcept override {
-        return VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR;
+        return VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
     }
     [[nodiscard]] VkImageView gNormalView() const noexcept override { return m_gNormal.view(); }
     [[nodiscard]] VkImageView gDepthView() const noexcept override { return m_gDepth.view(); }
     [[nodiscard]] const char* name() const noexcept override { return "Hyperion hyperion::PathTracer"; }
+    [[nodiscard]] harmonia::app::IFrameCompletion* frameCompletion() noexcept override { return this; }
+    [[nodiscard]] std::expected<bool, VkResult> ready() noexcept override { return m_pathTracer.frameReady(); }
+    [[nodiscard]] VkResult recordContinuation(VkCommandBuffer cmd) noexcept override {
+        return m_pathTracer.recordContinuation(cmd);
+    }
 
   protected:
     // harmonia::app::App hooks

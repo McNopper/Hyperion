@@ -269,11 +269,16 @@ TEST(PathTracer, CornellBoxNonBlack) {
                        VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT);
 
     ASSERT_EQ(pathTracer->render(*cmd, scene, camera, *hdrImage, *gNormal, *gDepth, 0U), VK_SUCCESS);
+    ASSERT_EQ(commandPool->endOneShot(*cmd), VK_SUCCESS);
+    const auto ready = pathTracer->frameReady();
+    ASSERT_TRUE(ready.has_value() && *ready) << "Depth-2 fixture has no supported SMS chain";
+    cmd = commandPool->beginOneShot();
+    ASSERT_TRUE(cmd.has_value());
 
     hdrImage->transition(*cmd,
                          VK_IMAGE_LAYOUT_GENERAL,
                          VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                         VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
+                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                          VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                          VK_PIPELINE_STAGE_2_COPY_BIT,
                          VK_ACCESS_2_TRANSFER_READ_BIT);
