@@ -10,6 +10,7 @@
 #include "harmonia/GpuTypes.hpp"
 #include "harmonia/core/Buffer.hpp"
 #include "harmonia/core/Image.hpp"
+#include "harmonia/pipeline/PassContext.hpp"
 #include "harmonia/renderer/Camera.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/utils/ColorSpace.hpp"
@@ -32,6 +33,7 @@ class PathTracer {
     struct Config {
         std::uint32_t samplesPerPixel = 4;
         std::uint32_t maxDepth = 8;
+        std::uint32_t rngSeed = harmonia::pipeline::kDefaultRngSeed;
         float envLuminance = 1.0f;
         harmonia::utils::OutputColorSpace outputColorSpace = harmonia::utils::OutputColorSpace::eHDR10;
         std::uint32_t hasEnvMap = 0;           ///< 1 = IBL env map bound at set1/binding6

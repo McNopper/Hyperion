@@ -137,6 +137,11 @@ void hyperion::Application::onSceneUnload() {
 
 bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::SceneConfig& sceneConfig) {
     applySceneOverrides(sceneConfig);
+    if (!config().outputFile.empty() && samplingPlan(m_demoConfig.spp, true).frameCount > 1U &&
+        !config().stages.accumulation) {
+        harmonia::core::Logger::error("Hyperion multi-sample captures require the accumulation stage");
+        return false;
+    }
     const float envLuminance = sceneConfig.envUnitNits.value_or(1.0f);
     buildCamera(sceneConfig);
 
@@ -154,14 +159,20 @@ bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::Sc
 
     const auto& probe = iblProbe();
     const bool hasIbl = probe.has_value() && probe->isValid();
+    const auto samples = samplingPlan(m_demoConfig.spp, !config().outputFile.empty());
+    harmonia::core::Logger::info("Sampling plan: {} frame(s), {} sample(s)/dispatch (requested spp {})",
+                                 samples.frameCount,
+                                 samples.samplesPerDispatch,
+                                 m_demoConfig.spp);
     auto tracer = hyperion::PathTracer::create(
         deviceContext(),
         swapchain().extent(),
         m_pipeline,
         m_sbt,
         descriptors(),
-        hyperion::PathTracer::Config{.samplesPerPixel = m_demoConfig.spp,
+        hyperion::PathTracer::Config{.samplesPerPixel = samples.samplesPerDispatch,
                                      .maxDepth = m_demoConfig.maxDepth,
+                                     .rngSeed = config().rngSeed,
                                      .envLuminance = envLuminance,
                                      .hasEnvMap = hasIbl ? 1u : 0u,
                                      .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,

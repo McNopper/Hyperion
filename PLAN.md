@@ -51,6 +51,50 @@ AR1 (shipped in v0.7.14): Hyperion's Scene implements the harmonia/scene_rt hook
 
 ### Roadmap
 
+**GI-SMS reference prerequisite — sampling/accumulation contract (2026-11-02,
+baseline `49c1f21`, local Harmonia override):** source inspection found that
+`offscreenFrameCount()` returns N while PathTracer is configured with N samples
+per dispatch, and raygen averages history before the host's AccumulationPass
+averages it again. The CLI seed is parsed but not passed into PathTracer.
+Before SMS image/energy comparisons, verify/fix these as a bounded prerequisite:
+
+| Item | Acceptance / oracle | Verification |
+|---|---|---|
+| One accumulation owner | Controlled actual RT emitter radiances 0.25 then 0.75 produce raw frame 0.75 and host-accumulated mean 0.5, adjusted only for known camera exposure | `cmake --build build`; `build/tests/hyperion_module_tests.exe --gtest_filter=FrameSamplingFixture.*` — must fail on the original shader, then pass after correction |
+| Capture sample budget | `--spp N` schedules N single-sample logical frames (clamp 0 to 1); interactive per-dispatch batching remains explicit | pure sampling-plan unit tests plus inspection of the Application consumer and headless frame-count logs |
+| Seed propagation | Same CLI seed/settings reproduce exact pixels; a different seed changes stochastic Cornell pixels | serial headless captures with `--spp 4 --rng-seed 123/456`, compare linear EXR pixels |
+
+No BSDF/transport formulas or comparison tolerances change. Correcting sampling
+and double accumulation intentionally changes noise/RNG output; it is not a
+PERF5 identity-only refactor. Previous receipts labelled “32 spp” used the CLI
+setting; they are not proof that the old implementation traced only 32 samples.
+Regenerate reference evidence with the corrected true sample count before SMS
+quality claims. Full repo tests and validation-clean capture required; no push.
+**Executed proof:** both controlled actual-RT frame tests failed on the original
+shader (history contamination), then passed after removing raygen history; three
+sampling-plan CPU tests pass. Before seed propagation, 123 versus 456 changed
+0/19,200 Cornell pixels; after correction, 13,556/19,200 changed, while repeating
+seed 123 remained float-exact (0 changed pixels). The same captures' logs verify
+4 logical frames × 1 sample/dispatch. No sampling-image identity is claimed
+across this intentional bug fix; validation messages remain zero.
+**Review follow-up:** the initial module-test context had validation disabled,
+so its zero-message result was not Vulkan validation evidence. Module and render
+integration contexts now enable validation; the HDR fixture includes transfer-dst
+usage required by AccumulationPass. Both controlled RT tests rerun PASS with
+validation ON and zero validation messages. Real-App tests reject N>1 capture
+with explicitly disabled accumulation, while the alternative-valid N=1 raw
+capture succeeds. The shared host now treats requested accumulation creation
+failure as fatal (fault test fails old warn-and-continue code, then passes fixed).
+**Final verification:** full Hyperion suite 54/54 PASS with verbose validation
+output checked (zero messages); shared Harmonia 125/125 and Theia 33/33 also pass.
+Canonical architecture and local tidy/dead lanes pass. Progressive N4 output
+differs from its first N1 sample in 13,289/19,200 pixels; an isolated raygen
+repeating-index mutant fails that check, then exact restored SPIR-V passes.
+Repeated seed stays exact, different seed changes 13,556/19,200 pixels. Follow-up
+source review cleared the identified owner/exit-status blockers; runtime receipts
+remain author-run, not an independent runtime re-grade. These are reference
+repairs, not yet rendered SMS caustics or ReSTIR integration.
+
 | ID | Task | Deps | Status |
 |----|------|------|--------|
 | PERF3 | **GPU acceleration-structure pipeline** for Hyperion (the CPU-side BV is stale under hwRT): AS **refit-vs-rebuild + compaction** (Vulkan 1.4 `vkCmdBuildAccelerationStructures`). Prerequisite for ANI2 (per-frame refit). `VK_EXT_opacity_micromap` itself shipped standalone in v0.7.7 — that was the single-mesh cutout-acceleration use case only; this item is the broader refit/rebuild/compaction pipeline, unaffected. | — | backlog |
