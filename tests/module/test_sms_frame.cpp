@@ -36,6 +36,15 @@ struct Energy {
     double direct = 0, reflected = 0, observed = 0, mse = 0;
     std::size_t pixels = 0;
 };
+struct AbsorptionEnergy {
+    std::array<double, 3> expected{}, observed{};
+    double mse = 0;
+    std::size_t pixels = 0;
+};
+struct AbsorptionPrediction {
+    std::size_t pixel;
+    std::array<double, 3> value;
+};
 constexpr VkExtent2D kExtent{128, 96};
 constexpr std::uint32_t kFrames = 128;
 } // namespace
@@ -43,6 +52,7 @@ constexpr std::uint32_t kFrames = 128;
 class SmsFrameFixture : public RtFixture {
   protected:
     [[nodiscard]] virtual bool glassSlab() const noexcept { return false; }
+    [[nodiscard]] virtual float absorptionDepth() const noexcept { return 0; }
     void SetUp() override {
         RtFixture::SetUp();
         if (IsSkipped())
@@ -61,8 +71,16 @@ class SmsFrameFixture : public RtFixture {
         auto receiver = harmonia::scene::Material::diffuse(sm::float3(.5F), 0).gpu();
         receiver.specularColorWeight.w = 0;
         const auto diffuse = scene.addMaterial(harmonia::scene::Material::fromGpu(receiver));
-        const auto caster = scene.addMaterial(glassSlab() ? harmonia::scene::Material::glass(1.5F, 0)
-                                                          : harmonia::scene::Material::mirror(sm::float3(1)));
+        auto casterMaterial =
+            glassSlab() ? harmonia::scene::Material::glass(1.5F, 0) : harmonia::scene::Material::mirror(sm::float3(1));
+        if (absorptionDepth() > 0) {
+            auto gpu = casterMaterial.gpu();
+            gpu.transmissionParams.x = absorptionDepth();
+            gpu.transmissionColorWeight = {.6F, .8F, .9F, 1};
+            gpu.transmissionScatter = sm::float4(0);
+            casterMaterial = harmonia::scene::Material::fromGpu(gpu);
+        }
+        const auto caster = scene.addMaterial(std::move(casterMaterial));
         const auto emitter = scene.addMaterial(harmonia::scene::Material::emissive(sm::float3(1), 10));
         ASSERT_NO_FATAL_FAILURE(
             quad({sm::float3(.25F, 0, -2), {4, 0, -2}, {4, 0, 2}, {.25F, 0, 2}}, {0, 1, 0}, diffuse, true));
@@ -377,6 +395,102 @@ class SmsFrameFixture : public RtFixture {
         return result;
     }
 
+    AbsorptionEnergy absorptionEnergy(std::span<const sm::float4> pixels) {
+        if (absorptionPredictions.empty()) {
+            constexpr std::array nodes{-0.9602898564975363,
+                                       -0.7966664774136267,
+                                       -0.5255324099163290,
+                                       -0.1834346424956498,
+                                       0.1834346424956498,
+                                       0.5255324099163290,
+                                       0.7966664774136267,
+                                       0.9602898564975363};
+            constexpr std::array weights{0.1012285362903763,
+                                         0.2223810344533745,
+                                         0.3137066458778873,
+                                         0.3626837833783620,
+                                         0.3626837833783620,
+                                         0.3137066458778873,
+                                         0.2223810344533745,
+                                         0.1012285362903763};
+            constexpr std::array colors{.6F, .8F, .9F};
+            constexpr double a = 2.5, d = .5, eta = 1.5, scale = .5 / std::numbers::pi * 10 / 1.2;
+            const double tangent = std::tan(10 * std::numbers::pi / 360);
+            const double sine = .5 / std::sqrt(9.25), cosine = 3 / std::sqrt(9.25);
+            double maximumResidual = 0, maximumFresnel = 0, minimumPrediction = 1e30;
+            for (std::uint32_t y = 0; y < kExtent.height; ++y)
+                for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+                    const double u = (2 * (x + .5) / kExtent.width - 1) * tangent * kExtent.width / kExtent.height;
+                    const double v = (1 - 2 * (y + .5) / kExtent.height) * tangent;
+                    const double distance = -.5 / (-sine + v * cosine), px = 2 + u * distance,
+                                 pz = 3 + (-cosine - v * sine) * distance;
+                    if (!(distance > 0 && px > .6 && px < 2.7 && std::abs(pz) < 1.5))
+                        continue;
+                    std::array<double, 3> prediction{};
+                    for (std::size_t ix = 0; ix < nodes.size(); ++ix)
+                        for (std::size_t iz = 0; iz < nodes.size(); ++iz) {
+                            const double rho = std::hypot(2 + .25 * nodes[ix] - px, .25 * nodes[iz] - pz);
+                            // Bulk PT does not charge internal boundary reflections to the
+                            // surface budget. Include even-reflection upper exits as well as
+                            // the SMS-owned first TT crossing, by unfolding the slab.
+                            for (int pairs = 0; pairs < 4; ++pairs) {
+                                const double unfoldedDepth = (2 * pairs + 1) * d;
+                                double t = rho / (a + unfoldedDepth / eta);
+                                for (int iteration = 0; iteration < 32; ++iteration) {
+                                    const double D = std::sqrt(eta * eta + (eta * eta - 1) * t * t);
+                                    const double step = (a * t + unfoldedDepth * t / D - rho) /
+                                                        (a + unfoldedDepth * eta * eta / (D * D * D));
+                                    t -= step;
+                                    if (std::abs(step) < 1e-14)
+                                        break;
+                                }
+                                const double D = std::sqrt(eta * eta + (eta * eta - 1) * t * t);
+                                maximumResidual =
+                                    std::max(maximumResidual, std::abs(a * t + unfoldedDepth * t / D - rho));
+                                const double derivative = a + unfoldedDepth * eta * eta / (D * D * D);
+                                const double geometric = rho == 0 ? 1 / std::pow(a + unfoldedDepth / eta, 2)
+                                                                  : t / (rho * std::pow(1 + t * t, 1.5) * derivative);
+                                const double ca = 1 / std::sqrt(1 + t * t),
+                                             cg = std::sqrt(1 - (1 - ca * ca) / (eta * eta));
+                                const double rs = (ca - eta * cg) / (ca + eta * cg),
+                                             rp = (eta * ca - cg) / (eta * ca + cg);
+                                const double F = .5 * (rs * rs + rp * rp);
+                                maximumFresnel = std::max(maximumFresnel, F);
+                                const double common = weights[ix] * weights[iz] * .0625 * ca * geometric * (1 - F) *
+                                                      (1 - F) * std::pow(F, 2 * pairs) * scale;
+                                for (std::size_t channel = 0; channel < 3; ++channel)
+                                    prediction[channel] += common * std::exp(std::log(double(colors[channel])) *
+                                                                             unfoldedDepth / (cg * absorptionDepth()));
+                            }
+                        }
+                    for (auto value : prediction)
+                        minimumPrediction = std::min(minimumPrediction, value);
+                    absorptionPredictions.push_back({std::size_t{y} * kExtent.width + x, prediction});
+                }
+            EXPECT_LE(maximumResidual, 1e-12);
+            EXPECT_LT(maximumFresnel, .1);
+            // For this ROI F<=.1 (and falls toward normal incidence as pairs grow),
+            // cos<=1, Beer<=1, G<=1/a^2. The omitted k>=4 reflection-pair tail is
+            // bounded geometrically, not silently treated as an exact finite sum.
+            const double omittedBound = scale * .25 / (a * a) * std::pow(.1, 8) / (1 - .1 * .1);
+            EXPECT_LT(omittedBound / minimumPrediction, 1e-6);
+        }
+        AbsorptionEnergy result;
+        for (const auto& reference : absorptionPredictions) {
+            const auto pixel = pixels[reference.pixel];
+            const std::array<double, 3> observed{pixel.x, pixel.y, pixel.z};
+            for (std::size_t channel = 0; channel < 3; ++channel) {
+                EXPECT_TRUE(std::isfinite(observed[channel]));
+                result.observed[channel] += observed[channel];
+                result.expected[channel] += reference.value[channel];
+                result.mse += std::pow(observed[channel] - reference.value[channel], 2);
+            }
+            ++result.pixels;
+        }
+        EXPECT_GT(result.pixels, 500U);
+        return result;
+    }
+
     std::unique_ptr<harmonia::renderer::Descriptors> descriptors;
     std::unique_ptr<harmonia::renderer::Pipeline> pipeline;
     hyperion::ShaderBindingTable sbt;
@@ -387,11 +501,17 @@ class SmsFrameFixture : public RtFixture {
     harmonia::renderer::Camera camera;
     bool firstUse = true;
     std::vector<std::pair<std::size_t, double>> slabPredictions;
+    std::vector<AbsorptionPrediction> absorptionPredictions;
 };
 
 class SmsGlassFrameFixture : public SmsFrameFixture {
   protected:
     [[nodiscard]] bool glassSlab() const noexcept override { return true; }
+};
+
+class SmsAbsorptionFrameFixture : public SmsGlassFrameFixture {
+  protected:
+    [[nodiscard]] float absorptionDepth() const noexcept override { return 1; }
 };
 
 TEST_F(SmsFrameFixture, MirrorMatchesVirtualEmitterEnergyAcrossSeedsAndConverges) {
@@ -451,5 +571,37 @@ TEST_F(SmsGlassFrameFixture, ClosedGlassMatchesSnellAreaEnergyAcrossSeedsAndConv
         ASSERT_TRUE(harmonia::presentation::ImageCapture::saveExr(deviceCtx(), commandPool(), hdr, output));
     }
     std::cout << "SMS closed glass aggregate MSE 128/32=" << longMse / shortMse << '\n';
+    EXPECT_LT(longMse, shortMse * .65);
+}
+
+TEST_F(SmsAbsorptionFrameFixture, PureAbsorberMatchesSnellBeerRgbEnergyAndConverges) {
+    double shortMse = 0, longMse = 0;
+    for (auto seed : {17U, 91U, 1234U, 2026U}) {
+        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1, .maxDepth = 4, .rngSeed = seed});
+        std::uint64_t continuations = 0;
+        std::vector<sm::float4> pixels;
+        for (std::uint32_t f = 0; f < kFrames; ++f) {
+            ASSERT_NO_FATAL_FAILURE(frame(f, seed, continuations));
+            if (f == 31) {
+                ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+                shortMse += absorptionEnergy(pixels).mse;
+            }
+        }
+        ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+        const auto measured = absorptionEnergy(pixels);
+        std::cout << "SMS absorption seed=" << seed << " RGB ratios=";
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            const double ratio = measured.observed[channel] / measured.expected[channel];
+            std::cout << ratio << ' ';
+            EXPECT_NEAR(ratio, 1.0, .02) << "channel=" << channel;
+        }
+        std::cout << "continuations=" << continuations << '\n';
+        EXPECT_GT(continuations, kFrames);
+        longMse += measured.mse;
+        const auto output = std::filesystem::path(HYPERION_TEST_SHADER_DIR).parent_path() /
+                            ("sms_absorption_seed" + std::to_string(seed) + ".exr");
+        ASSERT_TRUE(harmonia::presentation::ImageCapture::saveExr(deviceCtx(), commandPool(), hdr, output));
+    }
+    std::cout << "SMS absorption aggregate MSE 128/32=" << longMse / shortMse << '\n';
     EXPECT_LT(longMse, shortMse * .65);
 }

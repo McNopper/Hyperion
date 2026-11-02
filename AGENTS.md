@@ -77,7 +77,8 @@ accumulating or exporting HDR. The Application's IFrameCompletion adapter does
 this automatically. Ready includes GPU full-slot validation and SMS HDR resolve;
 errors abort the logical frame. Shared/core algorithms follow the SMS papers;
 the current verified renderer milestones are exact-delta mirror and flat closed-
-glass energy, not the whole GI-SMS / Theia feature. See PLAN.md for remaining scope.
+glass / colored pure-absorption energy, not the whole GI-SMS / Theia feature.
+Scattering, dispersion and longer chains stay PT-owned. See PLAN.md for remaining scope.
 
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 

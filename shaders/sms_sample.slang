@@ -1,6 +1,7 @@
 import common;
 import math;
 import bsdf;
+import medium_walk;
 import surface;
 import texsampler;
 import sms;
@@ -97,6 +98,15 @@ bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out
         GpuMaterial mat = materials[root[i].objectKey.y];
         response *= smsDeltaResponse(mat, woS, n, root[i].event, root[i].etaTOverI);
         response *= shadowTerminatorFactor(n, ng, wiS, ignored);
+    }
+    if (count == 2u) {
+        GpuMaterial mat = materials[root[0].objectKey.y];
+        if (smsPureAbsorption(mat)) {
+            float3 sigmaT, albedo;
+            transmissionVolumeCoeffs(mat.transmissionColorWeight.xyz,mat.transmissionScatter.xyz,
+                mat.transmissionParams.x,sigmaT,albedo);
+            mediumBoundaryTransmittance(response,sigmaT,true,length(root[1].position-root[0].position));
+        }
     }
     if (all(response == 0.0.xxx)) return true;
     float3x3 lightFrame = buildFrameFromZ(lightNormal);

@@ -169,6 +169,14 @@ void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
     if (exited) {
         payload.insideMedium = false;
     }
+    if (pushConst.smsPad != 0u && payload.smsClass == 4u) {
+        // Only the FIRST direct entry→exit crossing is SMS-owned. An internal
+        // reflection or other object's boundary keeps the whole path on PT.
+        bool sameObject = hit.instanceIndex == payload.smsCaster &&
+            instances[hit.instanceIndex].materialIndex == payload.smsCasterMat;
+        payload.smsClass = exited && sameObject && mediumIsPureAbsorber(payload.mediumAlbedo) &&
+            dot(WorldRayDirection(),outwardN) > 0.0 ? 5u : 0u;
+    }
 }
 
 bool smsCollectableHit(HitInfo hit, GpuMaterial mat, float3 wo) {
@@ -273,7 +281,13 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         uint nextClass = 0u;
         bool front = dot(wo, hit.geoNormal) > 0.0;
         bool reflected = dot(wo, hit.geoNormal) * dot(state.nextDirection, hit.geoNormal) > 0.0;
-        if (!state.terminated && !state.passedThrough && !state.insideMedium) {
+        if (!state.terminated && !state.passedThrough && state.insideMedium && previousSmsClass == 2u &&
+            state.specularBounce && front && !reflected && smsSmoothGlass(mat) && smsPureAbsorption(mat) &&
+            mediumIsPureAbsorber(state.mediumAlbedo) && pushConst.maxDepth >= 4u) {
+            nextClass = 4u;
+            payload.smsCaster = hit.instanceIndex;
+            payload.smsCasterMat = instance.materialIndex;
+        } else if (!state.terminated && !state.passedThrough && !state.insideMedium) {
             if (previousSmsClass == 2u && payload.depth == 0u) nextClass = 2u;
             else if (previousSmsClass == 2u && state.specularBounce && front && smsReflectionCaster(mat)) {
                 if (reflected) nextClass = 3u;

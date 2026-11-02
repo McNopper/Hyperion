@@ -118,6 +118,14 @@ struct HyperionSmsScene : ISmsProjector {
             float eta = smsGlassEta(mat);
             if (!(eta > 1.0)) return false;
             v.etaTOverI = front ? eta : 1.0 / eta;
+            if (!front && smsPureAbsorption(mat)) {
+                // The existing medium boundary handler uses raw GEOMETRIC
+                // normals, unlike the ordinary surface BSDF's shading frame.
+                v.normal = v.geoNormal;
+                if (instances[v.objectKey.x].geometryKind == 0u)
+                    v.dndu = v.dndv = 0.0.xxx; // triangle geometric normals are piecewise constant
+                // Analytic spheres already carry geometric-normal derivatives.
+            }
         }
         v.event = event;
         return true;
