@@ -51,7 +51,7 @@ set(COMPILE_SLANG_EXTRA_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/shaders" "${HARMONIA
 set(COMPILE_SLANG_EXTRA_DEPENDS "${PROJECT_SOURCE_DIR}/shaders/sms_scene.slang"
     "${HARMONIA_SHADER_SOURCE_DIR}/sms_transport.slang" "${HARMONIA_SHADER_SOURCE_DIR}/sms_solver.slang"
     "${HARMONIA_SHADER_SOURCE_DIR}/sms_geometry.slang")
-compile_slang_shaders(hyperion_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders" sms_scene_test.slang)
+compile_slang_shaders(hyperion_test_shaders "${CMAKE_CURRENT_BINARY_DIR}/shaders" sms_scene_test.slang sms_scene_root_test.slang)
 unset(COMPILE_SLANG_SHADER_ROOT)
 unset(COMPILE_SLANG_EXTRA_INCLUDE_DIRS)
 unset(COMPILE_SLANG_EXTRA_DEPENDS)

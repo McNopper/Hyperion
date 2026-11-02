@@ -3,6 +3,7 @@
 // mirror by a virtual area emitter; it uses no manifold/Jacobian/reciprocal code.
 #include <volk/volk.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -24,6 +25,7 @@
 #include "harmonia/renderer/Camera.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
+#include "harmonia/scene/ProceduralGeometry.hpp"
 #include "hyperion/ShaderPaths.hpp"
 #include "hyperion/renderer/PathTracer.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
@@ -40,6 +42,7 @@ constexpr std::uint32_t kFrames = 128;
 
 class SmsFrameFixture : public RtFixture {
   protected:
+    [[nodiscard]] virtual bool glassSlab() const noexcept { return false; }
     void SetUp() override {
         RtFixture::SetUp();
         if (IsSkipped())
@@ -58,17 +61,34 @@ class SmsFrameFixture : public RtFixture {
         auto receiver = harmonia::scene::Material::diffuse(sm::float3(.5F), 0).gpu();
         receiver.specularColorWeight.w = 0;
         const auto diffuse = scene.addMaterial(harmonia::scene::Material::fromGpu(receiver));
-        const auto mirror = scene.addMaterial(harmonia::scene::Material::mirror(sm::float3(1)));
+        const auto caster = scene.addMaterial(glassSlab() ? harmonia::scene::Material::glass(1.5F, 0)
+                                                          : harmonia::scene::Material::mirror(sm::float3(1)));
         const auto emitter = scene.addMaterial(harmonia::scene::Material::emissive(sm::float3(1), 10));
         ASSERT_NO_FATAL_FAILURE(
             quad({sm::float3(.25F, 0, -2), {4, 0, -2}, {4, 0, 2}, {.25F, 0, 2}}, {0, 1, 0}, diffuse, true));
-        ASSERT_NO_FATAL_FAILURE(
-            quad({sm::float3(0, 0, -2), {0, 3, -2}, {0, 3, 2}, {0, 0, 2}}, {1, 0, 0}, mirror, false));
-        ASSERT_NO_FATAL_FAILURE(
-            quad({sm::float3(3, 1.75F, -.25F), {3, 1.75F, .25F}, {3, 2.25F, .25F}, {3, 2.25F, -.25F}},
-                 {-1, 0, 0},
-                 emitter,
-                 false));
+        if (glassSlab()) {
+            const auto slab = scene.addMesh(ctx,
+                                            commandPool(),
+                                            harmonia::scene::ProceduralGeometry::makeBox({6, .25F, 5}),
+                                            {},
+                                            "test.sms.glass.slab");
+            ASSERT_NE(slab, std::numeric_limits<std::uint32_t>::max());
+            ASSERT_NE(scene.addInstance(slab, harmonia::scene::Transform{.translation = {2, 1.25F, 0}}, caster),
+                      std::numeric_limits<std::uint32_t>::max());
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(1.75F, 3, -.25F), {2.25F, 3, -.25F}, {2.25F, 3, .25F}, {1.75F, 3, .25F}},
+                     {0, -1, 0},
+                     emitter,
+                     false));
+        } else {
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(0, 0, -2), {0, 3, -2}, {0, 3, 2}, {0, 0, 2}}, {1, 0, 0}, caster, false));
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(3, 1.75F, -.25F), {3, 1.75F, .25F}, {3, 2.25F, .25F}, {3, 2.25F, -.25F}},
+                     {-1, 0, 0},
+                     emitter,
+                     false));
+        }
         ASSERT_EQ(scene.build(ctx, commandPool()), VK_SUCCESS);
         ASSERT_EQ(scene.emissiveTriangleCount(), 2U);
         ASSERT_EQ(descriptors->updateSceneSet(ctx,
@@ -104,7 +124,7 @@ class SmsFrameFixture : public RtFixture {
         hdr = std::move(*image);
         normal = std::move(*n);
         depth = std::move(*z);
-        hyperion::PathTracer::Config config{.samplesPerPixel = 1, .maxDepth = 3};
+        hyperion::PathTracer::Config config{.samplesPerPixel = 1, .maxDepth = glassSlab() ? 4U : 3U};
         auto pt = hyperion::PathTracer::create(ctx, kExtent, *pipeline, sbt, *descriptors, config);
         ASSERT_TRUE(pt.has_value()) << static_cast<int>(pt.error());
         tracer = std::move(*pt);
@@ -112,7 +132,7 @@ class SmsFrameFixture : public RtFixture {
             ctx, kExtent, std::filesystem::path(HARMONIA_SHADER_DIR) / "accumulation.spv");
         ASSERT_TRUE(history.has_value());
         accumulation = std::move(*history);
-        camera = harmonia::renderer::Camera(
+        auto cameraParams =
             harmonia::renderer::Camera::Params{.position = {2, 3, 6},
                                                .target = {2, 0, 0},
                                                .up = {0, 1, 0},
@@ -122,7 +142,13 @@ class SmsFrameFixture : public RtFixture {
                                                .farPlane = 100,
                                                .lensRadius = 0,
                                                .focusDist = 6,
-                                               .physical = harmonia::renderer::Camera::PhysicalCamera::fromEv100(0)});
+                                               .physical = harmonia::renderer::Camera::PhysicalCamera::fromEv100(0)};
+        if (glassSlab()) {
+            cameraParams.position = {2, .5F, 3};
+            cameraParams.vfovDeg = 10;
+            cameraParams.focusDist = 3;
+        }
+        camera = harmonia::renderer::Camera(cameraParams);
     }
 
     void quad(std::array<sm::float3, 4> vertices, sm::float3 n, std::uint32_t mat, bool reverse) {
@@ -270,6 +296,87 @@ class SmsFrameFixture : public RtFixture {
         return result;
     }
 
+    Energy slabEnergy(std::span<const sm::float4> pixels) {
+        if (slabPredictions.empty()) {
+            // Independent radial Snell mapping for two PARALLEL interfaces.
+            // Air height a=1+1.5, glass thickness d=.5, eta=1.5. With t=tan(theta),
+            // rho=a*t+d*t/sqrt(eta^2+(eta^2-1)*t^2); dOmega/dA follows the radial
+            // area Jacobian. No renderer manifold or reciprocal code is called.
+            constexpr std::array nodes{-0.9602898564975363,
+                                       -0.7966664774136267,
+                                       -0.5255324099163290,
+                                       -0.1834346424956498,
+                                       0.1834346424956498,
+                                       0.5255324099163290,
+                                       0.7966664774136267,
+                                       0.9602898564975363};
+            constexpr std::array weights{0.1012285362903763,
+                                         0.2223810344533745,
+                                         0.3137066458778873,
+                                         0.3626837833783620,
+                                         0.3626837833783620,
+                                         0.3137066458778873,
+                                         0.2223810344533745,
+                                         0.1012285362903763};
+            constexpr double a = 2.5, d = .5, eta = 1.5;
+            const double tangent = std::tan(10 * std::numbers::pi / 360);
+            const double sine = .5 / std::sqrt(9.25), cosine = 3 / std::sqrt(9.25);
+            double maximumResidual = 0;
+            for (std::uint32_t y = 0; y < kExtent.height; ++y)
+                for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+                    const double u = (2 * (x + .5) / kExtent.width - 1) * tangent * kExtent.width / kExtent.height;
+                    const double v = (1 - 2 * (y + .5) / kExtent.height) * tangent;
+                    const double rayY = -sine + v * cosine, rayZ = -cosine - v * sine, distance = -.5 / rayY;
+                    const double px = 2 + u * distance, pz = 3 + rayZ * distance;
+                    if (!(distance > 0 && px > .6 && px < 2.7 && std::abs(pz) < 1.5))
+                        continue;
+                    double integral = 0;
+                    for (std::size_t ix = 0; ix < nodes.size(); ++ix)
+                        for (std::size_t iz = 0; iz < nodes.size(); ++iz) {
+                            const double lx = 2 + .25 * nodes[ix], lz = .25 * nodes[iz],
+                                         rho = std::hypot(lx - px, lz - pz);
+                            double t = rho / (a + d / eta);
+                            for (int iteration = 0; iteration < 32; ++iteration) {
+                                const double D = std::sqrt(eta * eta + (eta * eta - 1) * t * t);
+                                const double residual = a * t + d * t / D - rho;
+                                const double derivative = a + d * eta * eta / (D * D * D);
+                                const double step = residual / derivative;
+                                t -= step;
+                                if (std::abs(step) < 1e-14)
+                                    break;
+                            }
+                            const double D = std::sqrt(eta * eta + (eta * eta - 1) * t * t);
+                            maximumResidual = std::max(maximumResidual, std::abs(a * t + d * t / D - rho));
+                            const double derivative = a + d * eta * eta / (D * D * D);
+                            const double geometric = rho == 0 ? 1 / std::pow(a + d / eta, 2)
+                                                              : t / (rho * std::pow(1 + t * t, 1.5) * derivative);
+                            const double cosAir = 1 / std::sqrt(1 + t * t);
+                            const double cosGlass = std::sqrt(1 - (1 - cosAir * cosAir) / (eta * eta));
+                            const double rs = (cosAir - eta * cosGlass) / (cosAir + eta * cosGlass);
+                            const double rp = (eta * cosAir - cosGlass) / (eta * cosAir + cosGlass);
+                            const double fresnel = .5 * (rs * rs + rp * rp);
+                            integral +=
+                                weights[ix] * weights[iz] * .0625 * cosAir * geometric * (1 - fresnel) * (1 - fresnel);
+                        }
+                    slabPredictions.push_back(
+                        {std::size_t{y} * kExtent.width + x, integral * .5 / std::numbers::pi * 10 / 1.2});
+                }
+            EXPECT_LE(maximumResidual, 1e-12) << "Independent scalar Snell oracle must converge";
+        }
+        Energy result;
+        for (auto [index, expected] : slabPredictions) {
+            const auto pixel = pixels[index];
+            EXPECT_TRUE(std::isfinite(pixel.x) && std::isfinite(pixel.y) && std::isfinite(pixel.z));
+            const double observed = (double(pixel.x) + pixel.y + pixel.z) / 3;
+            result.observed += observed;
+            result.reflected += expected; // manifold energy; direct NEE is blocked by the slab
+            result.mse += (observed - expected) * (observed - expected);
+            ++result.pixels;
+        }
+        EXPECT_GT(result.pixels, 500U);
+        return result;
+    }
+
     std::unique_ptr<harmonia::renderer::Descriptors> descriptors;
     std::unique_ptr<harmonia::renderer::Pipeline> pipeline;
     hyperion::ShaderBindingTable sbt;
@@ -279,6 +386,12 @@ class SmsFrameFixture : public RtFixture {
     harmonia::pipeline::AccumulationPass accumulation;
     harmonia::renderer::Camera camera;
     bool firstUse = true;
+    std::vector<std::pair<std::size_t, double>> slabPredictions;
+};
+
+class SmsGlassFrameFixture : public SmsFrameFixture {
+  protected:
+    [[nodiscard]] bool glassSlab() const noexcept override { return true; }
 };
 
 TEST_F(SmsFrameFixture, MirrorMatchesVirtualEmitterEnergyAcrossSeedsAndConverges) {
@@ -310,4 +423,33 @@ TEST_F(SmsFrameFixture, MirrorMatchesVirtualEmitterEnergyAcrossSeedsAndConverges
     }
     std::cout << "SMS mirror aggregate MSE 128/32=" << longMse / shortMse << '\n';
     EXPECT_LT(longMse, shortMse * .65) << "Independent seeds and 4x sample budget must reduce actual image error";
+}
+
+TEST_F(SmsGlassFrameFixture, ClosedGlassMatchesSnellAreaEnergyAcrossSeedsAndConverges) {
+    double shortMse = 0, longMse = 0;
+    for (auto seed : {17U, 91U, 1234U, 2026U}) {
+        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1, .maxDepth = 4, .rngSeed = seed});
+        std::uint64_t continuations = 0;
+        std::vector<sm::float4> pixels;
+        for (std::uint32_t f = 0; f < kFrames; ++f) {
+            ASSERT_NO_FATAL_FAILURE(frame(f, seed, continuations));
+            if (f == 31) {
+                ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+                shortMse += slabEnergy(pixels).mse;
+            }
+        }
+        ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+        const auto measured = slabEnergy(pixels);
+        const double ratio = measured.observed / measured.reflected;
+        std::cout << "SMS closed glass seed=" << seed << " transmitted energy ratio=" << ratio
+                  << " continuation dispatches=" << continuations << '\n';
+        EXPECT_NEAR(ratio, 1.0, .02);
+        EXPECT_GT(continuations, kFrames);
+        longMse += measured.mse;
+        const auto output = std::filesystem::path(HYPERION_TEST_SHADER_DIR).parent_path() /
+                            ("sms_closed_glass_seed" + std::to_string(seed) + ".exr");
+        ASSERT_TRUE(harmonia::presentation::ImageCapture::saveExr(deviceCtx(), commandPool(), hdr, output));
+    }
+    std::cout << "SMS closed glass aggregate MSE 128/32=" << longMse / shortMse << '\n';
+    EXPECT_LT(longMse, shortMse * .65);
 }

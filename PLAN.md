@@ -4,7 +4,7 @@
 resumable queues. Hyperion now has the production scene reader, single-compute-
 call-site root sampler, receiver recording / resolve and IFrameCompletion adapter.
 Exact-delta mirror energy EXRs pass across four seeds; Theia is still unwired.
-Production glass / absorption energy and remaining paper stages are outstanding. Verification
+Flat closed-glass energy also passes; absorption and remaining paper stages are outstanding. Verification
 contract / independent oracles live in Harmonia/PLAN.md's next production batch.
 Run `hyperion_module_tests.exe --gtest_filter=SmsSceneFixture.*:SmsFrameFixture.*`,
 the full validation-enabled family suites and missing/doubled-energy controls.
@@ -22,7 +22,11 @@ review boundary findings are corrected and covered by actual GPU controls:
 zero CDF mass stays PT-owned, tiny glass weights stay PT-owned, sampler grazing
 zero events remain zero. Final full suites 137/137 H, 56/56 Hy, 33/33 T with
 validation ON / zero messages; architecture and local tidy/dead pass. Closed
-glass / absorption energy, Hong and Theia reuse remain outstanding.
+glass acceptance now also passes: production Snell roots at 0/25/55 degrees
+(three seeds each), energy ratios 0.988291 / 1.00283 / 0.991974 / 0.995082 and
+128/32-sample MSE ratio 0.25149. Missing/doubled TT controls fail/restores pass.
+Full Hyperion suite 58/58, validation-clean, architecture/tidy/dead pass. Absorption,
+curved-caustic final scenes, Hong and Theia reuse remain outstanding.
 
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is

@@ -76,8 +76,8 @@ frameReady(), and submit/wait recordContinuation() until ready before reading,
 accumulating or exporting HDR. The Application's IFrameCompletion adapter does
 this automatically. Ready includes GPU full-slot validation and SMS HDR resolve;
 errors abort the logical frame. Shared/core algorithms follow the SMS papers;
-the current verified renderer milestone is exact-delta mirror energy, not the
-whole GI-SMS / Theia feature. See PLAN.md for remaining scope.
+the current verified renderer milestones are exact-delta mirror and flat closed-
+glass energy, not the whole GI-SMS / Theia feature. See PLAN.md for remaining scope.
 
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 
