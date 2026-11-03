@@ -8,6 +8,7 @@ import surface;
 import texsampler;
 import sms_work;
 import sms_transport;
+import sms_path;
 
 #ifdef POSITION_FETCH_ENABLED
 /// Fetch the object-space position of a hit-triangle vertex via
@@ -153,6 +154,14 @@ struct HyperionTracer : ITracer {
 /// shared `medium_walk` module; this thin shim just maps RayPayload <-> the helpers. Uses the
 /// GEOMETRIC normal (interpolated shading normals can fake a wrong-sided interface); hit.geoNormal
 /// is the RAW outward-winding normal (dielectric-sidedness contract).
+SmsPathState smsPayloadPath(RayPayload payload) {
+    return makeSmsPathState(payload.smsClass,uint2(payload.smsCaster,payload.smsCasterMat),payload.smsPrefixSpecular);
+}
+void smsStorePayloadPath(inout RayPayload payload,SmsPathState path) {
+    payload.smsClass=path.kind; payload.smsCaster=path.casterKey.x; payload.smsCasterMat=path.casterKey.y;
+    payload.smsPrefixSpecular=path.prefixSpecular;
+}
+
 void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
 {
     float3 outwardN = hit.geoNormal;
@@ -169,25 +178,17 @@ void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
     if (exited) {
         payload.insideMedium = false;
     }
-    if (pushConst.smsPartitionResolution != 0u && payload.smsClass == 4u) {
-        // Only the FIRST direct entry→exit crossing is SMS-owned. An internal
-        // reflection or other object's boundary keeps the whole path on PT.
-        bool sameObject = hit.instanceIndex == payload.smsCaster &&
-            instances[hit.instanceIndex].materialIndex == payload.smsCasterMat;
-        payload.smsClass = exited && sameObject && mediumIsPureAbsorber(payload.mediumAlbedo) &&
-            dot(WorldRayDirection(),outwardN) > 0.0 ? 5u : 0u;
+    if (pushConst.smsPartitionResolution != 0u) {
+        SmsPathState path=smsPayloadPath(payload);
+        smsAdvancePathMediumBoundary(path,exited,uint2(hit.instanceIndex,instances[hit.instanceIndex].materialIndex),
+            mediumIsPureAbsorber(payload.mediumAlbedo),WorldRayDirection(),outwardN);
+        smsStorePayloadPath(payload,path);
     }
 }
 
 bool smsCollectableHit(HitInfo hit, GpuMaterial mat, float3 wo) {
-    if (!smsEmitterMaterial(mat) || dot(wo, hit.geoNormal) <= 0.0) return false;
-    for (uint i = 0u; i < pushConst.emissiveTriangleCount; ++i) {
-        GpuEmissiveTriangle light = emissiveTriangles[i];
-        float mass = smsEmitterSelectionMass(emissiveCdf[i], i == 0u ? 0.0 : emissiveCdf[i-1u]);
-        if (smsProposableEmitter(light, mat, mass) && light.kind_pad.y == instances[hit.instanceIndex].materialIndex &&
-            light.kind_pad.z == hit.instanceIndex && light.kind_pad.w == hit.primitiveIndex) return true;
-    }
-    return false;
+    return smsCollectablePathEmitter(pushConst.emissiveTriangleCount,emissiveTriangles,emissiveCdf,mat,
+        uint2(hit.instanceIndex,instances[hit.instanceIndex].materialIndex),hit.primitiveIndex,wo,hit.geoNormal);
 }
 
 void shadeSurface(inout RayPayload payload, HitInfo hit)
@@ -209,17 +210,17 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     HyperionTextureSampler tex;
     SurfaceFrame f = applyOpenPbrTextureMaps(mat, tex, wo, hit.normal, hit.geoNormal, hit.tangent, hit.uv);
 
-    uint previousSmsClass = payload.smsClass;
+    SmsPathState smsPath=smsPayloadPath(payload);
     bool currentSmsReceiver=false;
     uint remainingDepth=pushConst.maxDepth>payload.depth ? pushConst.maxDepth-payload.depth : 0u;
     if (pushConst.smsPartitionResolution != 0u) {
         // Ownership depends on ACTUAL path events, never on a seed's solve result.
         // Preserve the emitter's original termination, without adding its energy twice.
-        if ((previousSmsClass == 3u || previousSmsClass == 5u) && smsCollectableHit(hit, mat, wo)) {
+        if (smsPathEmissionTail(smsPath) && smsCollectableHit(hit, mat, wo)) {
             payload.terminated = true;
             return;
         }
-        if (payload.smsPrefixSpecular && remainingDepth>=3u && smsOpaqueReceiver(mat)) {
+        if (smsCapturePathReceiver(smsPath,mat,remainingDepth)) {
             SmsWorkRecord work = pushConst.smsWork[payload.smsSlot];
             work.words[0] = uint4(asuint(hit.position), instance.materialIndex);
             work.words[1] = uint4(asuint(hit.normal), kSmsPrepare);
@@ -229,7 +230,6 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
             work.words[9].xyz = asuint(payload.throughput); // temporary prefix RGB, consumed before root storage
             work.words[13].w = remainingDepth;
             pushConst.smsWork[payload.smsSlot] = work; // endpoints only; NO root solve in RT
-            previousSmsClass = 2u;
             currentSmsReceiver=true;
         }
     }
@@ -283,31 +283,9 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         state);
 
     if (pushConst.smsPartitionResolution != 0u) {
-        uint nextClass = 0u;
-        bool front = dot(wo, hit.geoNormal) > 0.0;
-        bool reflected = dot(wo, hit.geoNormal) * dot(state.nextDirection, hit.geoNormal) > 0.0;
-        if (!state.terminated && !state.passedThrough && state.insideMedium && previousSmsClass == 2u &&
-            state.specularBounce && front && !reflected && smsSmoothGlass(mat) && smsPureAbsorption(mat) &&
-            mediumIsPureAbsorber(state.mediumAlbedo) && remainingDepth>=3u) {
-            nextClass = 4u;
-            payload.smsCaster = hit.instanceIndex;
-            payload.smsCasterMat = instance.materialIndex;
-        } else if (!state.terminated && !state.passedThrough && !state.insideMedium) {
-            if (currentSmsReceiver) nextClass = 2u;
-            else if (previousSmsClass == 2u && state.specularBounce && front && smsReflectionCaster(mat)) {
-                if (reflected) nextClass = 3u;
-                else if (smsSmoothGlass(mat) && remainingDepth>=3u) {
-                    nextClass = 4u;
-                    payload.smsCaster = hit.instanceIndex;
-                    payload.smsCasterMat = instance.materialIndex;
-                }
-            } else if (previousSmsClass == 4u && state.specularBounce && !front && !reflected &&
-                hit.instanceIndex == payload.smsCaster && instance.materialIndex == payload.smsCasterMat &&
-                smsSmoothGlass(mat)) nextClass = 5u;
-        }
-        payload.smsClass = nextClass;
-        if (state.passedThrough || !state.specularBounce ||
-            (state.insideMedium && !mediumIsPureAbsorber(state.mediumAlbedo))) payload.smsPrefixSpecular=false;
+        smsAdvancePathSurface(smsPath,surf,state,hit.geoNormal,uint2(hit.instanceIndex,instance.materialIndex),
+            remainingDepth,currentSmsReceiver);
+        smsStorePayloadPath(payload,smsPath);
     }
 
     payload.radiance       = state.radiance;

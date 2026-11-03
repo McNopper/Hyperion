@@ -99,6 +99,9 @@ SMS triangle normals use the same normalized-vertex / blended-length geometric
 fallback as actual RT, with zero derivatives on that fallback branch. Visibility
 uses the opaque TLAS query directly, including analytic spheres; a failed shading
 reconstruction is never evidence that an opaque blocker is absent.
+The actual-event classifier is shared in Harmonia `sms_path.slang`; Hyperion keeps
+only payload/scene adapters. Preserve the first-receiver, relative-depth and
+direct pure-absorber-exit rules when adding renderer consumers.
 
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 

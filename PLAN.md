@@ -69,6 +69,12 @@ changing BSDFs or tolerances. An independent finite-blocker integral passes;
 old-normal, shading-dependent-visibility and omitted-common-visibility controls
 fail, exact restores pass. Full H142/Hy71/T38 validation-clean with architecture
 and H/Hy tidy/dead; Theia control unchanged. Active Theia SMS remains next.
+Actual-event ownership is now shared in Harmonia `sms_path.slang`, preserving the
+payload ABI and existing surface/medium/emitter semantics. Sixteen GPU path cases
+and three sensitive controls pass/reject correctly; H143 and full Hyperion71 are
+validation-clean, with focused source review finding no introduced classifier
+blocker. Theia is adopting the same helper; its active radiometry/reuse is not yet
+accepted by this checkpoint.
 
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is
