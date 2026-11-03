@@ -13,6 +13,13 @@ complete reference suite is 71 tests; the pause rerun is recorded centrally.
 Curved/complex reuse, equal-time/stability evidence and both review galleries
 remain outstanding; the complete GI-SMS item #2 is not accepted or published.
 
+**CI/local-first policy:** automatic checks run on main pushes and main-target
+PRs only; manual dispatch remains available. GI-SMS PR/manual builds use the
+matching Harmonia development branch (the prior default-main checkout lacked
+sms_transport.slang). Release pins/main are unchanged. Local Windows build/lint
+and event/ref policy controls pass; hosted CI has not been regraded green yet.
+Build locally and run relevant checks/lint before any authorized branch push.
+
 **Active local GI-SMS production batch:** Harmonia `c323d94` provides verified
 resumable queues. Hyperion now has the production scene reader, single-compute-
 call-site root sampler, receiver recording / resolve and IFrameCompletion adapter.
