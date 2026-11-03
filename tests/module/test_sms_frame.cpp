@@ -55,6 +55,8 @@ class SmsFrameFixture : public RtFixture {
     [[nodiscard]] virtual float absorptionDepth() const noexcept { return 0; }
     [[nodiscard]] virtual std::uint32_t partitionResolution() const noexcept { return 1; }
     [[nodiscard]] virtual bool priorEnabled() const noexcept { return false; }
+    [[nodiscard]] virtual bool specularPrefix() const noexcept { return false; }
+    [[nodiscard]] virtual bool slabPrefix() const noexcept { return false; }
     void SetUp() override {
         RtFixture::SetUp();
         if (IsSkipped())
@@ -84,8 +86,25 @@ class SmsFrameFixture : public RtFixture {
         }
         const auto caster = scene.addMaterial(std::move(casterMaterial));
         const auto emitter = scene.addMaterial(harmonia::scene::Material::emissive(sm::float3(1), 10));
-        ASSERT_NO_FATAL_FAILURE(
-            quad({sm::float3(.25F, 0, -2), {4, 0, -2}, {4, 0, 2}, {.25F, 0, 2}}, {0, 1, 0}, diffuse, true));
+        if (specularPrefix()) {
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(.25F, 0, 4.25F), {4, 0, 4.25F}, {4, 0, 8}, {.25F, 0, 8}}, {0, 1, 0}, diffuse, true));
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(0, 0, 4), {0, 3, 4}, {0, 3, 8}, {0, 0, 8}}, {1, 0, 0}, caster, false));
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(3, 1.75F, 5.75F), {3, 1.75F, 6.25F}, {3, 2.25F, 6.25F}, {3, 2.25F, 5.75F}},
+                     {-1, 0, 0},
+                     emitter,
+                     false));
+            auto gray = harmonia::scene::Material::mirror(sm::float3(.4F)).gpu();
+            gray.specularColorWeight = {0, 0, 0, 1};
+            const auto prefix = scene.addMaterial(harmonia::scene::Material::fromGpu(gray));
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(.25F, 0, 4), {4, 0, 4}, {4, 4, 4}, {.25F, 4, 4}}, {0, 0, 1}, prefix, false));
+        } else {
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(.25F, 0, -2), {4, 0, -2}, {4, 0, 2}, {.25F, 0, 2}}, {0, 1, 0}, diffuse, true));
+        }
         if (glassSlab()) {
             const auto slab = scene.addMesh(ctx,
                                             commandPool(),
@@ -100,7 +119,18 @@ class SmsFrameFixture : public RtFixture {
                      {0, -1, 0},
                      emitter,
                      false));
-        } else {
+            if (slabPrefix()) {
+                auto gray = harmonia::scene::Material::mirror(sm::float3(.4F)).gpu();
+                gray.specularColorWeight = {0, 0, 0, 1};
+                const auto prefix = scene.addMaterial(harmonia::scene::Material::fromGpu(gray));
+                // Reflect camera (2,.5,1) in z=2 to the Snell oracle's (2,.5,3).
+                // This narrow mirror covers camera rays but not receiver-to-light R tails.
+                ASSERT_NO_FATAL_FAILURE(quad({sm::float3(.25F, .05F, 2), {.25F, .45F, 2}, {4, .45F, 2}, {4, .05F, 2}},
+                                             {0, 0, -1},
+                                             prefix,
+                                             false));
+            }
+        } else if (!specularPrefix()) {
             ASSERT_NO_FATAL_FAILURE(
                 quad({sm::float3(0, 0, -2), {0, 3, -2}, {0, 3, 2}, {0, 0, 2}}, {1, 0, 0}, caster, false));
             ASSERT_NO_FATAL_FAILURE(
@@ -145,7 +175,7 @@ class SmsFrameFixture : public RtFixture {
         normal = std::move(*n);
         depth = std::move(*z);
         hyperion::PathTracer::Config config{.samplesPerPixel = 1,
-                                            .maxDepth = glassSlab() ? 4U : 3U,
+                                            .maxDepth = glassSlab() || specularPrefix() ? 4U : 3U,
                                             .smsPartitionResolution = partitionResolution(),
                                             .smsPriorEnabled = priorEnabled()};
         auto pt = hyperion::PathTracer::create(ctx, kExtent, *pipeline, sbt, *descriptors, config);
@@ -170,6 +200,12 @@ class SmsFrameFixture : public RtFixture {
             cameraParams.position = {2, .5F, 3};
             cameraParams.vfovDeg = 10;
             cameraParams.focusDist = 3;
+        }
+        if (specularPrefix())
+            cameraParams.target = {2, 0, 2};
+        if (slabPrefix()) {
+            cameraParams.position = {2, .5F, 1};
+            cameraParams.target = {2, 0, 4};
         }
         camera = harmonia::renderer::Camera(cameraParams);
     }
@@ -496,6 +532,89 @@ class SmsFrameFixture : public RtFixture {
         return result;
     }
 
+    Energy sdsEnergy(std::span<const sm::float4> pixels) {
+        Energy result;
+        const double tangent = std::tan(43 * std::numbers::pi / 360);
+        constexpr int subdivisions = 24;
+        for (std::uint32_t y = 0; y < kExtent.height; ++y)
+            for (std::uint32_t x = 0; x < kExtent.width; ++x) {
+                const double u = (2 * (x + .5) / kExtent.width - 1) * tangent * kExtent.width / kExtent.height;
+                const double v = (1 - 2 * (y + .5) / kExtent.height) * tangent;
+                const double dy = -.6 + .8 * v, dz = .8 + .6 * v, t = -3 / dy;
+                const double px = 2 + u * t, pz = 2 + dz * t;
+                if (!(t > 0 && px > .6 && px < 2.7 && std::abs(pz - 6) < 1.5))
+                    continue;
+                double direct = 0, caustic = 0;
+                for (int iy = 0; iy < subdivisions; ++iy)
+                    for (int iz = 0; iz < subdivisions; ++iz) {
+                        const double ly = 1.75 + (iy + .5) * .5 / subdivisions,
+                                     lz = 5.75 + (iz + .5) * .5 / subdivisions;
+                        const double weight = .25 / (subdivisions * subdivisions);
+                        const double rDirect = (3 - px) * (3 - px) + ly * ly + (lz - pz) * (lz - pz);
+                        const double rX = (-3 - px) * (-3 - px) + ly * ly + (lz - pz) * (lz - pz);
+                        const double rZ = (3 - px) * (3 - px) + ly * ly + (8 - lz - pz) * (8 - lz - pz);
+                        direct += weight * ly * (3 - px) / (rDirect * rDirect);
+                        caustic += weight * ly * ((3 + px) / (rX * rX) + .4 * (3 - px) / (rZ * rZ));
+                    }
+                constexpr double scale = .4 * .5 / std::numbers::pi * 10 / 1.2;
+                direct *= scale;
+                caustic *= scale;
+                const auto pixel = pixels[std::size_t{y} * kExtent.width + x];
+                const double observed = (double(pixel.x) + pixel.y + pixel.z) / 3;
+                EXPECT_TRUE(std::isfinite(observed));
+                result.direct += direct;
+                result.reflected += caustic;
+                result.observed += observed;
+                result.mse += std::pow(observed - direct - caustic, 2);
+                ++result.pixels;
+            }
+        EXPECT_GT(result.pixels, 500U);
+        return result;
+    }
+
+    void compareSlabPrefix(std::uint32_t receiverBudget) {
+        const bool bulk = absorptionDepth() > 0;
+        const std::uint32_t frames = receiverBudget == 3 ? (bulk ? 4096U : 64U) : 512U;
+        std::array<double, 3> observed{}, expected{};
+        for (auto seed : {17U, 91U, 1234U, 2026U}) {
+            tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1,
+                                                          .maxDepth = receiverBudget + 1,
+                                                          .rngSeed = seed,
+                                                          .smsPartitionResolution = 1,
+                                                          .smsPriorEnabled = false});
+            std::uint64_t continuations = 0;
+            for (std::uint32_t f = 0; f < frames; ++f)
+                ASSERT_NO_FATAL_FAILURE(frame(f, seed, continuations));
+            std::vector<sm::float4> pixels;
+            ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+            // Reflection preserves X, while the actual camera's image-X basis is
+            // reversed. The centered slab/emitter are symmetric in X. Divide out
+            // the independent .4 camera coefficient to use the unchanged oracle.
+            for (auto& pixel : pixels)
+                pixel = pixel / .4F;
+            AbsorptionEnergy measured;
+            if (bulk)
+                measured = absorptionEnergy(pixels);
+            else {
+                const auto value = slabEnergy(pixels);
+                measured.expected.fill(value.reflected);
+                measured.observed.fill(value.observed);
+            }
+            std::cout << "SMS SDS slab bulk=" << bulk << " budget=" << receiverBudget << " seed=" << seed << " ratios=";
+            for (std::size_t channel = 0; channel < 3; ++channel) {
+                observed[channel] += measured.observed[channel];
+                expected[channel] += measured.expected[channel];
+                std::cout << measured.observed[channel] / measured.expected[channel] << ' ';
+            }
+            std::cout << "continuations=" << continuations << '\n';
+        }
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+            const double target = receiverBudget == 3 && !bulk ? 0.0 : 1.0;
+            EXPECT_NEAR(observed[channel] / expected[channel], target, .02)
+                << "Receiver-relative TT budget must preserve complementary PT/SMS ownership; channel=" << channel;
+        }
+    }
+
     virtual AbsorptionEnergy priorMetric(std::span<const sm::float4> pixels) {
         const auto value = energy(pixels);
         AbsorptionEnergy result;
@@ -573,6 +692,20 @@ class SmsAbsorptionFrameFixture : public SmsGlassFrameFixture {
 class SmsPartitionFrameFixture : public SmsFrameFixture {
   protected:
     [[nodiscard]] std::uint32_t partitionResolution() const noexcept override { return 16; }
+};
+
+class SmsSdsFrameFixture : public SmsFrameFixture {
+  protected:
+    [[nodiscard]] bool specularPrefix() const noexcept override { return true; }
+};
+
+class SmsSdsGlassFrameFixture : public SmsGlassFrameFixture {
+  protected:
+    [[nodiscard]] bool slabPrefix() const noexcept override { return true; }
+};
+class SmsSdsAbsorptionFrameFixture : public SmsSdsGlassFrameFixture {
+  protected:
+    [[nodiscard]] float absorptionDepth() const noexcept override { return 1; }
 };
 
 class SmsPriorFrameFixture : public SmsPartitionFrameFixture {
@@ -740,4 +873,54 @@ TEST_F(SmsPriorGlassFrameFixture, PriorPreservesGlassEnergyAndImprovesSameBudget
 }
 TEST_F(SmsPriorAbsorptionFrameFixture, PriorPreservesAbsorptionEnergyAndImprovesSameBudgetError) {
     ASSERT_NO_FATAL_FAILURE(comparePrior("absorption"));
+}
+
+TEST_F(SmsSdsFrameFixture, SpecularCameraPrefixUsesCorrectThroughputAndRemainingDepth) {
+    for (auto seed : {17U, 91U, 1234U, 2026U}) {
+        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1,
+                                                      .maxDepth = 4,
+                                                      .rngSeed = seed,
+                                                      .smsPartitionResolution = 1,
+                                                      .smsPriorEnabled = false});
+        std::uint64_t continuations = 0;
+        for (std::uint32_t f = 0; f < 512; ++f)
+            ASSERT_NO_FATAL_FAILURE(frame(f, seed, continuations));
+        std::vector<sm::float4> pixels;
+        ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+        const auto measured = sdsEnergy(pixels);
+        const double ratio = (measured.observed - measured.direct) / measured.reflected;
+        std::cout << "SMS SDS seed=" << seed << " caustic ratio=" << ratio << " continuations=" << continuations
+                  << '\n';
+        EXPECT_NEAR(ratio, 1.0, .02);
+        EXPECT_GT(continuations, 512U);
+        const auto output = std::filesystem::path(HYPERION_TEST_SHADER_DIR).parent_path() /
+                            ("sms_sds_seed" + std::to_string(seed) + ".exr");
+        ASSERT_TRUE(harmonia::presentation::ImageCapture::saveExr(deviceCtx(), commandPool(), hdr, output));
+    }
+}
+
+TEST_F(SmsSdsFrameFixture, InsufficientRemainingDepthRetainsOnlyDirectLighting) {
+    tracer.setConfig(hyperion::PathTracer::Config{
+        .samplesPerPixel = 1, .maxDepth = 3, .rngSeed = 17, .smsPartitionResolution = 1, .smsPriorEnabled = false});
+    std::uint64_t continuations = 0;
+    for (std::uint32_t f = 0; f < 64; ++f)
+        ASSERT_NO_FATAL_FAILURE(frame(f, 17, continuations));
+    std::vector<sm::float4> pixels;
+    ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+    const auto measured = sdsEnergy(pixels);
+    EXPECT_NEAR((measured.observed - measured.direct) / measured.reflected, 0.0, .02)
+        << "A depth-1 receiver has no room for R+L under a three-surface budget";
+}
+
+TEST_F(SmsSdsGlassFrameFixture, ThreeReceiverSurfacesCannotContainTTAndEmitter) {
+    ASSERT_NO_FATAL_FAILURE(compareSlabPrefix(3));
+}
+TEST_F(SmsSdsGlassFrameFixture, FourReceiverSurfacesPreserveTransmittedEnergy) {
+    ASSERT_NO_FATAL_FAILURE(compareSlabPrefix(4));
+}
+TEST_F(SmsSdsAbsorptionFrameFixture, ThreeReceiverSurfacesRetainPtOwnedBulkExit) {
+    ASSERT_NO_FATAL_FAILURE(compareSlabPrefix(3));
+}
+TEST_F(SmsSdsAbsorptionFrameFixture, FourReceiverSurfacesPreserveBeerEnergy) {
+    ASSERT_NO_FATAL_FAILURE(compareSlabPrefix(4));
 }

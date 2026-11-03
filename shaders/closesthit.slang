@@ -210,6 +210,8 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     SurfaceFrame f = applyOpenPbrTextureMaps(mat, tex, wo, hit.normal, hit.geoNormal, hit.tangent, hit.uv);
 
     uint previousSmsClass = payload.smsClass;
+    bool currentSmsReceiver=false;
+    uint remainingDepth=pushConst.maxDepth>payload.depth ? pushConst.maxDepth-payload.depth : 0u;
     if (pushConst.smsPartitionResolution != 0u) {
         // Ownership depends on ACTUAL path events, never on a seed's solve result.
         // Preserve the emitter's original termination, without adding its energy twice.
@@ -217,15 +219,18 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
             payload.terminated = true;
             return;
         }
-        if (payload.depth == 0u && previousSmsClass == 1u && pushConst.maxDepth >= 3u && smsOpaqueReceiver(mat)) {
+        if (payload.smsPrefixSpecular && remainingDepth>=3u && smsOpaqueReceiver(mat)) {
             SmsWorkRecord work = pushConst.smsWork[payload.smsSlot];
             work.words[0] = uint4(asuint(hit.position), instance.materialIndex);
             work.words[1] = uint4(asuint(hit.normal), kSmsPrepare);
             work.words[2] = uint4(asuint(hit.geoNormal), asuint(hit.uv.x));
             work.words[3] = uint4(asuint(hit.tangent), asuint(hit.uv.y));
             work.words[4] = uint4(asuint(wo), DispatchRaysIndex().y*DispatchRaysDimensions().x+DispatchRaysIndex().x);
+            work.words[9].xyz = asuint(payload.throughput); // temporary prefix RGB, consumed before root storage
+            work.words[13].w = remainingDepth;
             pushConst.smsWork[payload.smsSlot] = work; // endpoints only; NO root solve in RT
             previousSmsClass = 2u;
+            currentSmsReceiver=true;
         }
     }
 
@@ -283,15 +288,15 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         bool reflected = dot(wo, hit.geoNormal) * dot(state.nextDirection, hit.geoNormal) > 0.0;
         if (!state.terminated && !state.passedThrough && state.insideMedium && previousSmsClass == 2u &&
             state.specularBounce && front && !reflected && smsSmoothGlass(mat) && smsPureAbsorption(mat) &&
-            mediumIsPureAbsorber(state.mediumAlbedo) && pushConst.maxDepth >= 4u) {
+            mediumIsPureAbsorber(state.mediumAlbedo) && remainingDepth>=3u) {
             nextClass = 4u;
             payload.smsCaster = hit.instanceIndex;
             payload.smsCasterMat = instance.materialIndex;
         } else if (!state.terminated && !state.passedThrough && !state.insideMedium) {
-            if (previousSmsClass == 2u && payload.depth == 0u) nextClass = 2u;
+            if (currentSmsReceiver) nextClass = 2u;
             else if (previousSmsClass == 2u && state.specularBounce && front && smsReflectionCaster(mat)) {
                 if (reflected) nextClass = 3u;
-                else if (smsSmoothGlass(mat) && pushConst.maxDepth >= 4u) {
+                else if (smsSmoothGlass(mat) && remainingDepth>=3u) {
                     nextClass = 4u;
                     payload.smsCaster = hit.instanceIndex;
                     payload.smsCasterMat = instance.materialIndex;
@@ -301,6 +306,8 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
                 smsSmoothGlass(mat)) nextClass = 5u;
         }
         payload.smsClass = nextClass;
+        if (state.passedThrough || !state.specularBounce ||
+            (state.insideMedium && !mediumIsPureAbsorber(state.mediumAlbedo))) payload.smsPrefixSpecular=false;
     }
 
     payload.radiance       = state.radiance;

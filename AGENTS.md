@@ -86,6 +86,11 @@ Per-frame priors use 128 pilot walks per 16×16 block and a sparse per-light
 direction-tile union, frozen before all initial/repeat trials. The .2 uniform
 component preserves full coverage; `smsPriorEnabled=false` selects the exact
 uniform-prior limit for controls. Theia reuse remains ongoing work.
+Receiver collection includes the first eligible opaque non-specular surface after
+a PT-sampled specular camera prefix, with frozen RGB throughput and remaining
+receiver-inclusive depth. Null/scattering/non-delta prefixes and later diffuse
+receivers stay PT-owned. Independent planar SDS mirror/Snell/Beer and depth-boundary
+fixtures cover this extension; these are not curved-scene or reuse acceptance.
 
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 

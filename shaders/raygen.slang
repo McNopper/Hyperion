@@ -56,6 +56,7 @@ void pathTracingRaygen()
         payload.smsSlot = pixelKey*spp+s;
         payload.smsClass = 1u; // clean primary; null/unsupported interactions clear it
         payload.smsCaster = payload.smsCasterMat = 0u;
+        payload.smsPrefixSpecular = true;
         if (pushConst.smsPartitionResolution != 0u) {
             SmsWorkRecord work = {};
             work.words[7].zw = uint2(hashCombine(pixelKey, pushConst.rngSeed),

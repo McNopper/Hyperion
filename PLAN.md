@@ -47,6 +47,13 @@ mass controls fail, restores pass. Full H142/Hy63/T33 validation-clean with
 architecture/tidy/dead as applicable. Prior uses caster choice implicit in global
 direction space; it does not claim separate explicit object/pair selection.
 SDS-prefix collection, Theia reuse and equal-time/final-gallery acceptance remain.
+SDS-prefix collection is implemented and its selected mirror/Snell/Beer fixtures
+pass, including relative-depth 3/4 TT boundaries. Prefix-weight omission and
+global-depth mutations fail; exact restores pass. The pure-absorption B=3 fixture
+confirms PT retains the internally uncharged exit rather than dropping its energy.
+Full family re-run passes H142/Hy69/T34 with zero validation messages; architecture
+and H/Hy tidy/dead pass, Theia control unchanged 0/76,800 pixels. Theia reuse,
+curved/complex equal-time/stability evidence and both review galleries remain.
 
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is

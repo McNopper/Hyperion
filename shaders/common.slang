@@ -64,6 +64,7 @@ struct RayPayload {
     uint   smsClass      : read(caller, closesthit) : write(caller, closesthit);
     uint   smsCaster     : read(caller, closesthit) : write(caller, closesthit);
     uint   smsCasterMat  : read(caller, closesthit) : write(caller, closesthit);
+    bool   smsPrefixSpecular : read(caller, closesthit) : write(caller, closesthit);
 };
 
 /// Shadow-ray payload. `transmittance` is the running ∏(1-α) accumulated by the

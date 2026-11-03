@@ -76,6 +76,8 @@ bool samplePath(inout HyperionSmsScene scene, float3 receiver, float3 light, flo
 
 bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out float3 value) {
     value = 0.0.xxx;
+    float3 prefix=asfloat(work.words[9].xyz);
+    if (!all(isfinite(prefix)) || any(prefix<0.0.xxx)) return false;
     float3 receiver = smsReceiverPosition(work), light = smsLightPosition(work);
     float3 lightNormal = asfloat(work.words[6].xyz);
     if (dot(lightNormal, root[count-1u].position - light) <= 0.0) return true;
@@ -118,7 +120,7 @@ bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out
     float pdf = asfloat(work.words[5].w);
     if (!(pdf > 0.0) || !isfinite(pdf)) return false;
     float3 Le = float3(asfloat(work.words[6].w), asfloat(work.words[7].xy));
-    value = base * response * geometric * Le / pdf;
+    value = base * response * geometric * Le / pdf * prefix;
     return all(isfinite(value)) && all(value >= 0.0.xxx);
 }
 
