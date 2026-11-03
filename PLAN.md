@@ -115,6 +115,7 @@ and three sensitive controls pass/reject correctly; H143 and full Hyperion71 are
 validation-clean, with focused source review finding no introduced classifier
 blocker. Theia is adopting the same helper; its active radiometry/reuse is not yet
 accepted by this checkpoint.
+**Release:** v0.7.18 - correct sample budgets, progressive seeded streams and single-owner accumulation; consumes Harmonia v0.7.19 and Aether v0.8.1. README gallery regenerated. SMS remains on its development branch.
 
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is
@@ -148,9 +149,8 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 
 ## At a glance
 
-- **Release:** v0.7.16 - pins: Aether v0.8.0 + Harmonia v0.7.16 (consumes VK16 forensics + SM6 remainder transitively); no Hyperion source changes.
-  coverage lane. Lockstep reference: Harmonia v0.7.14, Theia v0.7.15 (Aether v0.7.7,
-  slang-math v0.4.0).
+- **Release:** v0.7.18 - sampling/RNG/history corrections + refreshed gallery. Pins: Aether v0.8.1 + Harmonia v0.7.19; no SMS integration.
+- **Prior:** v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
@@ -280,6 +280,7 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
+- **v0.7.18** (consumes Harmonia v0.7.19, Aether v0.8.1): **sampling, seed and accumulation correctness.** `--spp N` schedules N single-sample logical captures, the CLI seed reaches raygen, sample streams advance by frame, and shared accumulation is the sole history owner. Multi-sample captures reject disabled accumulation. All 30 README scenes regenerated at 1280x720 / 64 spp with validation. Full local 55/55; all lint lanes. No SMS integration.
 - **v0.7.13** (consumes Harmonia v0.7.13): **translation units
   open `namespace hyperion` + the arch gate.** `PathTracer.cpp`, `ShaderBindingTable.cpp`,
   `scene/Scene.cpp` and `ShaderPaths.hpp` defined their methods fully qualified at global
