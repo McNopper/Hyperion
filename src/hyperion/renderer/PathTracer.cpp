@@ -135,7 +135,8 @@ void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd,
         .envImportanceHeight = m_config.envImportanceHeight,
         .tonemapper = static_cast<std::uint32_t>(m_config.tonemapper),
         .workingColorSpace = static_cast<std::uint32_t>(m_config.workingColorSpace),
-        .smsPartitionResolution = m_config.smsPartitionResolution,
+        // Off mode: the shaders treat resolution 0 as "no SMS" (no slot init, no collection).
+        .smsPartitionResolution = m_config.smsEnabled ? m_config.smsPartitionResolution : 0u,
         .smsWork = m_sms.workBuffer().deviceAddress(),
     };
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(harmonia::PushConstants), &pushConstants);
@@ -173,7 +174,8 @@ VkResult hyperion::PathTracer::resetSmsWork() {
     if (pixels == 0 || pixels > harmonia::pipeline::SmsPass::kMaxCapacity / samples)
         return VK_ERROR_INITIALIZATION_FAILED;
     const auto capacity = static_cast<std::uint32_t>(pixels * samples);
-    const bool priorActive = m_config.smsPriorEnabled && m_config.smsPartitionResolution > 1 && m_config.maxDepth >= 3;
+    const bool priorActive = m_config.smsEnabled && m_config.smsPriorEnabled && m_config.smsPartitionResolution > 1 &&
+                             m_config.maxDepth >= 3;
     const auto blocksX = std::uint64_t{m_extent.width} / 16 + (m_extent.width % 16 != 0 ? 1 : 0);
     const auto blocksY = std::uint64_t{m_extent.height} / 16 + (m_extent.height % 16 != 0 ? 1 : 0);
     const auto entries = blocksX * blocksY * 128;

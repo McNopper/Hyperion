@@ -57,7 +57,10 @@ void pathTracingRaygen()
         payload.smsClass = 1u; // clean primary; null/unsupported interactions clear it
         payload.smsCaster = payload.smsCasterMat = 0u;
         payload.smsPrefixSpecular = true;
-        if (pushConst.smsPartitionResolution != 0u) {
+        // Initialize EVERY slot's metadata, including misses and SMS-off runs: the
+        // resolve/validate pass checks samples/dimensions per slot even when the
+        // phase stays Absent. Collection below stays gated on partition resolution.
+        {
             SmsWorkRecord work = {};
             work.words[7].zw = uint2(hashCombine(pixelKey, pushConst.rngSeed),
                 hashCombine(pushConst.frameIndex, s));
@@ -65,7 +68,7 @@ void pathTracingRaygen()
             work.words[14] = uint4(asuint(camera.exposure), spp, pushConst.frameIndex, pushConst.rngSeed);
             work.words[15] = uint4(s, 0u, launchDim);
             work.words[12].w = pushConst.smsPartitionResolution;
-            pushConst.smsWork[payload.smsSlot] = work; // initialize EVERY slot, including misses
+            pushConst.smsWork[payload.smsSlot] = work;
         }
 
         // Surface-bounce budget vs volumetric-walk budget are SEPARATE. A dense subsurface/

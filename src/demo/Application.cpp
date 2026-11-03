@@ -164,6 +164,9 @@ bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::Sc
                                  samples.frameCount,
                                  samples.samplesPerDispatch,
                                  m_demoConfig.spp);
+    if (!m_demoConfig.smsEnabled) {
+        harmonia::core::Logger::info("SMS mode off — ordinary path-traced reference (no SMS work or priors)");
+    }
     auto tracer = hyperion::PathTracer::create(
         deviceContext(),
         swapchain().extent(),
@@ -173,6 +176,7 @@ bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::Sc
         hyperion::PathTracer::Config{.samplesPerPixel = samples.samplesPerDispatch,
                                      .maxDepth = m_demoConfig.maxDepth,
                                      .rngSeed = config().rngSeed,
+                                     .smsEnabled = m_demoConfig.smsEnabled,
                                      .envLuminance = envLuminance,
                                      .hasEnvMap = hasIbl ? 1u : 0u,
                                      .envImportanceWidth = (probe && hasIbl) ? probe->cdfWidth() : 0u,

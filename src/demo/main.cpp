@@ -36,6 +36,22 @@ int main(int argc, char* const argv[]) {
         } else if (consumeValue(i, argc, argv, "--depth", value)) {
             demoConfig.maxDepth = value;
             demoConfig.maxDepthExplicit = true;
+        } else if (std::string_view arg = argv[i]; arg == "--sms-mode") {
+            // GI-SMS #2: off = ordinary-PT reference. Spatial reuse is Theia-only.
+            if (i + 1 >= argc) {
+                harmonia::core::Logger::error("--sms-mode requires a value: off or local");
+                return 2;
+            }
+            const std::string_view mode = argv[++i];
+            if (mode == "off") {
+                demoConfig.smsEnabled = false;
+            } else if (mode == "local") {
+                demoConfig.smsEnabled = true;
+            } else {
+                harmonia::core::Logger::error(
+                    "Unknown --sms-mode value: '{}' (expected off or local; reuse is Theia-only)", mode);
+                return 2;
+            }
         } else if (harmonia::app::CliParser::applyCommonArg(config, i, argc, argv)) {
             continue;
         } else {

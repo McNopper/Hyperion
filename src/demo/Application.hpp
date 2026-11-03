@@ -33,6 +33,9 @@ class Application final : public harmonia::app::App,
         std::uint32_t maxDepth = 8;
         bool sppExplicit = false;      ///< true if --spp was given on the command line
         bool maxDepthExplicit = false; ///< true if --depth was given on the command line
+        /// GI-SMS #2 application mode: false selects the ordinary-PT reference
+        /// (--sms-mode off). Spatial reuse is Theia-only and rejected at the CLI.
+        bool smsEnabled = true;
         std::filesystem::path shaderDir;
     };
 

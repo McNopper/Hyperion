@@ -38,6 +38,10 @@ class PathTracer {
         std::uint32_t rngSeed = harmonia::pipeline::kDefaultRngSeed;
         std::uint32_t smsPartitionResolution = 16; ///< Hong 3x3 trust regions; 1 is the base-SMS limit.
         bool smsPriorEnabled = true; ///< Per-frame pilot union; N=1 is already uniform and needs no prior.
+        /// GI-SMS #2: off selects the ordinary-PT reference — no SMS work is collected
+        /// (shaders see partition resolution 0) and no priors are built. The SMS queue
+        /// machinery stays in place and completes immediately with zero work.
+        bool smsEnabled = true;
         float envLuminance = 1.0f;
         harmonia::utils::OutputColorSpace outputColorSpace = harmonia::utils::OutputColorSpace::eHDR10;
         std::uint32_t hasEnvMap = 0;           ///< 1 = IBL env map bound at set1/binding6

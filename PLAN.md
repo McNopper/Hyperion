@@ -1,5 +1,14 @@
 # PLAN — Hyperion
 
+**NEXT-MODEL ENTRY:** the remaining #2 queue is Harmonia/PLAN.md section 3,
+"GI-SMS #2 — bounded finish plan / next-model handoff". Work on
+`dev/gi-sms-restir`; main remains pre-SMS. Next Hyperion task is an explicit
+normal-Application SMS-off mode for an independent ordinary-PT curved reference,
+not another change to the already verified sampler. Preserve true spp, seeds,
+one accumulation owner and fatal pending/error export handling. New mode/runner
+commands in the plan are proposed interfaces, not existing tools. No pins,
+release, tag or main changes; local build/checks before an authorized branch push.
+
 **Continuation checkpoint (2026-11-03):** `dev/gi-sms-restir` preserves all
 unpublished reference-renderer work through `049f34c`, plus this handoff. Local
 `main` is aligned with `origin/main`; do not merge/push GI-SMS work there yet.
