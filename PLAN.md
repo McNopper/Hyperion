@@ -39,6 +39,14 @@ is conservative over the unchanged root-equivalence tolerance; missing marginal
 factor controls fail/restores pass. Full family H140, Hy60, T33 validation-clean;
 architecture and applicable tidy/dead pass. Next: per-frame prior, Theia local /
 inverse-checked spatial reuse, then final equal-time scene and gallery evidence.
+Per-frame directional priors are now wired: 128 pilot walks / 16×16 block,
+per-light sparse tile unions, .8 importance + .2 uniform, exact conditional
+mixture and marginal correction. Same-budget MSE ratios are .0735051 mirror,
+.058157 glass, .0588911 absorption; pooled energy stays within 2%. Wrong-alpha /
+mass controls fail, restores pass. Full H142/Hy63/T33 validation-clean with
+architecture/tidy/dead as applicable. Prior uses caster choice implicit in global
+direction space; it does not claim separate explicit object/pair selection.
+SDS-prefix collection, Theia reuse and equal-time/final-gallery acceptance remain.
 
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is

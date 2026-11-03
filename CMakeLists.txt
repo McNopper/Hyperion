@@ -251,6 +251,7 @@ set(HYPERION_ENTRY_SHADERS
     shadow_miss.slang
     sms_sample.slang
     sms_resolve.slang
+    sms_prior_build.slang
 )
 
 # Per-band sources (AR2), bottom-up. Everything common lives in Harmonia, the

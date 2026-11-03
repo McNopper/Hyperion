@@ -37,6 +37,7 @@ class PathTracer {
         std::uint32_t maxDepth = 8;
         std::uint32_t rngSeed = harmonia::pipeline::kDefaultRngSeed;
         std::uint32_t smsPartitionResolution = 16; ///< Hong 3x3 trust regions; 1 is the base-SMS limit.
+        bool smsPriorEnabled = true; ///< Per-frame pilot union; N=1 is already uniform and needs no prior.
         float envLuminance = 1.0f;
         harmonia::utils::OutputColorSpace outputColorSpace = harmonia::utils::OutputColorSpace::eHDR10;
         std::uint32_t hasEnvMap = 0;           ///< 1 = IBL env map bound at set1/binding6
@@ -103,6 +104,8 @@ class PathTracer {
     VkStridedDeviceAddressRegionKHR m_callable{};
     std::filesystem::path m_shaderDirectory;
     harmonia::pipeline::SmsPass m_sms;
+    harmonia::core::Buffer m_priorBuffer;
+    bool m_priorActive = false;
     VkResult m_frameError = VK_SUCCESS;
     bool m_frameRecorded = false;
 };

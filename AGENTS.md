@@ -82,7 +82,10 @@ Scattering, dispersion and longer chains stay PT-owned. See PLAN.md for remainin
 `PathTracer::Config::smsPartitionResolution` selects Hong's 3×3 periodic walk
 trust regions (default 16, supported 1–32); 1 is the exact unpartitioned limit.
 Conditional repeat sampling includes the known region-probability correction.
-Per-frame prior and Theia reuse remain ongoing work, not completed capabilities.
+Per-frame priors use 128 pilot walks per 16×16 block and a sparse per-light
+direction-tile union, frozen before all initial/repeat trials. The .2 uniform
+component preserves full coverage; `smsPriorEnabled=false` selects the exact
+uniform-prior limit for controls. Theia reuse remains ongoing work.
 
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 

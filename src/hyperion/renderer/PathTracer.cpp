@@ -90,6 +90,8 @@ VkResult hyperion::PathTracer::render(VkCommandBuffer cmd,
     }
 
     dispatchRays(cmd);
+    if (m_priorActive)
+        vkCmdFillBuffer(cmd, m_priorBuffer.handle(), 0, VK_WHOLE_SIZE, 0);
     m_descriptors->bindSceneSet(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
     m_frameError = m_sms.recordBegin(cmd);
     if (m_frameError == VK_SUCCESS)
@@ -147,11 +149,10 @@ void hyperion::PathTracer::dispatchRays(VkCommandBuffer cmd) noexcept {
 }
 
 void hyperion::PathTracer::setConfig(const Config& config) noexcept {
-    const auto oldSamples = std::max(m_config.samplesPerPixel, 1U);
     m_config = config;
     if (config.smsPartitionResolution == 0 || config.smsPartitionResolution > 32)
         m_frameError = VK_ERROR_INITIALIZATION_FAILED;
-    if (m_ctx != nullptr && oldSamples != std::max(config.samplesPerPixel, 1U) && m_frameError == VK_SUCCESS)
+    if (m_ctx != nullptr && m_frameError == VK_SUCCESS)
         m_frameError = resetSmsWork();
 }
 
@@ -172,8 +173,28 @@ VkResult hyperion::PathTracer::resetSmsWork() {
     if (pixels == 0 || pixels > harmonia::pipeline::SmsPass::kMaxCapacity / samples)
         return VK_ERROR_INITIALIZATION_FAILED;
     const auto capacity = static_cast<std::uint32_t>(pixels * samples);
-    if (m_sms.workBuffer().isValid() && m_sms.capacity() == capacity)
+    const bool priorActive = m_config.smsPriorEnabled && m_config.smsPartitionResolution > 1 && m_config.maxDepth >= 3;
+    const auto blocksX = std::uint64_t{m_extent.width} / 16 + (m_extent.width % 16 != 0 ? 1 : 0);
+    const auto blocksY = std::uint64_t{m_extent.height} / 16 + (m_extent.height % 16 != 0 ? 1 : 0);
+    const auto entries = blocksX * blocksY * 128;
+    constexpr VkDeviceSize entryBytes = (2 + 32) * sizeof(std::uint32_t); // SmsPriorEntry's 136B ABI
+    if (priorActive && entries > harmonia::pipeline::SmsPass::kMaxCapacity)
+        return VK_ERROR_INITIALIZATION_FAILED;
+    if (m_sms.workBuffer().isValid() && m_sms.capacity() == capacity && m_priorActive == priorActive &&
+        (!priorActive || m_priorBuffer.size() == entries * entryBytes))
         return VK_SUCCESS;
+    harmonia::core::Buffer priorBuffer;
+    if (priorActive) {
+        auto buffer = harmonia::core::Buffer::create(*m_ctx,
+                                                     entries * entryBytes,
+                                                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                         VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                                     VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                                                     "hyperion.sms.prior");
+        if (!buffer)
+            return buffer.error();
+        priorBuffer = std::move(*buffer);
+    }
     const std::filesystem::path shared{HARMONIA_SHADER_DIR};
     auto sms = harmonia::pipeline::SmsPass::create(*m_ctx,
                                                    capacity,
@@ -182,10 +203,15 @@ VkResult hyperion::PathTracer::resetSmsWork() {
                                                    m_shaderDirectory / "sms_sample.spv",
                                                    m_shaderDirectory / "sms_resolve.spv",
                                                    1,
-                                                   VK_SHADER_STAGE_ALL);
+                                                   VK_SHADER_STAGE_ALL,
+                                                   priorActive ? m_shaderDirectory / "sms_prior_build.spv"
+                                                               : std::filesystem::path{},
+                                                   priorActive ? priorBuffer.deviceAddress() : 0);
     if (!sms)
         return sms.error();
     m_sms = std::move(*sms);
+    m_priorBuffer = std::move(priorBuffer);
+    m_priorActive = priorActive;
     m_frameRecorded = false;
     return VK_SUCCESS;
 }

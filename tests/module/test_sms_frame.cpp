@@ -54,6 +54,7 @@ class SmsFrameFixture : public RtFixture {
     [[nodiscard]] virtual bool glassSlab() const noexcept { return false; }
     [[nodiscard]] virtual float absorptionDepth() const noexcept { return 0; }
     [[nodiscard]] virtual std::uint32_t partitionResolution() const noexcept { return 1; }
+    [[nodiscard]] virtual bool priorEnabled() const noexcept { return false; }
     void SetUp() override {
         RtFixture::SetUp();
         if (IsSkipped())
@@ -143,8 +144,10 @@ class SmsFrameFixture : public RtFixture {
         hdr = std::move(*image);
         normal = std::move(*n);
         depth = std::move(*z);
-        hyperion::PathTracer::Config config{
-            .samplesPerPixel = 1, .maxDepth = glassSlab() ? 4U : 3U, .smsPartitionResolution = partitionResolution()};
+        hyperion::PathTracer::Config config{.samplesPerPixel = 1,
+                                            .maxDepth = glassSlab() ? 4U : 3U,
+                                            .smsPartitionResolution = partitionResolution(),
+                                            .smsPriorEnabled = priorEnabled()};
         auto pt = hyperion::PathTracer::create(ctx, kExtent, *pipeline, sbt, *descriptors, config);
         ASSERT_TRUE(pt.has_value()) << static_cast<int>(pt.error());
         tracer = std::move(*pt);
@@ -493,6 +496,57 @@ class SmsFrameFixture : public RtFixture {
         return result;
     }
 
+    virtual AbsorptionEnergy priorMetric(std::span<const sm::float4> pixels) {
+        const auto value = energy(pixels);
+        AbsorptionEnergy result;
+        result.expected.fill(value.reflected);
+        result.observed.fill(value.observed - value.direct);
+        result.mse = value.mse;
+        result.pixels = value.pixels;
+        return result;
+    }
+    void comparePrior(const char* label) {
+        constexpr std::uint32_t frames = 512;
+        double plainMse = 0, priorMse = 0;
+        std::array<double, 3> expected{}, observed{};
+        for (auto seed : {17U, 91U, 1234U, 2026U}) {
+            for (bool enabled : {false, true}) {
+                tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1,
+                                                              .maxDepth = glassSlab() ? 4U : 3U,
+                                                              .rngSeed = seed,
+                                                              .smsPartitionResolution = 16,
+                                                              .smsPriorEnabled = enabled});
+                std::uint64_t continuations = 0;
+                const auto token = seed ^ (enabled ? 0x80000000U : 0U);
+                for (std::uint32_t f = 0; f < frames; ++f)
+                    ASSERT_NO_FATAL_FAILURE(frame(f, token, continuations));
+                std::vector<sm::float4> pixels;
+                ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+                const auto measured = priorMetric(pixels);
+                std::cout << "SMS prior " << label << " seed=" << seed << " enabled=" << enabled << " ratios=";
+                for (std::size_t channel = 0; channel < 3; ++channel) {
+                    std::cout << measured.observed[channel] / measured.expected[channel] << ' ';
+                    if (enabled) {
+                        expected[channel] += measured.expected[channel];
+                        observed[channel] += measured.observed[channel];
+                    }
+                }
+                std::cout << "continuations=" << continuations << '\n';
+                if (enabled) {
+                    priorMse += measured.mse;
+                    const auto output = std::filesystem::path(HYPERION_TEST_SHADER_DIR).parent_path() /
+                                        (std::string("sms_prior_") + label + "_seed" + std::to_string(seed) + ".exr");
+                    ASSERT_TRUE(harmonia::presentation::ImageCapture::saveExr(deviceCtx(), commandPool(), hdr, output));
+                } else
+                    plainMse += measured.mse;
+            }
+        }
+        for (std::size_t channel = 0; channel < 3; ++channel)
+            EXPECT_NEAR(observed[channel] / expected[channel], 1.0, .02) << "Pooled prior energy channel=" << channel;
+        std::cout << "SMS prior " << label << " pooled MSE ratio=" << priorMse / plainMse << '\n';
+        EXPECT_LT(priorMse, plainMse) << "Pilot prior must improve same-budget image error before claiming benefit";
+    }
+
     std::unique_ptr<harmonia::renderer::Descriptors> descriptors;
     std::unique_ptr<harmonia::renderer::Pipeline> pipeline;
     hyperion::ShaderBindingTable sbt;
@@ -521,11 +575,39 @@ class SmsPartitionFrameFixture : public SmsFrameFixture {
     [[nodiscard]] std::uint32_t partitionResolution() const noexcept override { return 16; }
 };
 
+class SmsPriorFrameFixture : public SmsPartitionFrameFixture {
+  protected:
+    [[nodiscard]] bool priorEnabled() const noexcept override { return true; }
+};
+class SmsPriorGlassFrameFixture : public SmsGlassFrameFixture {
+  protected:
+    [[nodiscard]] std::uint32_t partitionResolution() const noexcept override { return 16; }
+    [[nodiscard]] bool priorEnabled() const noexcept override { return true; }
+    AbsorptionEnergy priorMetric(std::span<const sm::float4> pixels) override {
+        const auto value = slabEnergy(pixels);
+        AbsorptionEnergy result;
+        result.expected.fill(value.reflected);
+        result.observed.fill(value.observed);
+        result.mse = value.mse;
+        result.pixels = value.pixels;
+        return result;
+    }
+};
+class SmsPriorAbsorptionFrameFixture : public SmsAbsorptionFrameFixture {
+  protected:
+    [[nodiscard]] std::uint32_t partitionResolution() const noexcept override { return 16; }
+    [[nodiscard]] bool priorEnabled() const noexcept override { return true; }
+    AbsorptionEnergy priorMetric(std::span<const sm::float4> pixels) override { return absorptionEnergy(pixels); }
+};
+
 TEST_F(SmsFrameFixture, MirrorMatchesVirtualEmitterEnergyAcrossSeedsAndConverges) {
     double shortMse = 0, longMse = 0;
     for (auto seed : {17U, 91U, 1234U, 2026U}) {
-        hyperion::PathTracer::Config config{
-            .samplesPerPixel = 1, .maxDepth = 3, .rngSeed = seed, .smsPartitionResolution = partitionResolution()};
+        hyperion::PathTracer::Config config{.samplesPerPixel = 1,
+                                            .maxDepth = 3,
+                                            .rngSeed = seed,
+                                            .smsPartitionResolution = partitionResolution(),
+                                            .smsPriorEnabled = priorEnabled()};
         tracer.setConfig(config);
         std::uint64_t continuations = 0;
         std::vector<sm::float4> pixels;
@@ -556,8 +638,11 @@ TEST_F(SmsFrameFixture, MirrorMatchesVirtualEmitterEnergyAcrossSeedsAndConverges
 TEST_F(SmsGlassFrameFixture, ClosedGlassMatchesSnellAreaEnergyAcrossSeedsAndConverges) {
     double shortMse = 0, longMse = 0;
     for (auto seed : {17U, 91U, 1234U, 2026U}) {
-        tracer.setConfig(hyperion::PathTracer::Config{
-            .samplesPerPixel = 1, .maxDepth = 4, .rngSeed = seed, .smsPartitionResolution = partitionResolution()});
+        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1,
+                                                      .maxDepth = 4,
+                                                      .rngSeed = seed,
+                                                      .smsPartitionResolution = partitionResolution(),
+                                                      .smsPriorEnabled = priorEnabled()});
         std::uint64_t continuations = 0;
         std::vector<sm::float4> pixels;
         for (std::uint32_t f = 0; f < kFrames; ++f) {
@@ -586,8 +671,11 @@ TEST_F(SmsGlassFrameFixture, ClosedGlassMatchesSnellAreaEnergyAcrossSeedsAndConv
 TEST_F(SmsAbsorptionFrameFixture, PureAbsorberMatchesSnellBeerRgbEnergyAndConverges) {
     double shortMse = 0, longMse = 0;
     for (auto seed : {17U, 91U, 1234U, 2026U}) {
-        tracer.setConfig(hyperion::PathTracer::Config{
-            .samplesPerPixel = 1, .maxDepth = 4, .rngSeed = seed, .smsPartitionResolution = partitionResolution()});
+        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1,
+                                                      .maxDepth = 4,
+                                                      .rngSeed = seed,
+                                                      .smsPartitionResolution = partitionResolution(),
+                                                      .smsPriorEnabled = priorEnabled()});
         std::uint64_t continuations = 0;
         std::vector<sm::float4> pixels;
         for (std::uint32_t f = 0; f < kFrames; ++f) {
@@ -622,8 +710,11 @@ TEST_F(SmsPartitionFrameFixture, PartitionedMirrorMatchesIndependentEnergy) {
     // estimator's 128-sample variance gate or a relaxed energy tolerance.
     constexpr std::uint32_t frames = 4096;
     for (auto seed : {17U, 91U, 1234U, 2026U}) {
-        tracer.setConfig(hyperion::PathTracer::Config{
-            .samplesPerPixel = 1, .maxDepth = 3, .rngSeed = seed, .smsPartitionResolution = 16});
+        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1,
+                                                      .maxDepth = 3,
+                                                      .rngSeed = seed,
+                                                      .smsPartitionResolution = 16,
+                                                      .smsPriorEnabled = false});
         std::uint64_t continuations = 0;
         for (std::uint32_t f = 0; f < frames; ++f)
             ASSERT_NO_FATAL_FAILURE(frame(f, seed, continuations));
@@ -639,4 +730,14 @@ TEST_F(SmsPartitionFrameFixture, PartitionedMirrorMatchesIndependentEnergy) {
                             ("sms_partition_seed" + std::to_string(seed) + ".exr");
         ASSERT_TRUE(harmonia::presentation::ImageCapture::saveExr(deviceCtx(), commandPool(), hdr, output));
     }
+}
+
+TEST_F(SmsPriorFrameFixture, PriorPreservesMirrorEnergyAndImprovesSameBudgetError) {
+    ASSERT_NO_FATAL_FAILURE(comparePrior("mirror"));
+}
+TEST_F(SmsPriorGlassFrameFixture, PriorPreservesGlassEnergyAndImprovesSameBudgetError) {
+    ASSERT_NO_FATAL_FAILURE(comparePrior("glass"));
+}
+TEST_F(SmsPriorAbsorptionFrameFixture, PriorPreservesAbsorptionEnergyAndImprovesSameBudgetError) {
+    ASSERT_NO_FATAL_FAILURE(comparePrior("absorption"));
 }

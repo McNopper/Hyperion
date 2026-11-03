@@ -8,6 +8,7 @@ import sms;
 import sms_transport;
 import sms_work;
 import sms_scene;
+import sms_prior;
 
 [[vk::push_constant]] SmsQueuePush pc;
 
@@ -43,6 +44,7 @@ bool prepareLight(inout SmsWorkRecord work) {
     work.words[5] = asuint(float4(position, mass / area));
     work.words[6] = asuint(float4(normal, light.edge1_emitR.w));
     work.words[7].xy = asuint(float2(light.edge2_emitG.w, light.normal_emitB.w));
+    work.words[13].z=lo; // emitter count was only needed for preparation; now freeze its identity
     return true;
 }
 
@@ -120,6 +122,56 @@ bool contribution(SmsWorkRecord work, SmsManifoldVertex root[2], uint count, out
     return all(isfinite(value)) && all(value >= 0.0.xxx);
 }
 
+#ifdef SMS_BUILD_PRIOR
+// Pilot walks use the same source solver but NEVER become radiance candidates.
+// Only their important-tile union is retained; main trials use independent blocks.
+[shader("compute")]
+[numthreads(128,1,1)]
+void main(uint3 group : SV_GroupID,uint lane : SV_GroupIndex) {
+    uint2 dimensions=pc.work[0].words[15].zw;
+    uint samples=pc.work[0].words[14].y;
+    if (samples==0u || any(dimensions==0u.xx)) { smsQueueCompletionError(pc,kSmsQueueInvalidWork); return; }
+    uint blocksX=dimensions.x/16u+(dimensions.x%16u!=0u?1u:0u);
+    uint block=group.y*blocksX+group.x;
+    uint hash=hashCombine(block,pc.work[0].words[14].z^pc.work[0].words[14].w);
+    uint permutation=(lane*73u+hash)&255u;
+    uint2 pixel=group.xy*16u+uint2(permutation%16u,permutation/16u);
+    if (any(pixel>=dimensions)) return;
+    uint sample=hashCombine(lane,hash)%samples;
+    uint slot=(pixel.y*dimensions.x+pixel.x)*samples+sample;
+    if (slot>=pc.capacity) { smsQueueCompletionError(pc,kSmsQueueInvalidWork); return; }
+    SmsWorkRecord work=pc.work[slot];
+    if (smsPhase(work)!=kSmsInitial) return;
+    float4 u=smsTrialSample(work.words[7].zw,uint2(lane,block),uint2(0xFFFFFFFDu,0));
+    HyperionSmsScene scene;
+    SmsManifoldVertex root[2]; uint count;
+    if (!samplePath(scene,smsReceiverPosition(work),smsLightPosition(work),u,work.words[13].w,1u,root,count)) return;
+    uint n=work.words[12].w;
+    if (n==0u || n>32u) { smsQueueCompletionError(pc,kSmsQueueInvalidWork); return; }
+    uint2 tile=smsDirectionTile(normalize(root[0].position-smsReceiverPosition(work)),n);
+    uint index=tile.y*n+tile.x,key=work.words[13].z+1u,start=smsPriorHash(key);
+    SmsPriorEntry* table=(SmsPriorEntry*)pc.userData;
+    for (uint offset=0u;offset<kSmsPriorSlots;++offset) {
+        uint entry=block*kSmsPriorSlots+(start+offset)%kSmsPriorSlots,observed;
+        InterlockedCompareExchange(table[entry].key,0u,key,observed);
+        if (observed==0u || observed==key) {
+            uint ignored;
+            InterlockedOr(table[entry].mask[index/32u],1u<<(index%32u),ignored);
+            return;
+        }
+    }
+    smsQueueCompletionError(pc,kSmsQueueOverflow); // at most 128 pilots, so this signals an invariant failure
+}
+#else
+SmsPriorEntry framePrior(SmsWorkRecord work,uint slot) {
+    SmsPriorEntry empty={};
+    if (pc.userFlags==0u) return empty;
+    uint samples=work.words[14].y,width=work.words[15].z;
+    uint pixel=slot/samples,blocksX=width/16u+(width%16u!=0u?1u:0u);
+    uint block=(pixel/width/16u)*blocksX+(pixel%width/16u);
+    return smsFindPrior((SmsPriorEntry*)pc.userData,block,work.words[13].z);
+}
+
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
@@ -143,6 +195,7 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
     if (phase != kSmsInitial && phase != kSmsRepeat) { smsQueueError(pc, kSmsQueueInvalidWork); return; }
     HyperionSmsScene scene;
     float3 receiver = smsReceiverPosition(work), light = smsLightPosition(work);
+    SmsPriorEntry prior=framePrior(work,slot);
     SmsReciprocal reciprocal;
     reciprocal.trials = work.words[12].xy;
     reciprocal.status = work.words[12].z;
@@ -160,7 +213,14 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
             origin=work.words[14].zw;
             extent=work.words[15].xy;
         }
-        u.xy=smsSampleTileRectangle(u.xy,origin,extent,resolution);
+        SmsConditionalRegion seedRegion;
+        seedRegion.origin=origin; seedRegion.extent=extent;
+        seedRegion.probability=float(extent.x*extent.y)/float(resolution*resolution);
+        float2 seed; float sampledMass;
+        if (!smsSamplePrior(u,prior,seedRegion,resolution,seed,sampledMass)) {
+            smsQueueError(pc,kSmsQueueNumericError); return;
+        }
+        u.xy=seed;
         SmsManifoldVertex root[2];
         uint count;
         // ONE common call site, same compute context, same frozen endpoint loads.
@@ -174,7 +234,7 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
             if (all(base == 0.0.xxx)) { phase = kSmsDone; break; }
             smsStoreRoot(work, root, count);
             SmsConditionalRegion conditional=makeSmsConditionalRegion(normalize(root[0].position-receiver),resolution);
-            work.words[11].w=asuint(conditional.probability);
+            work.words[11].w=asuint(smsPriorRegionProbabilities(prior,conditional,resolution).x);
             work.words[14].zw=conditional.origin;
             work.words[15].xy=conditional.extent;
             reciprocal = beginSmsReciprocal();
@@ -204,3 +264,4 @@ void main(uint3 group : SV_GroupID, uint lane : SV_GroupIndex) {
     pc.work[slot] = work;
     if (phase != kSmsDone) smsQueueAppend(pc, slot); // never cap or discard unfinished trials
 }
+#endif
