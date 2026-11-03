@@ -13,11 +13,6 @@ namespace hyperion {
 using PFN_vkCmdSetRayTracingInvocationReorderModeEXT =
     void(VKAPI_PTR*)(VkCommandBuffer commandBuffer, VkRayTracingInvocationReorderModeEXT reorderMode);
 
-namespace {
-constexpr std::uint32_t kLcgMultiplier = 1664525u;
-constexpr std::uint32_t kLcgIncrement = 1013904223u;
-} // namespace
-
 std::expected<hyperion::PathTracer, VkResult> hyperion::PathTracer::create(const harmonia::DeviceContext& ctx,
                                                                            VkExtent2D renderExtent,
                                                                            const harmonia::renderer::Pipeline& pipeline,
@@ -113,7 +108,7 @@ void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd,
     const harmonia::PushConstants pushConstants{
         .frameIndex = frameIndex,
         .maxDepth = m_config.maxDepth,
-        .rngSeed = frameIndex * kLcgMultiplier + kLcgIncrement,
+        .rngSeed = m_config.rngSeed,
         .envLuminanceScale = m_config.envLuminance,
         .lightCount = scene.lightCount(),
         .outputColorSpace = static_cast<std::uint32_t>(m_config.outputColorSpace),

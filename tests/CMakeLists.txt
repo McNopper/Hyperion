@@ -10,6 +10,7 @@ include(GoogleTest)
 # ---------------------------------------------------------------------------
 set(HYPERION_UNIT_TEST_SOURCES
     unit/test_bsdf.cpp
+    unit/test_sampling_plan.cpp
 )
 
 add_executable(hyperion_unit_tests ${HYPERION_UNIT_TEST_SOURCES})
@@ -38,6 +39,7 @@ set(HYPERION_MODULE_TEST_SOURCES
     module/main.cpp
     module/test_scene_build.cpp
     module/test_sbt.cpp
+    module/test_frame_sampling.cpp
 )
 
 add_executable(hyperion_module_tests ${HYPERION_MODULE_TEST_SOURCES})
@@ -63,6 +65,7 @@ gtest_discover_tests(hyperion_module_tests PROPERTIES RUN_SERIAL TRUE)
 set(HYPERION_INTEGRATION_TEST_SOURCES
     integration/test_smoke.cpp
     integration/test_render.cpp
+    integration/test_capture_sampling_contract.cpp
 )
 
 add_executable(hyperion_integration_tests

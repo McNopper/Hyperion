@@ -15,7 +15,7 @@ void pathTracingRaygen()
     for (uint s = 0; s < spp; ++s) {
         // A0(a): fresh Owen-Sobol' sample per (pixel, frame, spp-index); dim resets to 0 so
         // camera AA jitter takes the first low-discrepancy 2D, lens the next, path the rest.
-        RngState seed = makeRngState(pixelKey, pushConst.rngSeed * spp + s);
+        RngState seed = makeRngState(hashCombine(pixelKey, pushConst.rngSeed), pushConst.frameIndex * spp + s);
         float2 jitter = float2(randFloat(seed), randFloat(seed));
         float2 uv = (float2(launchID) + jitter) / float2(launchDim);
         uv.y = 1.0 - uv.y;
@@ -102,15 +102,9 @@ void pathTracingRaygen()
         totalRadiance += sampleRadiance;
     }
 
-    // Temporal accumulation: blend current sample into running average.
-    // frameIndex==0 clears the buffer; subsequent frames blend progressively.
-    // totalRadiance is already exposure-weighted (applied during firefly clamping).
+    // Per-dispatch radiance only. Harmonia's AccumulationPass is the ONE history
+    // owner; blending here too leaves a permanent first-frame variance floor.
+    // Exposure was applied above; captures do not use firefly clamps.
     const float3 currentSample = totalRadiance / float(spp);
-    if (pushConst.frameIndex == 0u) {
-        hdrTarget[launchID] = float4(currentSample, 1.0);
-    } else {
-        const float3 prev = hdrTarget[launchID].rgb;
-        const float t = 1.0 / float(pushConst.frameIndex + 1u);
-        hdrTarget[launchID] = float4(lerp(prev, currentSample, t), 1.0);
-    }
+    hdrTarget[launchID] = float4(currentSample, 1.0);
 }

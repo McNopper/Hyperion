@@ -59,6 +59,17 @@ CLI flags: all common Harmonia flags (`--scene/-s`, `--output/-o`, `--width`, `-
 | `--spp <n>` | scene preset value | Override samples per pixel |
 | `--depth <n>` | scene preset value | Override max bounce depth |
 
+**One accumulation owner:** raygen writes only the current dispatch's mean;
+Harmonia's shared AccumulationPass owns temporal history. For a capture,
+`--spp N` schedules N single-sample logical frames, not N² samples. Interactive
+batching still uses N samples per dispatch. `--rng-seed` selects the Sobol
+scramble; frame/sample indices advance progressively and same-seed captures
+are reproducible. Do not add a second HDR history blend inside raygen.
+Multi-sample captures require the accumulation stage; explicitly disabling it
+is rejected rather than exporting the last one-sample frame. A single-sample
+capture may omit temporal history. Requested accumulation creation failures are
+fatal in the shared host, not a warning-and-continue fallback.
+
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 
 ## Gotchas (these waste a cycle every time they're forgotten)

@@ -12,6 +12,7 @@
 #include "harmonia/renderer/Camera.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
 #include "hyperion/renderer/PathTracer.hpp"
+#include "hyperion/renderer/SamplingPlan.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "hyperion/scene/Scene.hpp"
 
@@ -53,7 +54,9 @@ class Application final : public harmonia::app::App, public harmonia::app::IRend
     [[nodiscard]] bool onSceneLoaded(const harmonia::scene::SceneLoader::SceneConfig& sceneConfig) override;
     void onSceneUnload() override;
     bool onEvent(const SDL_Event& event) override;
-    [[nodiscard]] std::uint32_t offscreenFrameCount() const noexcept override { return m_demoConfig.spp; }
+    [[nodiscard]] std::uint32_t offscreenFrameCount() const noexcept override {
+        return samplingPlan(m_demoConfig.spp, true).frameCount;
+    }
 
   private:
     [[nodiscard]] bool createGBuffers(VkExtent2D extent);
