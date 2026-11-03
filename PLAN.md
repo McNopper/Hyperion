@@ -54,6 +54,13 @@ confirms PT retains the internally uncharged exit rather than dropping its energ
 Full family re-run passes H142/Hy69/T34 with zero validation messages; architecture
 and H/Hy tidy/dead pass, Theia control unchanged 0/76,800 pixels. Theia reuse,
 curved/complex equal-time/stability evidence and both review galleries remain.
+Shared-source extraction now passes exact main/prior SPIR-V comparison and all
+32 regenerated fixed-seed EXRs (0/393,216 changed pixels). The compute include
+keeps the original call graph after a typed-dispatch attempt failed exact pixels;
+no gate was relaxed. Full H142/Hy69/T38 and probability/coefficient controls pass.
+Before enabling Theia SMS, close the reviewed production-normal-fallback / raw-
+visibility contract in this adapter and the shared visibility call site; see the
+central Harmonia plan. Theia candidates/reuse and final acceptance remain open.
 
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is

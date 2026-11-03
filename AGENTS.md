@@ -91,6 +91,10 @@ a PT-sampled specular camera prefix, with frozen RGB throughput and remaining
 receiver-inclusive depth. Null/scattering/non-delta prefixes and later diffuse
 receivers stay PT-owned. Independent planar SDS mirror/Snell/Beer and depth-boundary
 fixtures cover this extension; these are not curved-scene or reuse acceptance.
+The common compute sampler lives in Harmonia `shaders/sms_compute.slang`, included
+after `sms_sample.slang` defines its six renderer aliases. This preserves the
+concrete compute call graph; do not reintroduce a separately evolving sampler.
+Geometry and descriptor layouts remain renderer-specific.
 
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 
