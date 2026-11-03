@@ -1,5 +1,16 @@
 # PLAN — Hyperion
 
+**SMS consolidation review (2026-11-03):** `dev/gi-sms-restir` is the single
+active SMS branch name in Hyperion, Harmonia and Theia; old WIP refs are archival.
+Hyperion's implementation remains `128b220`; this review changes no renderer
+code. Main remains `49c1f21`, with no tag/release/pin changes. The authoritative
+review/fix queue is `Harmonia/PLAN.md` section 3, **SMS consolidation and
+implementation review**. In particular, isolate the pre-existing sample-budget,
+RNG-seed and double-accumulation fixes (`b297f10`) for a separately approved main
+hotfix rather than merging unfinished SMS to obtain them. Theia's qualification
+runner and C1 shift diagnosis need repair; do not infer final SMS acceptance or
+temporal-reuse necessity from the earlier completion reports below.
+
 **NEXT-MODEL ENTRY:** the remaining #2 queue is Harmonia/PLAN.md section 3,
 "GI-SMS #2 — bounded finish plan / next-model handoff". Work on
 `dev/gi-sms-restir`; main remains pre-SMS. Next Hyperion task is an explicit
