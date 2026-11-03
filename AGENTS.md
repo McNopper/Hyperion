@@ -141,6 +141,9 @@ Equivalent preset flow (Ninja + Release + clang-cl + `$env:VCPKG_ROOT` toolchain
 **Linux:** supported and CI-proven (g++/Ninja, glibc 2.43-era) — the Vulkan SDK tarball +
 SDL3-bridge recipe lives in Harmonia's AGENTS.md. CI: `.github/workflows/build.yml` builds
 `windows-latest` + `ubuntu-26.04` (pure build — the test suites need a GPU).
+Automatic CI runs only for main pushes and main-target PRs; manual dispatch remains
+available. GI-SMS PR/manual builds use the matching Harmonia development/WIP
+branch; unrelated branches use Harmonia main. Dependency release pins are unchanged.
 
 > **⚠️ Do not run things in parallel — it slows the machine to a crawl.**
 > - **Tests are serialised in CMake:** every test carries `RUN_SERIAL`, so `ctest -j`
@@ -202,6 +205,9 @@ SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides tomlp
 ## Conventions
 
 - Commit, but do **not** push unless asked.
+- Build the current candidate locally, warning-clean, and run the applicable local
+  verification/lint before any authorized development/WIP push. Local Windows
+  success does not establish a Linux build or hosted CI success.
 - **GPU-driven, latest standard Vulkan, cross-vendor only** (core + `KHR`/`EXT`). No
   vendor-specific extensions (`VK_NV_*`/`VK_AMD_*`/`VK_INTEL_*`) — must run on any vendor.
 - Working color space is scene-referred (e.g. `lin_rec2020_scene`).
