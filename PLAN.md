@@ -1,5 +1,18 @@
 # PLAN — Hyperion
 
+**Continuation checkpoint (2026-11-03):** `dev/gi-sms-restir` preserves all
+unpublished reference-renderer work through `049f34c`, plus this handoff. Local
+`main` is aligned with `origin/main`; do not merge/push GI-SMS work there yet.
+Commits and pushes on the development/WIP branches are now authorized, superseding
+the older no-push notes below; no tags, releases or dependency-pin changes.
+Theia local integration is verified at `76e2472`, while its unfinished spatial
+reuse is isolated on `wip/gi-sms-spatial-reuse` in Theia and Harmonia. Hyperion has
+no separate WIP changes. Read the branch table, pause verification plan and exact
+resume sequence in `Harmonia/PLAN.md` section 3 before continuing. The latest
+complete reference suite is 71 tests; the pause rerun is recorded centrally.
+Curved/complex reuse, equal-time/stability evidence and both review galleries
+remain outstanding; the complete GI-SMS item #2 is not accepted or published.
+
 **Active local GI-SMS production batch:** Harmonia `c323d94` provides verified
 resumable queues. Hyperion now has the production scene reader, single-compute-
 call-site root sampler, receiver recording / resolve and IFrameCompletion adapter.
@@ -10,7 +23,7 @@ Run `hyperion_module_tests.exe --gtest_filter=SmsSceneFixture.*:SmsFrameFixture.
 the full validation-enabled family suites and missing/doubled-energy controls.
 TOML zero-roughness metal is continuous floored GGX, not Material::mirror; do not
 silently reclassify it. Existing rough/dispersive/medium transport stays PT-owned.
-No push, tags, release or dependency-pin changes are authorized.
+Development-branch pushes only; no main merge/push, tags, release or dependency-pin changes.
 
 Mirror checkpoint acceptance: exact-delta mirror reflected-energy ratios across
 four seeds are 0.991267 / 1.01098 / 0.981383 / 1.00834, with 128/32-sample MSE ratio
