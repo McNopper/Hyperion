@@ -95,6 +95,10 @@ The common compute sampler lives in Harmonia `shaders/sms_compute.slang`, includ
 after `sms_sample.slang` defines its six renderer aliases. This preserves the
 concrete compute call graph; do not reintroduce a separately evolving sampler.
 Geometry and descriptor layouts remain renderer-specific.
+SMS triangle normals use the same normalized-vertex / blended-length geometric
+fallback as actual RT, with zero derivatives on that fallback branch. Visibility
+uses the opaque TLAS query directly, including analytic spheres; a failed shading
+reconstruction is never evidence that an opaque blocker is absent.
 
 ⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
 

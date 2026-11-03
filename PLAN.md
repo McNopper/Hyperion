@@ -61,6 +61,14 @@ no gate was relaxed. Full H142/Hy69/T38 and probability/coefficient controls pas
 Before enabling Theia SMS, close the reviewed production-normal-fallback / raw-
 visibility contract in this adapter and the shared visibility call site; see the
 central Harmonia plan. Theia candidates/reuse and final acceptance remain open.
+The support follow-up now passes: actual RT / SMS geometric-normal fallbacks
+agree for zero, cancelling, tiny and mixed-zero normals; raw visibility handles
+opaque triangles and analytic spheres independently of normals. A mixed-zero
+rendered mirror improves from .629–.647 to .981–1.011 energy ratios without
+changing BSDFs or tolerances. An independent finite-blocker integral passes;
+old-normal, shading-dependent-visibility and omitted-common-visibility controls
+fail, exact restores pass. Full H142/Hy71/T38 validation-clean with architecture
+and H/Hy tidy/dead; Theia control unchanged. Active Theia SMS remains next.
 
 **Living source of truth for outstanding work.** Shipped items are removed from the work
 lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is

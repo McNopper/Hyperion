@@ -57,6 +57,8 @@ class SmsFrameFixture : public RtFixture {
     [[nodiscard]] virtual bool priorEnabled() const noexcept { return false; }
     [[nodiscard]] virtual bool specularPrefix() const noexcept { return false; }
     [[nodiscard]] virtual bool slabPrefix() const noexcept { return false; }
+    [[nodiscard]] virtual bool fallbackCasterNormals() const noexcept { return false; }
+    [[nodiscard]] virtual bool blockedMirror() const noexcept { return false; }
     void SetUp() override {
         RtFixture::SetUp();
         if (IsSkipped())
@@ -131,13 +133,23 @@ class SmsFrameFixture : public RtFixture {
                                              false));
             }
         } else if (!specularPrefix()) {
-            ASSERT_NO_FATAL_FAILURE(
-                quad({sm::float3(0, 0, -2), {0, 3, -2}, {0, 3, 2}, {0, 0, 2}}, {1, 0, 0}, caster, false));
+            ASSERT_NO_FATAL_FAILURE(quad({sm::float3(0, 0, -2), {0, 3, -2}, {0, 3, 2}, {0, 0, 2}},
+                                         {1, 0, 0},
+                                         caster,
+                                         false,
+                                         fallbackCasterNormals()));
             ASSERT_NO_FATAL_FAILURE(
                 quad({sm::float3(3, 1.75F, -.25F), {3, 1.75F, .25F}, {3, 2.25F, .25F}, {3, 2.25F, -.25F}},
                      {-1, 0, 0},
                      emitter,
                      false));
+        }
+        if (blockedMirror()) {
+            auto black = harmonia::scene::Material::diffuse(sm::float3(0), 0).gpu();
+            black.specularColorWeight.w = 0;
+            const auto blocker = scene.addMaterial(harmonia::scene::Material::fromGpu(black));
+            ASSERT_NO_FATAL_FAILURE(
+                quad({sm::float3(1, 1.1F, -2), {1, 1.1F, 2}, {1, 1.2F, 2}, {1, 1.2F, -2}}, {-1, 0, 0}, blocker, false));
         }
         ASSERT_EQ(scene.build(ctx, commandPool()), VK_SUCCESS);
         ASSERT_EQ(scene.emissiveTriangleCount(), 2U);
@@ -210,12 +222,14 @@ class SmsFrameFixture : public RtFixture {
         camera = harmonia::renderer::Camera(cameraParams);
     }
 
-    void quad(std::array<sm::float3, 4> vertices, sm::float3 n, std::uint32_t mat, bool reverse) {
+    void
+    quad(std::array<sm::float3, 4> vertices, sm::float3 n, std::uint32_t mat, bool reverse, bool mixedNormals = false) {
         harmonia::scene::MeshData data;
         for (auto position : vertices) {
             harmonia::GpuVertex v{};
             v.position = position;
-            v.normal = n;
+            v.normal =
+                mixedNormals ? (data.vertices.empty() ? sm::float3(0) : sm::normalize(n + sm::float3(0, .2F, 0))) : n;
             data.vertices.push_back(v);
         }
         data.indices =
@@ -323,6 +337,8 @@ class SmsFrameFixture : public RtFixture {
                 const double px = 2 + u * t, pz = 6 + dz * t;
                 if (!(t > 0 && px > .6 && px < 2.7 && std::abs(pz) < 1.5))
                     continue;
+                if (blockedMirror() && px <= 1.3)
+                    continue;
                 double direct = 0, reflected = 0;
                 for (int iy = 0; iy < subdivisions; ++iy) {
                     for (int iz = 0; iz < subdivisions; ++iz) {
@@ -333,8 +349,14 @@ class SmsFrameFixture : public RtFixture {
                             const double g = ly * (side * dx) / (dist2 * dist2) * .25 / (subdivisions * subdivisions);
                             if (side == 1)
                                 direct += g;
-                            else
-                                reflected += g;
+                            else {
+                                const double blockerY = ly * (px + 1) / (px + 3),
+                                             blockerZ = (2 * pz + (px + 1) * lz) / (px + 3);
+                                const bool shadowed = blockedMirror() && blockerY >= 1.1 && blockerY <= 1.2 &&
+                                                      blockerZ >= -2 && blockerZ <= 2;
+                                if (!shadowed)
+                                    reflected += g;
+                            }
                         }
                     }
                 }
@@ -684,6 +706,16 @@ class SmsGlassFrameFixture : public SmsFrameFixture {
     [[nodiscard]] bool glassSlab() const noexcept override { return true; }
 };
 
+class SmsFallbackFrameFixture : public SmsFrameFixture {
+  protected:
+    [[nodiscard]] bool fallbackCasterNormals() const noexcept override { return true; }
+};
+
+class SmsVisibilityFrameFixture : public SmsFrameFixture {
+  protected:
+    [[nodiscard]] bool blockedMirror() const noexcept override { return true; }
+};
+
 class SmsAbsorptionFrameFixture : public SmsGlassFrameFixture {
   protected:
     [[nodiscard]] float absorptionDepth() const noexcept override { return 1; }
@@ -766,6 +798,56 @@ TEST_F(SmsFrameFixture, MirrorMatchesVirtualEmitterEnergyAcrossSeedsAndConverges
     }
     std::cout << "SMS mirror aggregate MSE 128/32=" << longMse / shortMse << '\n';
     EXPECT_LT(longMse, shortMse * .65) << "Independent seeds and 4x sample budget must reduce actual image error";
+}
+
+TEST_F(SmsFallbackFrameFixture, MixedZeroNormalsMatchProductionFallbackAndVirtualEmitterEnergy) {
+    double shortMse = 0, longMse = 0;
+    for (auto seed : {17U, 91U, 1234U, 2026U}) {
+        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1,
+                                                      .maxDepth = 3,
+                                                      .rngSeed = seed,
+                                                      .smsPartitionResolution = 1,
+                                                      .smsPriorEnabled = false});
+        std::uint64_t continuations = 0;
+        std::vector<sm::float4> pixels;
+        for (std::uint32_t frameIndex = 0; frameIndex < kFrames; ++frameIndex) {
+            ASSERT_NO_FATAL_FAILURE(frame(frameIndex, seed, continuations));
+            if (frameIndex == 31) {
+                ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+                shortMse += energy(pixels).mse;
+            }
+        }
+        ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+        const auto measured = energy(pixels);
+        const double ratio = (measured.observed - measured.direct) / measured.reflected;
+        std::cout << "SMS fallback mirror seed=" << seed << " caustic ratio=" << ratio << '\n';
+        EXPECT_NEAR(ratio, 1.0, .02) << "Mixed-zero caster must use the actual PT geometric-normal fallback";
+        longMse += measured.mse;
+    }
+    EXPECT_LT(longMse, shortMse * .65);
+}
+
+TEST_F(SmsVisibilityFrameFixture, CommonVisibilityMatchesIndependentFiniteBlockerIntegral) {
+    double expected = 0, observed = 0;
+    for (auto seed : {17U, 91U, 1234U, 2026U}) {
+        tracer.setConfig(hyperion::PathTracer::Config{.samplesPerPixel = 1,
+                                                      .maxDepth = 3,
+                                                      .rngSeed = seed,
+                                                      .smsPartitionResolution = 1,
+                                                      .smsPriorEnabled = false});
+        std::uint64_t continuations = 0;
+        for (std::uint32_t index = 0; index < 512; ++index)
+            ASSERT_NO_FATAL_FAILURE(frame(index, seed, continuations));
+        std::vector<sm::float4> pixels;
+        ASSERT_NO_FATAL_FAILURE(readPixels(pixels));
+        const auto measured = energy(pixels);
+        std::cout << "SMS blocked mirror seed=" << seed
+                  << " caustic ratio=" << (measured.observed - measured.direct) / measured.reflected << '\n';
+        observed += measured.observed - measured.direct;
+        expected += measured.reflected;
+    }
+    EXPECT_NEAR(observed / expected, 1.0, .02)
+        << "Common visibility must reject the independently shadowed emitter region";
 }
 
 TEST_F(SmsGlassFrameFixture, ClosedGlassMatchesSnellAreaEnergyAcrossSeedsAndConverges) {

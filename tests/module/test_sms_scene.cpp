@@ -76,6 +76,25 @@ TEST_F(SmsSceneFixture, ProductionReaderMatchesTransformedTriangleAndEllipsoidDi
     ASSERT_NE(
         scene.addInstance(sphere, harmonia::scene::Transform{.translation = {3, 0, 0}, .scale = {2, 1, .5F}}, material),
         std::numeric_limits<std::uint32_t>::max());
+    for (std::uint32_t variant = 0; variant < 4; ++variant) {
+        harmonia::scene::MeshData fallback;
+        for (std::size_t i = 0; i < positions.size(); ++i) {
+            harmonia::GpuVertex vertex{};
+            vertex.position = positions[i];
+            if (variant == 1 || variant == 2)
+                vertex.normal =
+                    i == 2 ? sm::normalize(sm::float3(-1, 0, variant == 2 ? 1e-5F : 0)) : sm::float3(1, 0, 0);
+            if (variant == 3 && i != 0)
+                vertex.normal = sm::normalize(sm::float3(.2F, 0, 1));
+            fallback.vertices.push_back(vertex);
+        }
+        fallback.indices = {0, 1, 2};
+        const auto meshId = scene.addMesh(ctx, commandPool(), std::move(fallback), {}, "test.sms.fallback");
+        ASSERT_NE(meshId, std::numeric_limits<std::uint32_t>::max());
+        ASSERT_NE(scene.addInstance(
+                      meshId, harmonia::scene::Transform{.translation = {-9 - 4 * float(variant), 0, 0}}, material),
+                  std::numeric_limits<std::uint32_t>::max());
+    }
     ASSERT_EQ(scene.build(ctx, commandPool()), VK_SUCCESS);
 
     auto descriptors = harmonia::renderer::Descriptors::create(ctx);
@@ -99,11 +118,15 @@ TEST_F(SmsSceneFixture, ProductionReaderMatchesTransformedTriangleAndEllipsoidDi
     ASSERT_TRUE(camera.has_value());
     ASSERT_EQ(descriptors->updateFrameSet(ctx, scene.tlas(), VK_NULL_HANDLE, *camera, VK_NULL_HANDLE, VK_NULL_HANDLE),
               VK_SUCCESS);
-    const std::array inputs{ReaderInput{{-3, 0, 3, 0}, {0, 0, -1, 0}},
+    const std::array inputs{ReaderInput{{-3, 0, 3, 0}, {0, 0, -1, 2}},
                             ReaderInput{{-3, 0, -3, 0}, {0, 0, 1, 0}},
                             ReaderInput{{3.5F, .25F, 3, 0}, {0, 0, -1, 0}},
                             ReaderInput{{3, 0, 0, 0}, {0, 0, 1, 0}},
-                            ReaderInput{{0, 0, 3, 0}, {0, 0, 1, 0}}};
+                            ReaderInput{{0, 0, 3, 0}, {0, 0, 1, 0}},
+                            ReaderInput{{-9, 0, 3, 0}, {0, 0, -1, 5}},
+                            ReaderInput{{-13, 0, 3, 0}, {0, 0, -1, 5}},
+                            ReaderInput{{-17, 0, 3, 0}, {0, 0, -1, 5}},
+                            ReaderInput{{-21, 0, 3, 0}, {0, 0, -1, 5}}};
     constexpr auto storage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     auto source = harmonia::core::Buffer::create(
         ctx, sizeof(inputs), storage, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, "test.sms.reader.input");
@@ -190,6 +213,37 @@ TEST_F(SmsSceneFixture, ProductionReaderMatchesTransformedTriangleAndEllipsoidDi
     EXPECT_EQ(output[0].keys.x, 0.0F);
     EXPECT_EQ(output[2].keys.x, 1.0F);
     EXPECT_EQ(output[2].keys.y, static_cast<float>(material));
+    for (std::size_t i = 5; i < inputs.size(); ++i) {
+        SCOPED_TRACE(i);
+        EXPECT_EQ(output[i].position.w, 1.0F) << "Production normal fallback must not become an SMS miss";
+        expectVector(xyz(output[i].normal), {0, 0, 1});
+        expectVector(xyz(output[i].dndu), {0, 0, 0});
+        expectVector(xyz(output[i].dndv), {0, 0, 0});
+    }
+
+    auto visibility = commandPool().beginOneShot();
+    ASSERT_TRUE(visibility.has_value());
+    memory.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    memory.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+    memory.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+    memory.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+    vkCmdPipelineBarrier2(*visibility, &dependency);
+    descriptors->bindSceneSet(*visibility, VK_PIPELINE_BIND_POINT_COMPUTE);
+    vkCmdBindPipeline(*visibility, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+    const ReaderPush shadow{
+        source->deviceAddress(), target->deviceAddress(), static_cast<std::uint32_t>(inputs.size()), 1};
+    vkCmdPushConstants(*visibility, descriptors->pipelineLayout(), VK_SHADER_STAGE_ALL, 0, sizeof(shadow), &shadow);
+    vkCmdDispatch(*visibility, 1, 1, 1);
+    memory.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+    memory.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+    memory.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT;
+    memory.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+    vkCmdPipelineBarrier2(*visibility, &dependency);
+    ASSERT_EQ(commandPool().endOneShot(*visibility), VK_SUCCESS);
+    ASSERT_EQ(target->readData(output.data(), sizeof(output)), VK_SUCCESS);
+    for (std::size_t i = 0; i < inputs.size(); ++i)
+        EXPECT_EQ(output[i].position.w, i == 0 || i == 4 ? 0.0F : 1.0F)
+            << "Opaque visibility must not depend on shading normals; ray=" << i;
 
     // Independent actual-RT control: its primary G-buffer normal must obey the
     // same ellipsoid optics, not the old world-radial sphere approximation.
@@ -264,6 +318,45 @@ TEST_F(SmsSceneFixture, ProductionReaderMatchesTransformedTriangleAndEllipsoidDi
     sm::float4 rtNormal{};
     ASSERT_EQ(normalBuffer->readData(&rtNormal, sizeof(rtNormal)), VK_SUCCESS);
     expectVector(xyz(rtNormal), sphereNormal({3.5F, .25F, z}));
+    for (std::size_t i = 5; i < inputs.size(); ++i) {
+        SCOPED_TRACE(i);
+        auto camera = harmonia::renderer::Camera::Params{.position = xyz(inputs[i].origin),
+                                                         .target = xyz(inputs[i].origin) + sm::float3(0, 0, -3),
+                                                         .up = {0, 1, 0},
+                                                         .vfovDeg = .0001F,
+                                                         .aspectRatio = 1,
+                                                         .nearPlane = .01F,
+                                                         .farPlane = 100};
+        const harmonia::renderer::Camera fallbackCamera(camera);
+        auto renderFallback = commandPool().beginOneShot();
+        ASSERT_TRUE(renderFallback.has_value());
+        gn->transition(*renderFallback,
+                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       VK_IMAGE_LAYOUT_GENERAL,
+                       VK_PIPELINE_STAGE_2_COPY_BIT,
+                       VK_ACCESS_2_TRANSFER_READ_BIT,
+                       VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                       VK_ACCESS_2_SHADER_WRITE_BIT);
+        ASSERT_EQ(tracer->render(*renderFallback, scene, fallbackCamera, *hdr, *gn, *gd, static_cast<std::uint32_t>(i)),
+                  VK_SUCCESS);
+        gn->transition(*renderFallback,
+                       VK_IMAGE_LAYOUT_GENERAL,
+                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                       VK_ACCESS_2_SHADER_WRITE_BIT,
+                       VK_PIPELINE_STAGE_2_COPY_BIT,
+                       VK_ACCESS_2_TRANSFER_READ_BIT);
+        vkCmdCopyImageToBuffer(
+            *renderFallback, gn->handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, normalBuffer->handle(), 1, &copy);
+        memory.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+        memory.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        memory.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT;
+        memory.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+        vkCmdPipelineBarrier2(*renderFallback, &dependency);
+        ASSERT_EQ(commandPool().endOneShot(*renderFallback), VK_SUCCESS);
+        ASSERT_EQ(normalBuffer->readData(&rtNormal, sizeof(rtNormal)), VK_SUCCESS);
+        expectVector(xyz(rtNormal), {0, 0, 1});
+    }
 }
 
 TEST_F(SmsSceneFixture, ProductionSlabRootsMatchSnellFromOffRootSeeds) {

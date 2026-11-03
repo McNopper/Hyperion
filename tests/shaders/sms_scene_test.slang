@@ -11,8 +11,13 @@ void main(uint3 id : SV_DispatchThreadID) {
     if (id.x >= pc.count) return;
     HyperionSmsScene scene;
     HyperionSmsHit hit;
-    bool found = scene.trace(pc.inputs[id.x].origin.xyz, normalize(pc.inputs[id.x].direction.xyz), kInf, hit);
+    float maximum=pc.inputs[id.x].direction.w>0.0 ? pc.inputs[id.x].direction.w : kInf;
     ReaderOutput result = {};
+    if (pc.pad==1u) {
+        result.position.w=scene.occluded(pc.inputs[id.x].origin.xyz,normalize(pc.inputs[id.x].direction.xyz),maximum) ? 1.0 : 0.0;
+        pc.outputs[id.x]=result; return;
+    }
+    bool found = scene.trace(pc.inputs[id.x].origin.xyz, normalize(pc.inputs[id.x].direction.xyz), kInf, hit);
     if (found) {
         result.position = float4(hit.vertex.position, 1.0);
         result.normal = float4(hit.vertex.normal, 0.0);

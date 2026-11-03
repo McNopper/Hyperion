@@ -15,8 +15,8 @@ float3 smsUnitDerivative(float3 n, float lengthBeforeNormalization, float3 deriv
 }
 
 struct HyperionSmsScene : ISmsProjector {
-    bool trace(float3 origin, float3 direction, float maximum, out HyperionSmsHit hit) {
-        hit = {};
+    void traceOpaque(float3 origin, float3 direction, float maximum,
+        inout RayQuery<RAY_FLAG_FORCE_OPAQUE> q) {
         RayDesc ray;
         ray.Origin = origin;
         ray.Direction = direction;
@@ -24,7 +24,6 @@ struct HyperionSmsScene : ISmsProjector {
         ray.TMax = maximum;
         // Nearest alpha geometry blocks this supported opaque path class. It is
         // never skipped and then counted again by ordinary PT's null interactions.
-        RayQuery<RAY_FLAG_FORCE_OPAQUE> q;
         q.TraceRayInline(tlas, RAY_FLAG_NONE, kInstanceMaskAll, ray);
         while (q.Proceed()) {
             if (q.CandidateType() == CANDIDATE_PROCEDURAL_PRIMITIVE) {
@@ -41,6 +40,19 @@ struct HyperionSmsScene : ISmsProjector {
                 if (t > ray.TMin && t < maximum) q.CommitProceduralPrimitiveHit(t);
             }
         }
+    }
+
+    bool occluded(float3 origin,float3 direction,float maximum) {
+        RayQuery<RAY_FLAG_FORCE_OPAQUE> query;
+        traceOpaque(origin,direction,maximum,query);
+        uint status=query.CommittedStatus();
+        return status==COMMITTED_TRIANGLE_HIT || status==COMMITTED_PROCEDURAL_PRIMITIVE_HIT;
+    }
+
+    bool trace(float3 origin, float3 direction, float maximum, out HyperionSmsHit hit) {
+        hit = {};
+        RayQuery<RAY_FLAG_FORCE_OPAQUE> q;
+        traceOpaque(origin,direction,maximum,q);
         uint status = q.CommittedStatus();
         if (status != COMMITTED_TRIANGLE_HIT && status != COMMITTED_PROCEDURAL_PRIMITIVE_HIT) return false;
         uint instanceId = q.CommittedInstanceID();
@@ -81,26 +93,30 @@ struct HyperionSmsScene : ISmsProjector {
             v.dpdv = cross(v.geoNormal, v.dpdu);
             float3 n0 = mul(normalMatrix, a.normal), n1 = mul(normalMatrix, b.normal),
                 n2 = mul(normalMatrix, c.normal);
-            n0 = dot(n0,n0) > 0.0 ? normalize(n0) : v.geoNormal;
-            n1 = dot(n1,n1) > 0.0 ? normalize(n1) : v.geoNormal;
-            n2 = dot(n2,n2) > 0.0 ? normalize(n2) : v.geoNormal;
+            n0 = normalize(n0); n1 = normalize(n1); n2 = normalize(n2);
             float2 bary = q.CommittedTriangleBarycentrics();
             float3 raw = n0 * (1.0 - bary.x - bary.y) + n1 * bary.x + n2 * bary.y;
-            float magnitude = length(raw);
-            if (!(magnitude > 0.0)) return false;
-            float sign = dot(raw, v.geoNormal) < 0.0 ? -1.0 : 1.0;
-            raw *= sign;
-            v.normal = raw / magnitude;
-            // Barycentric gradients on the WORLD triangle's tangent plane.
-            float d11 = dot(e1,e1), d22 = dot(e2,e2), d12 = dot(e1,e2);
-            float determinant = dot(crossEdges,crossEdges);
-            float3 g1 = (d22 * e1 - d12 * e2) / determinant;
-            float3 g2 = (d11 * e2 - d12 * e1) / determinant;
-            float3 dn1 = (n1 - n0) * sign, dn2 = (n2 - n0) * sign;
-            v.dndu = smsUnitDerivative(v.normal, magnitude,
-                dn1 * dot(g1,v.dpdu) + dn2 * dot(g2,v.dpdu));
-            v.dndv = smsUnitDerivative(v.normal, magnitude,
-                dn1 * dot(g1,v.dpdv) + dn2 * dot(g2,v.dpdv));
+            // Same normalized-vertex / blended-length fallback as actual RT's
+            // reconstructTriangleGeometry. A valid fallback is not an SMS miss.
+            if (dot(raw,raw)>1.0e-8) {
+                float magnitude = length(raw);
+                float sign = dot(raw, v.geoNormal) < 0.0 ? -1.0 : 1.0;
+                raw *= sign;
+                v.normal = raw / magnitude;
+                // Barycentric gradients on the WORLD triangle's tangent plane.
+                float d11 = dot(e1,e1), d22 = dot(e2,e2), d12 = dot(e1,e2);
+                float determinant = dot(crossEdges,crossEdges);
+                float3 g1 = (d22 * e1 - d12 * e2) / determinant;
+                float3 g2 = (d11 * e2 - d12 * e1) / determinant;
+                float3 dn1 = (n1 - n0) * sign, dn2 = (n2 - n0) * sign;
+                v.dndu = smsUnitDerivative(v.normal, magnitude,
+                    dn1 * dot(g1,v.dpdu) + dn2 * dot(g2,v.dpdu));
+                v.dndv = smsUnitDerivative(v.normal, magnitude,
+                    dn1 * dot(g1,v.dpdv) + dn2 * dot(g2,v.dpdv));
+            } else {
+                v.normal=v.geoNormal;
+                v.dndu=v.dndv=0.0.xxx;
+            }
         }
         hit.vertex = v;
         return all(isfinite(v.position)) && all(isfinite(v.normal)) &&
