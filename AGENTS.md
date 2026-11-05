@@ -85,7 +85,8 @@ Conditional repeat sampling includes the known region-probability correction.
 Per-frame priors use 128 pilot walks per 16×16 block and a sparse per-light
 direction-tile union, frozen before all initial/repeat trials. The .2 uniform
 component preserves full coverage; `smsPriorEnabled=false` selects the exact
-uniform-prior limit for controls. Theia reuse remains ongoing work.
+uniform-prior limit for controls. Theia's PSMS-ReSTIR reuse is shipped (Theia
+v0.8.2); Hyperion provides the SMS-off reference mode used by its qualification.
 Receiver collection includes the first eligible opaque non-specular surface after
 a PT-sampled specular camera prefix, with frozen RGB throughput and remaining
 receiver-inclusive depth. Null/scattering/non-delta prefixes and later diffuse
