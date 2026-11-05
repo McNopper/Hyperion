@@ -280,6 +280,7 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
+- **v0.7.19** (consumes Harmonia v0.7.20, Aether v0.8.1): **GI-SMS sampling and the reference mode.** Bounded initial SMS work with the shared compute sampler and the actual-event classifier adapters, plus the SMS-off reference mode that produced the C1/C2/C3 qualification references (4096-spp split-seed uncertainty <=0.5%). The README gallery gains the three SMS qualification reference scenes. Full local suites; all lint lanes.
 - **v0.7.18** (consumes Harmonia v0.7.19, Aether v0.8.1): **sampling, seed and accumulation correctness.** `--spp N` schedules N single-sample logical captures, the CLI seed reaches raygen, sample streams advance by frame, and shared accumulation is the sole history owner. Multi-sample captures reject disabled accumulation. All 30 README scenes regenerated at 1280x720 / 64 spp with validation. Full local 55/55; all lint lanes. No SMS integration.
 - **v0.7.13** (consumes Harmonia v0.7.13): **translation units
   open `namespace hyperion` + the arch gate.** `PathTracer.cpp`, `ShaderBindingTable.cpp`,
