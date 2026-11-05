@@ -14,8 +14,7 @@ It implements the [OpenPBR Surface v1.1.1](https://academysoftwarefoundation.git
 ## Screenshots
 
 All 30 test scenes — Hyperion path tracer at **64 spp**, 1280×720 (fireflies from the low
-sample count are expected; 64 spp keeps the full-gallery render tractable). Plus the three
-**sms_** GI-SMS caustic qualification scenes as references for Theia's SMS-reuse mode.
+sample count are expected; 64 spp keeps the full-gallery render tractable).
 
 | cornell_classic | cornell_classic_rec709 | cornell_empty |
 |:---:|:---:|:---:|
@@ -56,12 +55,6 @@ sample count are expected; 64 spp keeps the full-gallery render tractable). Plus
 | camera_suzanne | ABeautifulGame | dragon_teapot |
 |:---:|:---:|:---:|
 | ![camera_suzanne](screenshots/camera_suzanne.png) | ![ABeautifulGame](screenshots/ABeautifulGame.png) | ![dragon_teapot](screenshots/dragon_teapot.png) |
-
-The three **sms_** scenes below are the GI-SMS caustic qualification set (curved glass, absorption prefix, boundary mixed) — reference renders for Theia's spatiotemporal SMS-reuse mode (PSMS-ReSTIR port, Hong et al. 2025). Prepared scene definitions live in `Harmonia/tests/assets/sms/`.
-
-| sms_c1_curved_glass | sms_c2_absorption_prefix | sms_c3_boundary_mixed |
-|:---:|:---:|:---:|
-| ![sms_c1_curved_glass](screenshots/sms_c1_curved_glass.png) | ![sms_c2_absorption_prefix](screenshots/sms_c2_absorption_prefix.png) | ![sms_c3_boundary_mixed](screenshots/sms_c3_boundary_mixed.png) |
 
 ---
 
