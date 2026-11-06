@@ -1,129 +1,20 @@
 # PLAN — Hyperion
 
-**SMS consolidation review (2026-11-03):** `dev/gi-sms-restir` is the single
-active SMS branch name in Hyperion, Harmonia and Theia; old WIP refs are archival.
-Hyperion's implementation remains `128b220`; this review changes no renderer
-code. Main remains `49c1f21`, with no tag/release/pin changes. The authoritative
-review/fix queue is `Harmonia/PLAN.md` section 3, **SMS consolidation and
-implementation review**. In particular, isolate the pre-existing sample-budget,
-RNG-seed and double-accumulation fixes (`b297f10`) for a separately approved main
-hotfix rather than merging unfinished SMS to obtain them. Theia's qualification
-runner and C1 shift diagnosis need repair; do not infer final SMS acceptance or
-temporal-reuse necessity from the earlier completion reports below.
+**Release:** v0.7.19 - GI-SMS sampling and the reference mode (consumes Harmonia
+v0.7.20, Aether v0.8.1). **Work continues on `main`** in all family repos; the
+`dev/gi-sms-restir` branch is retired (history is `git log` and the Baseline
+below).
 
-**NEXT-MODEL ENTRY:** the remaining #2 queue is Harmonia/PLAN.md section 3,
-"GI-SMS #2 — bounded finish plan / next-model handoff". Work on
-`dev/gi-sms-restir`; main remains pre-SMS. Next Hyperion task is an explicit
-normal-Application SMS-off mode for an independent ordinary-PT curved reference,
-not another change to the already verified sampler. Preserve true spp, seeds,
-one accumulation owner and fatal pending/error export handling. New mode/runner
-commands in the plan are proposed interfaces, not existing tools. No pins,
-release, tag or main changes; local build/checks before an authorized branch push.
-
-**Continuation checkpoint (2026-11-03):** `dev/gi-sms-restir` preserves all
-unpublished reference-renderer work through `049f34c`, plus this handoff. Local
-`main` is aligned with `origin/main`; do not merge/push GI-SMS work there yet.
-Commits and pushes on the development/WIP branches are now authorized, superseding
-the older no-push notes below; no tags, releases or dependency-pin changes.
-Theia local integration is verified at `76e2472`, while its unfinished spatial
-reuse is isolated on `wip/gi-sms-spatial-reuse` in Theia and Harmonia. Hyperion has
-no separate WIP changes. Read the branch table, pause verification plan and exact
-resume sequence in `Harmonia/PLAN.md` section 3 before continuing. The latest
-complete reference suite is 71 tests; the pause rerun is recorded centrally.
-Curved/complex reuse, equal-time/stability evidence and both review galleries
-remain outstanding; the complete GI-SMS item #2 is not accepted or published.
+**GI-SMS status:** Hyperion ships the SMS sampling path and the SMS-off reference
+mode that produced the independent references for Theia's C1/C2/C3 qualification
+(family record: the Theia PLAN Baseline and Harmonia PLAN section 3). The
+PSMS-ReSTIR spatiotemporal reuse is Theia-side; the path reservoir's
+no-temporal-merge rule (Governance) is unaffected.
 
 **CI/local-first policy:** automatic checks run on main pushes and main-target
-PRs only; manual dispatch remains available. GI-SMS PR/manual builds use the
-matching Harmonia development branch (the prior default-main checkout lacked
-sms_transport.slang). Release pins/main are unchanged. Local Windows build/lint
-and event/ref policy controls pass; hosted CI has not been regraded green yet.
-Build locally and run relevant checks/lint before any authorized branch push.
-
-**Active local GI-SMS production batch:** Harmonia `c323d94` provides verified
-resumable queues. Hyperion now has the production scene reader, single-compute-
-call-site root sampler, receiver recording / resolve and IFrameCompletion adapter.
-Exact-delta mirror energy EXRs pass across four seeds; Theia is still unwired.
-Flat closed-glass and colored pure-absorption energy also pass; remaining paper stages are outstanding. Verification
-contract / independent oracles live in Harmonia/PLAN.md's next production batch.
-Run `hyperion_module_tests.exe --gtest_filter=SmsSceneFixture.*:SmsFrameFixture.*`,
-the full validation-enabled family suites and missing/doubled-energy controls.
-TOML zero-roughness metal is continuous floored GGX, not Material::mirror; do not
-silently reclassify it. Existing rough/dispersive/medium transport stays PT-owned.
-Development-branch pushes only; no main merge/push, tags, release or dependency-pin changes.
-
-Mirror checkpoint acceptance: exact-delta mirror reflected-energy ratios across
-four seeds are 0.991267 / 1.01098 / 0.981383 / 1.00834, with 128/32-sample MSE ratio
-0.24561. EXRs: `build/tests/sms_mirror_seed{17,91,1234,2026}.exr`. Missing/doubled
-energy and trial-zero replay mutants fail, exact restores pass. Actual RT
-ellipsoid-normal old-code control fails/restores. Injected GPU error makes the
-real App exit 1 without EXR/PNG; normal capture restores exit 0. Three source-
-review boundary findings are corrected and covered by actual GPU controls:
-zero CDF mass stays PT-owned, tiny glass weights stay PT-owned, sampler grazing
-zero events remain zero. Final full suites 137/137 H, 56/56 Hy, 33/33 T with
-validation ON / zero messages; architecture and local tidy/dead pass. Closed
-glass acceptance now also passes: production Snell roots at 0/25/55 degrees
-(three seeds each), energy ratios 0.988291 / 1.00283 / 0.991974 / 0.995082 and
-128/32-sample MSE ratio 0.25149. Missing/doubled TT controls fail/restores pass.
-Pure absorption now also passes RGB Snell/Beer energy across four seeds
-(ratios 0.988369–1.00391), with MSE ratio 0.251622; missing/doubled Beer and extra
-crossing-tint controls fail/restores pass. Existing medium coefficients and exit
-normal convention are reused; internal reflections/scattering remain PT-owned.
-Focused source review finds no introduced blocker. Latest full family: H137,
-Hy59, T33 all pass validation-clean with architecture/tidy/dead as applicable.
-Curved-caustic final scenes, Hong and Theia reuse remain outstanding.
-Hong trust-region/conditional sampling is now implemented and checked: N=16
-reflected-energy ratios 0.99822 / 0.999659 / 0.996928 / 1.00662 at 4096 samples,
-with N=1 preserving the prior reference receipts. Numeric boundary/pole coverage
-is conservative over the unchanged root-equivalence tolerance; missing marginal
-factor controls fail/restores pass. Full family H140, Hy60, T33 validation-clean;
-architecture and applicable tidy/dead pass. Next: per-frame prior, Theia local /
-inverse-checked spatial reuse, then final equal-time scene and gallery evidence.
-Per-frame directional priors are now wired: 128 pilot walks / 16×16 block,
-per-light sparse tile unions, .8 importance + .2 uniform, exact conditional
-mixture and marginal correction. Same-budget MSE ratios are .0735051 mirror,
-.058157 glass, .0588911 absorption; pooled energy stays within 2%. Wrong-alpha /
-mass controls fail, restores pass. Full H142/Hy63/T33 validation-clean with
-architecture/tidy/dead as applicable. Prior uses caster choice implicit in global
-direction space; it does not claim separate explicit object/pair selection.
-SDS-prefix collection, Theia reuse and equal-time/final-gallery acceptance remain.
-SDS-prefix collection is implemented and its selected mirror/Snell/Beer fixtures
-pass, including relative-depth 3/4 TT boundaries. Prefix-weight omission and
-global-depth mutations fail; exact restores pass. The pure-absorption B=3 fixture
-confirms PT retains the internally uncharged exit rather than dropping its energy.
-Full family re-run passes H142/Hy69/T34 with zero validation messages; architecture
-and H/Hy tidy/dead pass, Theia control unchanged 0/76,800 pixels. Theia reuse,
-curved/complex equal-time/stability evidence and both review galleries remain.
-Shared-source extraction now passes exact main/prior SPIR-V comparison and all
-32 regenerated fixed-seed EXRs (0/393,216 changed pixels). The compute include
-keeps the original call graph after a typed-dispatch attempt failed exact pixels;
-no gate was relaxed. Full H142/Hy69/T38 and probability/coefficient controls pass.
-Before enabling Theia SMS, close the reviewed production-normal-fallback / raw-
-visibility contract in this adapter and the shared visibility call site; see the
-central Harmonia plan. Theia candidates/reuse and final acceptance remain open.
-The support follow-up now passes: actual RT / SMS geometric-normal fallbacks
-agree for zero, cancelling, tiny and mixed-zero normals; raw visibility handles
-opaque triangles and analytic spheres independently of normals. A mixed-zero
-rendered mirror improves from .629–.647 to .981–1.011 energy ratios without
-changing BSDFs or tolerances. An independent finite-blocker integral passes;
-old-normal, shading-dependent-visibility and omitted-common-visibility controls
-fail, exact restores pass. Full H142/Hy71/T38 validation-clean with architecture
-and H/Hy tidy/dead; Theia control unchanged. Active Theia SMS remains next.
-Actual-event ownership is now shared in Harmonia `sms_path.slang`, preserving the
-payload ABI and existing surface/medium/emitter semantics. Sixteen GPU path cases
-and three sensitive controls pass/reject correctly; H143 and full Hyperion71 are
-validation-clean, with focused source review finding no introduced classifier
-blocker. Theia is adopting the same helper; its active radiometry/reuse is not yet
-accepted by this checkpoint.
-**Release:** v0.7.18 - correct sample budgets, progressive seeded streams and single-owner accumulation; consumes Harmonia v0.7.19 and Aether v0.8.1. README gallery regenerated. SMS remains on its development branch.
-
-**Living source of truth for outstanding work.** Shipped items are removed from the work
-lists; the shipped record is the *Baseline* below and `git log`. Only outstanding work is
-tracked here.
-
-**How to read this plan** — *human / PM:* *How to continue* is the prioritized next-up list.
-*AI agent picking up work:* read `AGENTS.md` (orientation, gotchas) → *How to continue*
-(your task) → *Governance* (definition of done + guardrails) **before editing**.
+PRs only; manual dispatch remains available. Build locally and run the
+applicable checks/lint before pushing. Dependency pins move only in coordinated
+release waves.
 
 ## Context
 
@@ -149,16 +40,16 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 
 ## At a glance
 
-- **Release:** v0.7.18 - sampling/RNG/history corrections + refreshed gallery. Pins: Aether v0.8.1 + Harmonia v0.7.19; no SMS integration.
-- **Prior:** v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.
+- **Release:** v0.7.19 - GI-SMS sampling and the reference mode. Pins: Aether v0.8.1 + Harmonia v0.7.20.
+- **Prior:** v0.7.18 - sampling/RNG/history corrections + refreshed gallery; v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
   suite needs a GPU).
 - **Next:** no Hyperion item is on the family's next-up list right now - the
-  active items (GI-SMS, C9, DN3, LS2, PERF5/PERF4, C11, C12) land in the **shared
-  estimator** (Harmonia/PLAN.md) and are consumed here. Hyperion backlog:
-  PERF3, PERF6, ANI7.
+  active items (PERF5/PERF4 in Theia, C/DN/LS tracks, VK capability slices) live
+  in **Harmonia/PLAN.md** and the **Theia/PLAN.md** roadmap and are consumed
+  here. Hyperion backlog: PERF3, PERF6, ANI7, SM6-Hyperion.
 ## How to continue
 
 AR1 (shipped in v0.7.14): Hyperion's Scene implements the harmonia/scene_rt hooks
