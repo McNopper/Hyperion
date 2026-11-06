@@ -40,8 +40,8 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 
 ## At a glance
 
-- **Release:** v0.7.19 - GI-SMS sampling and the reference mode. Pins: Aether v0.8.1 + Harmonia v0.7.20.
-- **Prior:** v0.7.18 - sampling/RNG/history corrections + refreshed gallery; v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.
+- **Release:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21. Pins: Aether v0.8.1 + Harmonia v0.7.21.
+- **Prior:** v0.7.19 - GI-SMS sampling and the reference mode; v0.7.18 - sampling/RNG/history corrections + refreshed gallery; v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
@@ -171,6 +171,12 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
+- **v0.7.20** (consumes Harmonia v0.7.21, Aether v0.8.1): **Vulkan capability wave consumed.**
+  No transport or renderer-code change - the release banks the Harmonia v0.7.21 capability
+  wave through the pin: VK21 memory-budget startup log + offscreen-capture guard, VK18
+  present-timing telemetry (query-only), VK4 subgroup-set adoption, and the capability-track
+  closure (VK19 stay-verdict, VK20/VK22 verified, VK5 blocked-by-driver). Full local suites
+  (75/75 against the capability wave); all lint lanes.
 - **v0.7.19** (consumes Harmonia v0.7.20, Aether v0.8.1): **GI-SMS sampling and the reference mode.** Bounded initial SMS work with the shared compute sampler and the actual-event classifier adapters, plus the SMS-off reference mode that produced the C1/C2/C3 qualification references (4096-spp split-seed uncertainty <=0.5%). Full local suites; all lint lanes.
 - **v0.7.18** (consumes Harmonia v0.7.19, Aether v0.8.1): **sampling, seed and accumulation correctness.** `--spp N` schedules N single-sample logical captures, the CLI seed reaches raygen, sample streams advance by frame, and shared accumulation is the sole history owner. Multi-sample captures reject disabled accumulation. All 30 README scenes regenerated at 1280x720 / 64 spp with validation. Full local 55/55; all lint lanes. No SMS integration.
 - **v0.7.13** (consumes Harmonia v0.7.13): **translation units
