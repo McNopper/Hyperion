@@ -1,9 +1,12 @@
 # PLAN — Hyperion
 
-**Release:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21 (pins:
-Aether v0.8.1 + Harmonia v0.7.21). **Work continues on `main`** in all family repos; the
-`dev/gi-sms-restir` branch is retired (history is `git log` and the Baseline
-below).
+**Release:** v0.7.21 - **VK5 RT-capture spike + degenerate-key bypass guard** (the RT pipeline is
+uncached on driver 621.14: import fails `VK_ERROR_INITIALIZATION_FAILED` with an all-zero driver
+key; the from-scratch fallback re-created it from its shaders — proven bit-exact) + **gallery
+30/30 byte-identical with the cache on**. Consumes Harmonia v0.7.23 (pin bump: Aether v0.8.1 +
+Harmonia v0.7.23) + alignment audit (PLAN header v0.7.20, AGENTS MOD5 note shipped). **Work continues
+on `main`** in all family repos; the `dev/gi-sms-restir` branch is retired (history is `git log` and
+the Baseline below).
 
 **GI-SMS status:** Hyperion ships the SMS sampling path and the SMS-off reference
 mode that produced the independent references for Theia's C1/C2/C3 qualification
@@ -41,7 +44,9 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 ## At a glance
 
 - **Release:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21. Pins: Aether v0.8.1 + Harmonia v0.7.21.
-- **Prior:** v0.7.19 - GI-SMS sampling and the reference mode; v0.7.18 - sampling/RNG/history corrections + refreshed gallery; v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.
+- **Prior:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21; v0.7.19 - GI-SMS
+  sampling and the reference mode; v0.7.18 - sampling/RNG/history corrections + refreshed gallery;
+  v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.
 - **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
@@ -171,6 +176,14 @@ the low-spp trap, Aether/AGENTS.md).
 
 ## Baseline
 
+- **v0.7.21** (consumes Harmonia v0.7.23, Aether v0.8.1): **VK5 RT-capture spike + alignment audit.**
+  The RT pipeline's binary capture works (9 blobs, 1.5 MB) but consume fails on driver 621.14
+  (`VK_ERROR_INITIALIZATION_FAILED`) with a degenerate all-zero driver key — the cache bypasses RT
+  (degenerate-key guard in Harmonia's `PipelineBinaryCache`) and the from-scratch fallback re-created
+  the pipeline from its shaders, proven bit-exact (cache-off vs cache-on-warm: max_diff 0.000,
+  PSNR inf). Gallery re-rendered cache-on: **30/30 byte-identical** vs the committed gallery
+  (the shared passes cache; the RT pipeline stays uncached by the guard). Audit: PLAN header synced
+  to the tagged v0.7.20, AGENTS MOD5 note marked shipped.
 - **v0.7.20** (consumes Harmonia v0.7.21, Aether v0.8.1): **Vulkan capability wave consumed.**
   No transport or renderer-code change - the release banks the Harmonia v0.7.21 capability
   wave through the pin: VK21 memory-budget startup log + offscreen-capture guard, VK18
