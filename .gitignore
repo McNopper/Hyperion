@@ -6,6 +6,11 @@ bin/
 lib/
 cmake-build-*/
 
+# VK5 gallery/RT-spike verification outputs (transient receipts — see PLAN.md §5.8)
+screenshots-cache-check/
+screenshots-cache-off/
+rt-spike/
+
 # vcpkg installed packages (inside build/)
 vcpkg_installed/
 
