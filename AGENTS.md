@@ -230,5 +230,6 @@ SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides tomlp
 - All TLAS builds: `vkCmdBuildAccelerationStructuresKHR` (`SceneBase::buildTlas`).
 - `vkBuildAccelerationStructuresKHR` (host-side) is **never used** — deprecated per the
   [Khronos RT AS deprecation blog](https://www.khronos.org/blog/vulkan-ray-tracing-deprecating-host-side-acceleration-structure-builds).
-- `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` is the future
-  forward path — now available on the dev GPU (RTX 5070, driver 616.92); adoption tracked as MOD5 (Harmonia/PLAN.md).
+- `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` — **SHIPPED (MOD5)**:
+  the only AS creation path (device-address-only; the legacy `vkCreateAccelerationStructureKHR`
+  is deleted, no fallback — Harmonia/PLAN.md §5.8).

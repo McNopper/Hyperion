@@ -1,7 +1,7 @@
 # PLAN — Hyperion
 
-**Release:** v0.7.19 - GI-SMS sampling and the reference mode (consumes Harmonia
-v0.7.20, Aether v0.8.1). **Work continues on `main`** in all family repos; the
+**Release:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21 (pins:
+Aether v0.8.1 + Harmonia v0.7.21). **Work continues on `main`** in all family repos; the
 `dev/gi-sms-restir` branch is retired (history is `git log` and the Baseline
 below).
 
