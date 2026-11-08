@@ -54,7 +54,7 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 - **Next:** no Hyperion item is on the family's next-up list right now - the
   active items (PERF5/PERF4 in Theia, C/DN/LS tracks, VK capability slices) live
   in **Harmonia/PLAN.md** and the **Theia/PLAN.md** roadmap and are consumed
-  here. Hyperion backlog: PERF3, PERF6, ANI7, SM6-Hyperion.
+  here. Hyperion: PERF3 **next**; backlog: PERF6, ANI7, SM6-Hyperion.
 ## How to continue
 
 AR1 (shipped in v0.7.14): Hyperion's Scene implements the harmonia/scene_rt hooks
@@ -109,7 +109,7 @@ repairs, not yet rendered SMS caustics or ReSTIR integration.
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| PERF3 | **GPU acceleration-structure pipeline** for Hyperion (the CPU-side BV is stale under hwRT): AS **refit-vs-rebuild + compaction** (Vulkan 1.4 `vkCmdBuildAccelerationStructures`). Prerequisite for ANI2 (per-frame refit). `VK_EXT_opacity_micromap` itself shipped standalone in v0.7.7 — that was the single-mesh cutout-acceleration use case only; this item is the broader refit/rebuild/compaction pipeline, unaffected. | — | backlog |
+| PERF3 | **GPU acceleration-structure pipeline** for Hyperion (the CPU-side BV is stale under hwRT): AS **refit-vs-rebuild + compaction** (Vulkan 1.4 `vkCmdBuildAccelerationStructures`). Prerequisite for ANI2 (per-frame refit). **ANI1 is done upstream** (Aether `SceneAnimator::evaluate` — 2026-11-08 audit) — this row is the animation chain's last gate; sequenced **`next`** (2026-11-08 adjudication). Scope extension (NVIDIA RTXPT whitepaper §5, Harmonia §5.1): importance-driven AS updates — GPU hit counters → priority queue scheduling dynamic-BLAS refits/rebuilds. `VK_EXT_opacity_micromap` itself shipped standalone in v0.7.7 — that was the single-mesh cutout-acceleration use case only; this item is the broader refit/rebuild/compaction pipeline, unaffected. | — | **next** |
 | PERF6 | **RAFI** multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. — 2026, [arXiv:2605.30294](https://arxiv.org/abs/2605.30294)); Hyperion large-scene/streaming scaling. | — | backlog |
 | ANI7 | **Render animated sequence to disk** — batch/offline render of a timeline range: for each frame, sample the node graph at shutter time, render (Hyperion path trace / Theia accumulate via `--offscreen-frames`) and write per-frame EXR+PNG to disk. The animation production output step — the sequence equivalent of headless `--output`. | ANI1, ANI2 | backlog |
 | SM6-Hyperion | **slang-math v0.3.0 migration slice** — test-mirror `rsqrt`/`saturate` cleanup (`tests/unit/test_bsdf.cpp:491` hand-mirrored `1/std::sqrt`); bump the FetchContent pin in this repo's release commit. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
