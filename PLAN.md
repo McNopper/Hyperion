@@ -54,7 +54,7 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 - **Next:** no Hyperion item is on the family's next-up list right now - the
   active items (PERF5/PERF4 in Theia, C/DN/LS tracks, VK capability slices) live
   in **Harmonia/PLAN.md** and the **Theia/PLAN.md** roadmap and are consumed
-  here. Hyperion: PERF3 **integration next** (Harmonia slice shipped 2026-11-09); backlog: PERF6, ANI7, SM6-Hyperion.
+  here. Hyperion: PERF3 **done** (Harmonia slice + per-frame refit integration, 2026-11-09); backlog: PERF6, ANI7, SM6-Hyperion.
 ## How to continue
 
 AR1 (shipped in v0.7.14): Hyperion's Scene implements the harmonia/scene_rt hooks
@@ -109,7 +109,7 @@ repairs, not yet rendered SMS caustics or ReSTIR integration.
 
 | ID | Task | Deps | Status |
 |----|------|------|--------|
-| PERF3 | **GPU acceleration-structure pipeline** for Hyperion (the CPU-side BV is stale under hwRT): AS **refit-vs-rebuild + compaction** (Vulkan 1.4 `vkCmdBuildAccelerationStructures`). Prerequisite for ANI2 (per-frame refit). **ANI1 is done upstream** (Aether `SceneAnimator::evaluate` — 2026-11-08 audit) — the remaining gate is this repo's per-frame refit/rebuild integration. Sequenced **`next`** (2026-11-08 adjudication). **Harmonia slice shipped (2026-11-09, receipts on RTX 5070 / driver 621.14):** `TlasBuilder::refitTlas` (update-mode build, src = dst — in-place TLAS refit for moved instance transforms; refit traces bit-exact vs a full rebuild) + `TlasBuildOptions` + `compactAccelerationStructure` (device-side `vkCmdCopyAccelerationStructureKHR` — the deprecated host copy requires `accelerationStructureHostCommands` + host-visible AS storage + legacy creation, all contrary to the MOD5 device-address-only path; compaction 2432 → 2176 B preserves hits) — receipt `Harmonia/tests/component/test_tlas_refit.cpp`. Remaining here: per-frame refit-vs-rebuild integration for animated scenes (feeds ANI2). Scope extension (NVIDIA RTXPT whitepaper §5, Harmonia §5.1) stays open: importance-driven AS updates — GPU hit counters → priority queue scheduling dynamic-BLAS refits/rebuilds. `VK_EXT_opacity_micromap` itself shipped standalone in v0.7.7 — that was the single-mesh cutout-acceleration use case only; this item is the broader refit/rebuild/compaction pipeline, unaffected. | — | **integration next** |
+| PERF3 | **GPU acceleration-structure pipeline** for Hyperion (the CPU-side BV is stale under hwRT): AS **refit-vs-rebuild + compaction**. **Done (2026-11-09):** Harmonia slice shipped (refit + device-side compaction, receipts on RTX 5070) **and integrated here**: `Scene::finishBuild` builds animated scenes update-capable (`allowUpdate`), `Scene::updateTlas` applies the shared `harmonia::scene_rt` refit-vs-rebuild policy per logical frame, and `Application::record` drives it with the deterministic tick clock (`frameIndex / animationFps`, Aether ANI2) + accumulation reset on animated frames (the offscreen path ignores the epoch by contract — animated sequence rendering is ANI7). Receipts: `tests/module/test_scene_anim.cpp` (loader-driven `[[animation]]` scene: `setAnimationTime` stamps through the sceneInstance→descInstance mapping, refit keeps handle + address, static scenes rebuild, dirty-gating). `VK_EXT_opacity_micromap` shipped standalone in v0.7.7 (single-mesh cutout use case) — unaffected. Open follow-on: importance-driven AS updates (RTXPT whitepaper §5, tracked in Harmonia §5.1). | PERF3 (Harmonia) | **done** |
 | PERF6 | **RAFI** multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. — 2026, [arXiv:2605.30294](https://arxiv.org/abs/2605.30294)); Hyperion large-scene/streaming scaling. | — | backlog |
 | ANI7 | **Render animated sequence to disk** — batch/offline render of a timeline range: for each frame, sample the node graph at shutter time, render (Hyperion path trace / Theia accumulate via `--offscreen-frames`) and write per-frame EXR+PNG to disk. The animation production output step — the sequence equivalent of headless `--output`. | ANI1, ANI2 | backlog |
 | SM6-Hyperion | **slang-math v0.3.0 migration slice** — test-mirror `rsqrt`/`saturate` cleanup (`tests/unit/test_bsdf.cpp:491` hand-mirrored `1/std::sqrt`); bump the FetchContent pin in this repo's release commit. Track origin: slang-math/PLAN.md SM6. | slang-math v0.3.0 tag | backlog |
@@ -123,7 +123,9 @@ its ground-truth properties (deterministic replay, no bias) intact:
   flake), **DN3** (converging denoiser), **LS2** (neural product IS — **replaces Hyperion's
   env-CDF/NEE** in the shared estimator; the old env-CDF path is deleted), **PERF5/PERF4**
   (wavefront scheduling + ray reordering) — all tracked in `Harmonia/PLAN.md`.
-- **ANI2** (per-frame TLAS refit machinery, Harmonia; needs PERF3 here), **ANI6** (animated
+- **ANI2 Theia half** (per-frame TLAS refit consumption — the shared machinery is shipped in
+  Harmonia and Hyperion already consumes it, 2026-11-09; Theia's own PLAN row owns its half),
+  **ANI6** (animated
   parity gate, Harmonia; needs PAR3 + ANI7), **BV4** (wavefront ray-gen/NEE AABB consumers,
   Harmonia; gated by PERF5).
 - **NH2/NH3** (node-graph transform compounding, Harmonia) once **NH1** (Aether) lands.

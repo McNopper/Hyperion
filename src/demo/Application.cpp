@@ -247,6 +247,21 @@ void hyperion::Application::record(VkCommandBuffer cmd, const harmonia::app::Ren
         transitionTargetsOnFirstUse(cmd);
     }
 
+    // PERF3 (ANI2 seam): drive the shared TLAS update for animated scenes.
+    // Deterministic tick clock (Aether ANI2): seconds = frameIndex / fps — the
+    // same logical frame always renders the same scene state. The update
+    // refits in place (periodic full rebuild) via the shared harmonia::scene_rt
+    // policy; motion invalidates the accumulation history, so the interactive
+    // path restarts from the next frame (the offscreen path ignores the epoch
+    // by contract — animated sequence rendering is ANI7).
+    if (m_scene.hasAnimation()) {
+        m_scene.setAnimationTime(static_cast<float>(static_cast<double>(frameIndex()) / m_scene.animationFps()));
+        if (const VkResult r = m_scene.updateTlas(deviceContext(), commandPool()); r != VK_SUCCESS) {
+            harmonia::core::Logger::error("TLAS update failed: VkResult {}", static_cast<std::int32_t>(r));
+        }
+        resetAccumulation();
+    }
+
     if (const VkResult r = m_pathTracer.render(cmd, m_scene, m_camera, hdrImage(), m_gNormal, m_gDepth, frameIndex());
         r != VK_SUCCESS) {
         harmonia::core::Logger::error("hyperion::PathTracer render failed: VkResult {}", static_cast<std::int32_t>(r));

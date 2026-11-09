@@ -40,7 +40,15 @@ hyperion::Scene::createTriangleMesh(const harmonia::DeviceContext& ctx,
 }
 
 VkResult hyperion::Scene::finishBuild(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) {
-    return harmonia::scene_rt::buildTlas(*this, ctx, pool, m_tlas, m_tlasAddress);
+    // PERF3: animated scenes build their TLAS update-capable so the per-frame
+    // path can refit in place; static scenes keep the plain fast-trace build.
+    m_tlasUpdateCapable = hasAnimation();
+    return harmonia::scene_rt::buildTlas(
+        *this, ctx, pool, m_tlas, m_tlasAddress, harmonia::rt::TlasBuildOptions{.allowUpdate = m_tlasUpdateCapable});
+}
+
+VkResult hyperion::Scene::updateTlas(const harmonia::DeviceContext& ctx, const harmonia::core::CommandPool& pool) {
+    return harmonia::scene_rt::updateTlas(*this, ctx, pool, m_tlas, m_tlasAddress, m_tlasUpdateCapable, m_tlasUpdates);
 }
 
 std::uint32_t hyperion::Scene::addSphereMesh(const harmonia::DeviceContext& ctx,

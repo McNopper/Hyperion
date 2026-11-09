@@ -38,6 +38,7 @@ gtest_discover_tests(hyperion_unit_tests PROPERTIES RUN_SERIAL TRUE)
 set(HYPERION_MODULE_TEST_SOURCES
     module/main.cpp
     module/test_scene_build.cpp
+    module/test_scene_anim.cpp
     module/test_sbt.cpp
     module/test_frame_sampling.cpp
     module/test_sms_scene.cpp
