@@ -61,13 +61,13 @@ constexpr float kEpsilon = 1.0e-5F;
 }
 
 [[nodiscard]] float fresnelSchlick(float f0, float cosTheta) noexcept {
-    const float oneMinusCos = 1.0F - std::clamp(cosTheta, 0.0F, 1.0F);
+    const float oneMinusCos = 1.0F - sm::saturate(cosTheta);
     const float factor = oneMinusCos * oneMinusCos * oneMinusCos * oneMinusCos * oneMinusCos;
     return f0 + ((1.0F - f0) * factor);
 }
 
 [[nodiscard]] float fresnelDielectric(float cosThetaI, float eta) noexcept {
-    const float clampedCosI = std::clamp(std::abs(cosThetaI), 0.0F, 1.0F);
+    const float clampedCosI = sm::saturate(std::abs(cosThetaI));
     const float etaI = 1.0F;
     const float etaT = std::max(eta, 1.0F);
     const float sin2ThetaI = std::max(0.0F, 1.0F - (clampedCosI * clampedCosI));
@@ -97,16 +97,16 @@ struct LobeWeights {
 [[nodiscard]] LobeWeights computeLobeWeights(const harmonia::GpuMaterial& mat) noexcept {
     LobeWeights weights{};
 
-    const float opacity = std::clamp(mat.opacityFlagsPad.x, 0.0F, 1.0F);
+    const float opacity = sm::saturate(mat.opacityFlagsPad.x);
     const std::uint32_t flags = static_cast<std::uint32_t>(mat.opacityFlagsPad.y);
     const bool glassMode = (flags == 2u);
 
-    const float baseWeight = std::clamp(mat.baseColorWeight.w, 0.0F, 1.0F);
-    const float metalness = flags == 1u ? 1.0F : std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F);
-    const float transmission = glassMode ? 1.0F : std::clamp(mat.transmissionColorWeight.w, 0.0F, 1.0F);
-    weights.coatWeight = std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F);
-    weights.fuzzWeight = std::clamp(mat.fuzzColorWeight.w, 0.0F, 1.0F);
-    weights.subsurfaceWeight = std::clamp(mat.subsurfaceColorWeight.w, 0.0F, 1.0F) * (1.0F - transmission);
+    const float baseWeight = sm::saturate(mat.baseColorWeight.w);
+    const float metalness = flags == 1u ? 1.0F : sm::saturate(mat.baseMetalnessDiffRough.x);
+    const float transmission = glassMode ? 1.0F : sm::saturate(mat.transmissionColorWeight.w);
+    weights.coatWeight = sm::saturate(mat.coatColorWeight.w);
+    weights.fuzzWeight = sm::saturate(mat.fuzzColorWeight.w);
+    weights.subsurfaceWeight = sm::saturate(mat.subsurfaceColorWeight.w) * (1.0F - transmission);
     const float opaqueBase = baseWeight * (1.0F - transmission);
     weights.diffuseWeight = opaqueBase * (1.0F - metalness) * (1.0F - weights.subsurfaceWeight);
     // G3 (spec): specular_weight modulates the dielectric F0/eta (see the modulated eta below), NOT
@@ -114,7 +114,7 @@ struct LobeWeights {
     // At specular_weight=0 the modulated eta→1 (no interface, zero reflection at all angles); the
     // generalized-Schlick Fresnel keeps a grazing term at F0=0, so gate the dielectric lobe to vanish
     // as specular_weight→0 (a no-op at the default specular_weight=1).
-    const float specularParam = std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F);
+    const float specularParam = sm::saturate(mat.specularColorWeight.w);
     const float dielectricPresence = sm::smoothstep(0.0F, 0.03F, specularParam);
     weights.specularWeight = opaqueBase * (1.0F - metalness) * dielectricPresence;
     weights.metalWeight = baseWeight * metalness * specularParam;
@@ -231,7 +231,7 @@ void orientFrame(const sm::float3& wo,
 [[nodiscard]] sm::float3 mx_fresnel_F82(sm::float3 F0, sm::float3 F82, float cosTheta) noexcept {
     constexpr float muBar = 1.0F / 7.0F;
     const float denom = muBar * std::pow(1.0F - muBar, 6.0F);
-    const float mu = std::clamp(cosTheta, 0.0F, 1.0F);
+    const float mu = sm::saturate(cosTheta);
     const sm::float3 fSchlickBar = F0 + (sm::float3(1.0F) - F0) * std::pow(1.0F - muBar, 5.0F);
     const sm::float3 a = fSchlickBar * (sm::float3(1.0F) - F82) / denom;
     const sm::float3 fSchlick = F0 + (sm::float3(1.0F) - F0) * std::pow(1.0F - mu, 5.0F);
@@ -251,7 +251,7 @@ void mx_artistic_ior(sm::float3 reflectivity, sm::float3 edgeColor, sm::float3& 
 }
 
 void tfDielectricPolarized(float cosTheta, float ior, float& Rp, float& Rs) noexcept {
-    const float c2 = std::clamp(cosTheta, 0.0F, 1.0F) * std::clamp(cosTheta, 0.0F, 1.0F);
+    const float c2 = sm::saturate(cosTheta) * sm::saturate(cosTheta);
     const float s2 = 1.0F - c2;
     const float t0 = std::max(ior * ior - s2, 0.0F);
     const float t1 = t0 + c2;
@@ -263,7 +263,7 @@ void tfDielectricPolarized(float cosTheta, float ior, float& Rp, float& Rs) noex
 }
 
 void tfConductorPolarized(float cosTheta, sm::float3 n, sm::float3 k, sm::float3& Rp, sm::float3& Rs) noexcept {
-    const float c2 = std::clamp(cosTheta, 0.0F, 1.0F) * std::clamp(cosTheta, 0.0F, 1.0F);
+    const float c2 = sm::saturate(cosTheta) * sm::saturate(cosTheta);
     const float s2 = 1.0F - c2;
     const sm::float3 n2 = n * n;
     const sm::float3 k2 = k * k;
@@ -313,7 +313,7 @@ void tfConductorPhasePolarized(float cosTheta,
                                          float tfIor) noexcept {
     const float eta1 = 1.0F;
     const float eta2 = std::max(tfIor, eta1);
-    const float ct = std::clamp(cosTheta, 0.0F, 1.0F);
+    const float ct = sm::saturate(cosTheta);
     const float cosTtSq = 1.0F - (1.0F - ct * ct) * (eta1 / eta2) * (eta1 / eta2);
     const bool tir = (cosTtSq <= 0.0F);
     const float cosTt = std::sqrt(std::max(cosTtSq, 0.0F));
@@ -435,8 +435,8 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
 }
 
 [[nodiscard]] sm::float2 mx_ggx_dir_albedo_ab(float nDotV, float alpha) noexcept {
-    const float x = std::clamp(nDotV, 0.0F, 1.0F);
-    const float y = std::clamp(alpha, 0.0F, 1.0F);
+    const float x = sm::saturate(nDotV);
+    const float y = sm::saturate(alpha);
     const float x2 = x * x;
     const float y2 = y * y;
     const sm::float4 r =
@@ -445,12 +445,12 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
         sm::float4(29.34F, 1.424F, 28.96F, 13.08F) * x2 + sm::float4(-8.245F, -0.7684F, -7.507F, 41.26F) * y2 +
         sm::float4(-26.44F, 1.436F, -36.11F, 54.9F) * x2 * y + sm::float4(19.99F, 0.2913F, 15.86F, 300.2F) * x * y2 +
         sm::float4(-5.448F, 0.6286F, 33.37F, -285.1F) * x2 * y2;
-    return {std::clamp(r.x / r.z, 0.0F, 1.0F), std::clamp(r.y / r.w, 0.0F, 1.0F)};
+    return {sm::saturate(r.x / r.z), sm::saturate(r.y / r.w)};
 }
 
 [[nodiscard]] float mx_ggx_dir_albedo(float nDotV, float alpha) noexcept {
     const sm::float2 ab = mx_ggx_dir_albedo_ab(nDotV, alpha);
-    return std::clamp(ab.x + ab.y, 0.0F, 1.0F);
+    return sm::saturate(ab.x + ab.y);
 }
 
 // Fresnel-weighted GGX directional albedo (mirrors Harmonia bsdf_shared.slang
@@ -458,20 +458,20 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
 // Schlick form ignored alpha; this honors roughness via the rational fit.
 [[nodiscard]] float fresnelGgxDirAlbedo(float nDotV, float f0, float alpha) noexcept {
     const sm::float2 ab = mx_ggx_dir_albedo_ab(nDotV, alpha);
-    return std::clamp(f0 * ab.x + ab.y, 0.0F, 1.0F);
+    return sm::saturate(f0 * ab.x + ab.y);
 }
 
 // OpenPBR sheen oracle — Zeltner et al. 2022 LTC sheen, mirroring Harmonia bsdf_shared.slang
 // (which is a faithful port of MaterialX mx_microfacet_sheen.glsl; analytic fits, no LUT).
 [[nodiscard]] float mx_zeltner_sheen_dir_albedo(float cosTheta, float roughness) noexcept {
-    const float x = std::clamp(cosTheta, 0.0F, 1.0F);
+    const float x = sm::saturate(cosTheta);
     const float y = std::clamp(roughness, 0.01F, 1.0F);
     const float s = y * (0.0206607F + 1.58491F * y) / (0.0379424F + y * (1.32227F + y));
     const float m = y * (-0.193854F + y * (-1.14885F + y * (1.7932F - 0.95943F * y * y))) / (0.046391F + y);
     const float o = y * (0.000654023F + (-0.0207818F + 0.119681F * y) * y) / (1.26264F + y * (-1.92021F + y));
     const float g =
         std::exp(-0.5F * ((x - m) / s) * ((x - m) / s)) / (s * std::sqrt(2.0F * harmonia::utils::Math::kPi)) + o;
-    return std::clamp(g, 0.0F, 1.0F);
+    return sm::saturate(g);
 }
 
 [[nodiscard]] float mx_zeltner_sheen_ltc_aInv(float x, float y) noexcept {
@@ -489,7 +489,7 @@ evalDiffuse(const sm::float3& color, float roughness, const sm::float3& wo, cons
     sm::float3 xAxis(wo.x, wo.y, 0.0F);
     const float lenSq = sm::dot(xAxis, xAxis);
     if (lenSq > 1.0e-8F) {
-        xAxis *= (1.0F / std::sqrt(lenSq));
+        xAxis *= sm::rsqrt(lenSq);
         const sm::float3 yAxis(-xAxis.y, xAxis.x, 0.0F);
         w = sm::float3(sm::dot(xAxis, wi), sm::dot(yAxis, wi), wi.z);
     } else {
@@ -649,7 +649,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
         return sm::float3(0.0F);
     }
 
-    const float opacity = std::clamp(mat.opacityFlagsPad.x, 0.0F, 1.0F);
+    const float opacity = sm::saturate(mat.opacityFlagsPad.x);
     const sm::float3 baseColor = sm::clamp(sm::float3(mat.baseColorWeight), sm::float3(0.0F), sm::float3(1.0F));
     const sm::float3 specColor = sm::clamp(sm::float3(mat.specularColorWeight), sm::float3(0.0F), sm::float3(1.0F));
     const sm::float3 transColor =
@@ -670,18 +670,18 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     if (etaRatioG3 < 1.0F) {
         etaRatioG3 = coatEta / std::max(specIorRaw, 1.0e-4F);
     }
-    const float etaS = std::lerp(specIorRaw, etaRatioG3, std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F));
+    const float etaS = std::lerp(specIorRaw, etaRatioG3, sm::saturate(mat.coatColorWeight.w));
     const float f0sqrtG3 = (etaS - 1.0F) / (etaS + 1.0F);
     const float scaledF0G3 =
         std::clamp(std::max(mat.specularColorWeight.w, 0.0F) * f0sqrtG3 * f0sqrtG3, 0.0F, 0.99999F);
     const float epsG3 = (etaS >= 1.0F ? 1.0F : -1.0F) * std::sqrt(scaledF0G3);
     const float eta = (1.0F + epsG3) / std::max(1.0F - epsG3, 1.0e-4F);
-    const float diffuseRough = std::clamp(mat.baseMetalnessDiffRough.y, 0.0F, 1.0F);
-    const float coatDark = std::clamp(mat.coatRoughAnisoIorDark.w, 0.0F, 1.0F);
+    const float diffuseRough = sm::saturate(mat.baseMetalnessDiffRough.y);
+    const float coatDark = sm::saturate(mat.coatRoughAnisoIorDark.w);
 
     // G4 (mirror of bsdf_shared.slang openpbrEffectiveSpecularRoughness): the coat roughens the
     // specular base in roughness space, then computeAlpha — NOT an alpha-space combine.
-    const float coatWeightG4 = std::clamp(mat.coatColorWeight.w, 0.0F, 1.0F);
+    const float coatWeightG4 = sm::saturate(mat.coatColorWeight.w);
     const float effSpecRough =
         std::lerp(baseRough,
                   std::pow(std::min(1.0F, 2.0F * std::pow(coatRough, 4.0F) + std::pow(baseRough, 4.0F)), 0.25F),
@@ -697,36 +697,28 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     // openpbrCoatColorAttenuation.
     const float coatF0v = std::pow((coatEta - 1.0F) / (coatEta + 1.0F), 2.0F);
     const float Kcoat = 1.0F - (1.0F - coatF0v) / std::max(coatEta * coatEta, 1.0e-4F);
-    const sm::float3 Emetal = baseColor * std::clamp(mat.specularColorWeight.w, 0.0F, 1.0F);
-    const sm::float3 Edielectric =
-        sm::lerp(baseColor, subsurfaceColor, std::clamp(mat.subsurfaceColorWeight.w, 0.0F, 1.0F));
-    const sm::float3 Ebase =
-        sm::clamp(sm::lerp(Edielectric, Emetal, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F)),
-                  sm::float3(0.0F),
-                  sm::float3(1.0F));
+    const sm::float3 Emetal = baseColor * sm::saturate(mat.specularColorWeight.w);
+    const sm::float3 Edielectric = sm::lerp(baseColor, subsurfaceColor, sm::saturate(mat.subsurfaceColorWeight.w));
+    const sm::float3 Ebase = sm::clamp(
+        sm::lerp(Edielectric, Emetal, sm::saturate(mat.baseMetalnessDiffRough.x)), sm::float3(0.0F), sm::float3(1.0F));
     const sm::float3 darkening =
         sm::lerp(sm::float3(1.0F),
                  sm::float3(1.0F - Kcoat) / sm::max(sm::float3(1.0F) - Ebase * Kcoat, sm::float3(1.0e-4F)),
-                 std::clamp(weights.coatWeight * coatDark, 0.0F, 1.0F));
-    const sm::float3 coatAtten = sm::lerp(sm::float3(1.0F), coatColor, std::clamp(weights.coatWeight, 0.0F, 1.0F));
+                 sm::saturate(weights.coatWeight * coatDark));
+    const sm::float3 coatAtten = sm::lerp(sm::float3(1.0F), coatColor, sm::saturate(weights.coatWeight));
     // G8: fuzz (topmost) attenuates both the base and the coat lobe below it.
     const float fuzzAtten =
-        1.0F - mx_zeltner_sheen_dir_albedo(woL.z, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F)) * weights.fuzzWeight;
+        1.0F - mx_zeltner_sheen_dir_albedo(woL.z, sm::saturate(mat.fuzzRoughPad.x)) * weights.fuzzWeight;
     const sm::float3 baseLayerScale = darkening * coatAtten * fuzzAtten;
 
     sm::float3 result(0.0F);
     if (wiL.z > 0.0F && woL.z > 0.0F) {
         const sm::float3 dielectricF0 = iorToF0(eta);
-        sm::float3 glossyF0 =
-            sm::lerp(dielectricF0 * specColor, baseColor, std::clamp(mat.baseMetalnessDiffRough.x, 0.0F, 1.0F));
+        sm::float3 glossyF0 = sm::lerp(dielectricF0 * specColor, baseColor, sm::saturate(mat.baseMetalnessDiffRough.x));
         const sm::float3 glossyF82 = specColor;
         const float specF0 = harmonia::utils::ColorSpace::luminance(dielectricF0 * specColor);
         auto underSpec = [&](float c) {
-            return std::clamp(
-                1.0F -
-                    std::clamp(specF0 + (1.0F - specF0) * std::pow(1.0F - std::clamp(c, 0.0F, 1.0F), 5.0F), 0.0F, 1.0F),
-                0.0F,
-                1.0F);
+            return sm::saturate(1.0F - sm::saturate(specF0 + (1.0F - specF0) * std::pow(1.0F - sm::saturate(c), 5.0F)));
         };
         const float diffuseUnderSpec = underSpec(woL.z) * underSpec(wiL.z);
 
@@ -748,7 +740,7 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
                       evalReflectionMicrofacet(glossyF0, glossyF82, woL, wiL, alphaX, alphaY);
         }
         if (weights.fuzzWeight > 0.0F) {
-            result += weights.fuzzWeight * evalSheen(fuzzColor, std::clamp(mat.fuzzRoughPad.x, 0.0F, 1.0F), woL, wiL);
+            result += weights.fuzzWeight * evalSheen(fuzzColor, sm::saturate(mat.fuzzRoughPad.x), woL, wiL);
         }
     }
 
@@ -1278,13 +1270,12 @@ TEST(Bsdf, ThinFilmGuardReturnsBaseWhenInactive) {
     // otherwise the base Schlick reflectance is used unchanged. Verify that contract
     // (mirrors evalReflectionMicrofacetThinFilm).
     auto applyThinFilm = [](sm::float3 baseF0, float cosT, float thickness, float ior, float weight) {
-        const sm::float3 base =
-            baseF0 + (sm::float3(1.0F) - baseF0) * std::pow(std::clamp(1.0F - cosT, 0.0F, 1.0F), 5.0F);
+        const sm::float3 base = baseF0 + (sm::float3(1.0F) - baseF0) * std::pow(sm::saturate(1.0F - cosT), 5.0F);
         if (weight <= 0.0F || thickness <= 0.0F) {
             return base;
         }
         const sm::float3 irid = thinFilmIridescentReflectance(baseF0, cosT, thickness, ior);
-        return sm::lerp(base, irid, std::clamp(weight, 0.0F, 1.0F));
+        return sm::lerp(base, irid, sm::saturate(weight));
     };
     const sm::float3 baseF0(0.95F, 0.78F, 0.40F);
     for (const float cosT : {0.2F, 0.5F, 0.9F}) {
@@ -2034,7 +2025,7 @@ TEST(Bsdf, C9BoundedSamplerIsUnbiasedForItsOwnPdf) {
     // The shipped defect (bounded sampler + unbounded Eq. 7 PDF, plus the wrong cap width)
     // failed this by tens of percent while every white-furnace check still passed.
     // Fixed RNG seed => deterministic, so a tight tolerance is safe (not flaky).
-    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kPi = harmonia::utils::Math::kPi;
     const double tol = 0.02 * kPi; // 2%: 17x tighter than the ~35% defect, loose enough for float32
     for (const float ax : {0.2F, 0.5F, 0.9F}) {
         for (const float ay : {0.2F, 0.5F, 0.9F}) {
@@ -2073,7 +2064,7 @@ TEST(Bsdf, C9MismatchedPdfIsDetected_NegativeControl) {
     // roughness / oblique view); the fully shipped defect added a wrong cap width on top and
     // reached ~35%. Asserting >10% keeps this robustly triggered while staying well clear
     // of the 2% noise floor of the consistency test.
-    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kPi = harmonia::utils::Math::kPi;
     const sm::float3 i = sm::normalize(sm::float3(0.52F, 0.22F, 0.825F));
     const double est = c9ImportanceSamplingEstimate(i, 0.9F, 0.9F, c9vndfPdfUnbounded, 200000U, 0x5EEDU);
     EXPECT_GT(std::abs(est - kPi), 0.10 * kPi)
