@@ -86,6 +86,11 @@ class Application final : public harmonia::app::App,
     harmonia::core::Image m_gDepth{};      ///< G-buffer ray hit distance  (R32_SFLOAT)
     bool m_targetsFirstUse = true;         ///< HDR/G-buffer images need UNDEFINED→GENERAL
     bool m_positionFetchSupported = false; ///< VK_KHR_ray_tracing_position_fetch is active.
+    /// ANI7: last animation tick applied - the guard that stamps + resets ONCE per
+    /// OUTPUT frame during sequence renders (per accumulation sample otherwise, where
+    /// the raw index changes every frame anyway). ~0u = "never" so frame 0 always runs.
+    std::uint32_t m_lastAnimationTick = ~std::uint32_t{0};
+    bool m_animatedCaptureWarned = false; ///< one-time --output-without-sequence hint
 };
 } // namespace hyperion
 #endif // DEMO_APPLICATION_HPP
