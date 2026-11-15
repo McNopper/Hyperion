@@ -735,15 +735,13 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
                       evalDiffuse(baseColor, diffuseRough, woL, wiL);
         }
         if (weights.subsurfaceWeight > 0.0F && mat.opacityFlagsPad.w > 0.5F) {
-            // Thin-walled subsurface only (mirror of bsdf.slang): bulk subsurface is a delta
-            // medium-entry handled by the volumetric random walk on the sample side, with no
-            // local BRDF value here.
-            const float ssScale = std::max(mat.subsurfaceRadiusScale.w, 0.001F);
-            const sm::float3 ssTint =
-                subsurfaceColor * (1.0F / (1.0F + ssScale * (mat.subsurfaceRadiusScale.x + mat.subsurfaceRadiusScale.y +
-                                                             mat.subsurfaceRadiusScale.z)));
+            // Thin-walled subsurface only (mirror of bsdf.slang): OpenPBR 1.1.2 (#258/#321) —
+            // subsurface_color applied EXACTLY ONCE, radius inputs IGNORED (infinitesimal MFP),
+            // roughness = base_diffuse_roughness directly. Bulk subsurface is a delta medium
+            // entry handled by the volumetric random walk on the sample side, with no local
+            // BRDF value here.
             result += baseLayerScale * diffuseUnderSpec * weights.subsurfaceWeight *
-                      evalDiffuse(ssTint, std::clamp(0.25F + 0.5F * diffuseRough, 0.0F, 1.0F), woL, wiL);
+                      evalDiffuse(subsurfaceColor, diffuseRough, woL, wiL);
         }
         if (weights.specularWeight > 0.0F || weights.metalWeight > 0.0F) {
             result += baseLayerScale * (weights.specularWeight + weights.metalWeight) *
@@ -972,6 +970,63 @@ TEST(Bsdf, OpenPbrThinWalledSubsurfaceSplitConservesWeight) {
     EXPECT_NEAR(weights.diffuseTransWeight, 0.5F, 1.0e-6F);
 }
 
+// OpenPBR 1.1.2 #258: in thin-walled mode subsurface_radius / subsurface_radius_scale are
+// IGNORED (the sheet's scattering MFP is infinitesimal). The pre-1.1.2 shipped path tinted
+// the reflection by 1/(1 + radius*sum(scale)) — a direct violation — so materials differing
+// ONLY in the radius inputs must evaluate bit-identically. This pins the regression.
+TEST(Bsdf, OpenPbrThinWalledSubsurfaceIgnoresRadiusInputs) {
+    const sm::float3 wo = sm::normalize(sm::float3(0.25F, 0.15F, 0.955F));
+    const sm::float3 wi = sm::normalize(sm::float3(-0.35F, 0.10F, 0.930F));
+
+    harmonia::GpuMaterial mat = makeMaterial();
+    mat.subsurfaceColorWeight = sm::float4(0.6F, 0.4F, 0.3F, 0.8F);
+    mat.opacityFlagsPad.w = 1.0F;
+    mat.subsurfaceRadiusScale = sm::float4(1.0F, 0.5F, 0.25F, 1.0F); // default scale, radius 1
+
+    harmonia::GpuMaterial variant = mat;
+    variant.subsurfaceRadiusScale = sm::float4(7.0F, 6.0F, 5.0F, 10.0F); // scale (7,6,5), radius 10
+
+    const sm::float3 N(0.0F, 0.0F, 1.0F);
+    const sm::float3 T(1.0F, 0.0F, 0.0F);
+    const sm::float3 B(0.0F, 1.0F, 0.0F);
+    const sm::float3 eA = evalBSDF(mat, wo, wi, N, T, B, N, T, B);
+    const sm::float3 eB = evalBSDF(variant, wo, wi, N, T, B, N, T, B);
+    ASSERT_GT(eA.x, 1.0e-6F);
+    EXPECT_FLOAT_EQ(eA.x, eB.x);
+    EXPECT_FLOAT_EQ(eA.y, eB.y);
+    EXPECT_FLOAT_EQ(eA.z, eB.z);
+}
+
+// OpenPBR 1.1.2 #321: subsurface_color applies EXACTLY ONCE to the thin-walled reflection
+// (the pre-1.1.2 MaterialX reference squared it through an external branch multiplier).
+// Doubling the color must exactly double the evaluation — a squared application would
+// quadruple it. Reflection-direction eval only, so the transmission sheet cannot interfere.
+TEST(Bsdf, OpenPbrThinWalledSubsurfaceColorAppliesExactlyOnce) {
+    const sm::float3 wo = sm::normalize(sm::float3(0.25F, 0.15F, 0.955F));
+    const sm::float3 wi = sm::normalize(sm::float3(-0.35F, 0.10F, 0.930F));
+
+    harmonia::GpuMaterial mat = makeMaterial();
+    mat.baseColorWeight.w = 0.0F; // no diffuse/specular base — isolate the thin-walled sheet so
+                                  // the eval is purely subsurface_color-driven
+    mat.subsurfaceColorWeight = sm::float4(0.25F, 0.25F, 0.25F, 0.8F);
+    mat.opacityFlagsPad.w = 1.0F;
+
+    harmonia::GpuMaterial doubled = mat;
+    doubled.subsurfaceColorWeight = sm::float4(0.50F, 0.50F, 0.50F, 0.8F);
+
+    const sm::float3 N(0.0F, 0.0F, 1.0F);
+    const sm::float3 T(1.0F, 0.0F, 0.0F);
+    const sm::float3 B(0.0F, 1.0F, 0.0F);
+    const sm::float3 e1 = evalBSDF(mat, wo, wi, N, T, B, N, T, B);
+    const sm::float3 e2 = evalBSDF(doubled, wo, wi, N, T, B, N, T, B);
+    ASSERT_GT(e1.x, 1.0e-6F);
+    // Linear to float rounding (~1e-5 relative through the Oren-Nayar/EON fits); a squared
+    // application would be off by ~100%, so 1e-4 relative decisively separates the two.
+    EXPECT_NEAR(e2.x, 2.0F * e1.x, 1.0e-4F * e1.x);
+    EXPECT_NEAR(e2.y, 2.0F * e1.y, 1.0e-4F * e1.y);
+    EXPECT_NEAR(e2.z, 2.0F * e1.z, 1.0e-4F * e1.z);
+}
+
 TEST(Bsdf, OpenPbrDispersionChannelAndFresnelContractsHold) {
     constexpr float eta = 1.52F;
     constexpr float abbe = 30.0F;
@@ -1029,7 +1084,7 @@ TEST(Bsdf, OpenPbrWhiteFurnaceRepresentativeConfigsStayBounded) {
 }
 
 TEST(Bsdf, SpecularWeightAboveOneBoostsDielectricF0WithinSpecClamp) {
-    // OpenPBR v1.1.1 §base-substrate: specular_weight may exceed 1, boosting the dielectric
+    // OpenPBR v1.1.2 §base-substrate: specular_weight may exceed 1, boosting the dielectric
     // reflectivity above the specular_ior level; the mandated internal clamp ξ_s·F_s ≤ 1 keeps
     // the scaled F0 < 1, so even an extreme weight must stay furnace-bounded (no energy
     // creation) instead of exploding. Regression guard for the G3 modulated-eta path (the

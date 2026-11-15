@@ -7,7 +7,7 @@ Vulkan path-tracer for OpenPBR.
 > *[Hyperion](https://en.wikipedia.org/wiki/Hyperion_(mythology)) — Titan of heavenly light, father of Helios, Selene and Eos.*
 
 Hyperion is a GPU path tracer built entirely on Vulkan 1.4 KHR ray tracing.  
-It implements the [OpenPBR Surface v1.1.1](https://academysoftwarefoundation.github.io/OpenPBR/) material model and outputs a physically correct, linearly encoded HDR frame every render call.
+It implements the [OpenPBR Surface v1.1.2](https://academysoftwarefoundation.github.io/OpenPBR/) material model and outputs a physically correct, linearly encoded HDR frame every render call.
 
 ---
 
@@ -72,7 +72,7 @@ sample count are expected; 64 spp keeps the full-gallery render tractable).
 - Headless render mode with PNG + EXR output
 - **`VK_KHR_ray_tracing_maintenance1`** (required) — `vkCmdTraceRaysIndirect2KHR` indirect dispatch (GPU-buffer-driven ray dispatch dimensions; pre-set at `PathTracer::create()` / `onResize()` — never written on the hot render path). The extension is a hard device requirement; device selection fails fast when it is absent
 
-### Material model — OpenPBR Surface v1.1.1
+### Material model — OpenPBR Surface v1.1.2
 All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.github.io/OpenPBR/) naming:
 
 | Layer | Parameters |
@@ -259,4 +259,4 @@ Hyperion's BSDF, volumetric, color-science, and denoising references live in [Ha
 | [Vulkan Specification 1.4](https://registry.khronos.org/vulkan/specs/latest/html/) | `VK_KHR_ray_tracing_pipeline`, `VK_KHR_acceleration_structure`, descriptor indexing |
 | [Slang Shading Language](https://shader-slang.com/) | `[raypayload]` semantic, `TraceRay`, Vulkan binding annotations |
 | [Wavefront OBJ](http://paulbourke.net/dataformats/obj/) | Geometry-only OBJ import (no MTL — materials are assigned in the scene TOML) |
-| [OpenPBR Surface Specification v1.1.1](https://academysoftwarefoundation.github.io/OpenPBR/) | Material layer stack & parameter naming — full shared BSDF implementation cited in Harmonia's README |
+| [OpenPBR Surface Specification v1.1.2](https://academysoftwarefoundation.github.io/OpenPBR/) | Material layer stack & parameter naming — full shared BSDF implementation cited in Harmonia's README |

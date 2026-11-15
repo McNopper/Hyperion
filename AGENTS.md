@@ -15,11 +15,11 @@ importance sampling (CDF). Other renderers (Theia) are aligned to match Hyperion
 implementation is **MaterialX** (`mx_*` genGLSL nodes). Hyperion's BSDF (the shared Harmonia
 `bsdf_shared.slang`) is the **conformance ground truth** for OpenPBR in this pipeline; when
 improving spec-correctness, fix it here first, regenerate references, then align Theia. It
-implements the full OpenPBR 1.1.1 layer stack — LTC sheen, GGX multiple-scattering compensation,
+implements the full OpenPBR 1.1.2 layer stack — LTC sheen, GGX multiple-scattering compensation,
 thin-film iridescence, dispersion, and a **chromatic volumetric subsurface / transmission random
 walk** (per-channel extinction, hero-wavelength spectral MIS). The dielectric interface is
 **side-correct** (`SurfaceHit.backface` → `exiting` → inverted relative IOR: Fresnel/Snell/TIR
-on exit; `geometry_thin_walled` exempt — a thin film has no bulk, so its crossings never TIR).
+on exit; `geometry_thin_walled` exempt — a thin film has no bulk, so its crossings never TIR). Its subsurface sheet follows OpenPBR 1.1.2 (#258/#321): subsurface_color applied once, radius/scale ignored, ½(1∓g) anisotropy split.
 Transmission absorption follows **MaterialX tint semantics** (BTDF tinted by `transmission_color`
 at depth 0, white at depth > 0 with the color realized volumetrically by the walk,
 Ïƒ_t = −ln(color)/depth); pure absorbers (single-scatter albedo = 0) use **exact deterministic

@@ -225,7 +225,7 @@ the low-spp trap, Aether/AGENTS.md).
 - **v0.7.9**: **--depth honoured, RT recursion depth corrected; consumes Harmonia v0.7.9.**
  
 - **v0.7.8**: consumes Harmonia v0.7.8 (VK11 `shaderDemoteToHelperInvocation`;
-  OpenPBR 1.1.1 conformance: `specular_weight` > 1 with the spec's ξ_s·F_s ≤ 1 clamp, and the
+  OpenPBR 1.1.2 conformance: `specular_weight` > 1 with the spec's ξ_s·F_s ≤ 1 clamp, and the
   transmission negative-μ_a gray-shift) and Aether v0.7.4 (spec defaults: coat_ior 1.6,
   thin_film_ior 1.4, thin_film_thickness 500 nm). New conformance test
   `Bsdf.SpecularWeightAboveOneBoostsDielectricF0WithinSpecClamp` (the >1 boost is real; an
