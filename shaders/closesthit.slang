@@ -274,13 +274,20 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
     state.rec.flags      = 0u;
 
     HyperionTracer tracer;
+    // GI-PG: guiding stays OFF in Hyperion (bit-identical ground truth) — zeroed cell.
+    PgGuideCell noPgGuide;
+    noPgGuide.pi = float4(0.0, 0.0, 0.0, 0.0);
+    noPgGuide.muKappa[0] = float4(0.0, 0.0, 0.0, 0.0);
+    noPgGuide.muKappa[1] = float4(0.0, 0.0, 0.0, 0.0);
+    noPgGuide.muKappa[2] = float4(0.0, 0.0, 0.0, 0.0);
+    noPgGuide.muKappa[3] = float4(0.0, 0.0, 0.0, 0.0);
     integrateSurface(tracer, surf,
         pushConst.emissiveTriangleCount, emissiveTriangles, emissiveCdf,
         envMarginalCdf, envConditionalCdf,
         pushConst.envImportanceWidth, pushConst.envImportanceHeight,
         (pushConst.hasEnvMap != 0u), pushConst.envLuminanceScale,
         envMap, envSampler,
-        state);
+        state, false, noPgGuide);
 
     if (pushConst.smsPartitionResolution != 0u) {
         smsAdvancePathSurface(smsPath,surf,state,hit.geoNormal,uint2(hit.instanceIndex,instance.materialIndex),
