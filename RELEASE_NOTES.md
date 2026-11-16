@@ -27,3 +27,9 @@ Offline path tracer (ground truth) release consuming **Harmonia v0.8.0 + Aether 
   offline movie-image path `--sequence-frames 1 --frame N` = one fully
   accumulated image at tick N. Receipts: 43/43, `--frame 0/58` pair mean_diff
   122.9 (1.7% from Theia's 124.9), 0 VUID on every run.
+- **One animation clock + time-based capture (2026-11-16):** `--capture-every-ms`
+  / `--start-seconds` (with `--sequence-frames`) sample animation time at
+  fixed intervals for movie-frame ranges; scene/deform/TLAS/camera share
+  `App::animationClock`. Receipts: 43/43, interval == tick-grid equivalence
+  0.000, 0 VUID.
+
