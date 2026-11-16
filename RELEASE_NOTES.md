@@ -1,6 +1,6 @@
-# Hyperion v0.8.0 (2026-11-16) - minor release
+# Hyperion v0.9.0 (2026-11-16) - minor release
 
-Offline path tracer (ground truth) release consuming **Harmonia v0.8.0 + Aether v0.9.0**.
+Offline path tracer (ground truth) release consuming **Harmonia v0.9.0 + Aether v0.9.0**.
 
 ## Shipped
 - **Deformation (ANI4/ANI5 renderer half)**: the shared `DeformPass` runs from the animation
@@ -17,7 +17,7 @@ Offline path tracer (ground truth) release consuming **Harmonia v0.8.0 + Aether 
   **0 VUID / 0 validation messages**, motion proof (frame0 vs frame2 mean_diff 10.1-10.3).
 
 ## Release mechanics
-- Local commits only: **tag `v0.8.0`, push commits + tag together** (pins reference the new
+- Local commits only: **tag `v0.9.0`, push commits + tag together** (pins reference the new
   Harmonia/Aether tags; local builds use `FETCHCONTENT_SOURCE_DIR_*` overrides).
 
 ## Also in this release (added after the notes assembly)
