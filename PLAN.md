@@ -43,7 +43,7 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 
 ## At a glance
 
-- **Release:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21. Pins: Aether v0.8.1 + Harmonia v0.7.21.
+- **Release:** v0.8.0 (2026-11-16) - **deformation half + gate resolution consumed.** ANI4/ANI5 renderer halves (shared `DeformPass` from the animation tick: stage -> rest->morph->skin dispatch -> BLAS refit; rest-pose vertex copy; `meshSceneVertexOffsets`) + DQS blend consumption (zero renderer code) + parity-threshold recalibration (fresh gate 14/14 PASS, 0 VUID) + triage sync (C11 consumed-claim removed). Receipts: unit suite **43/43**, e2e sequence 0 VUID with motion proof. Pins: Harmonia **v0.8.0**, Aether **v0.9.0**.
 - **Prior:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21; v0.7.19 - GI-SMS
   sampling and the reference mode; v0.7.18 - sampling/RNG/history corrections + refreshed gallery;
   v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(hyperion VERSION 0.7.20 LANGUAGES C CXX)
+project(hyperion VERSION 0.8.0 LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -230,12 +230,12 @@ endif()
 FetchContent_Declare(
     aether
     GIT_REPOSITORY https://github.com/McNopper/Aether.git
-    GIT_TAG v0.8.1
+    GIT_TAG v0.9.0
 )
 FetchContent_Declare(
     harmonia
     GIT_REPOSITORY https://github.com/McNopper/Harmonia.git
-    GIT_TAG v0.7.23
+    GIT_TAG v0.8.0
 )
 
 FetchContent_MakeAvailable(aether harmonia)

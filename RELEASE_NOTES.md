@@ -1,0 +1,21 @@
+# Hyperion v0.8.0 (2026-11-16) - minor release
+
+Offline path tracer (ground truth) release consuming **Harmonia v0.8.0 + Aether v0.9.0**.
+
+## Shipped
+- **Deformation (ANI4/ANI5 renderer half)**: the shared `DeformPass` runs from the animation
+  tick (stage -> rest->morph->skin dispatch -> mesh-local copy -> BLAS refit), with the
+  `scene.vertexRest` rest copy and `meshSceneVertexOffsets` substrate. **DQS** rides the shared
+  job/staging with zero renderer code. The ground-truth renderer keeps bit-exact estimator
+  properties (no estimator change; deformation only rewrites skinned/morphed vertices).
+- **Parity gate**: recalibrated thresholds (mean<=120 / rel<=250 / SSIM>=0.6 / hist>=0.8) -
+  fresh manifest run **14/14 PASS** (this renderer is the reference side; 0 VUID).
+- Triage sync: C11 consumed-claim removed, C12 confirmed shipped.
+
+## Receipts
+- Unit suite **43/43**; end-to-end sequence renders (skin/morph/DQS fixtures): exit 0,
+  **0 VUID / 0 validation messages**, motion proof (frame0 vs frame2 mean_diff 10.1-10.3).
+
+## Release mechanics
+- Local commits only: **tag `v0.8.0`, push commits + tag together** (pins reference the new
+  Harmonia/Aether tags; local builds use `FETCHCONTENT_SOURCE_DIR_*` overrides).
