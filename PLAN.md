@@ -119,7 +119,7 @@ repairs, not yet rendered SMS caustics or ReSTIR integration.
 These change the shared estimator/BSDF in Harmonia; Hyperion consumes them 1:1 and must keep
 its ground-truth properties (deterministic replay, no bias) intact:
 
-- **GI-SMS** (caustics/SDS), **C9** (bounded VNDF), **C11** (ReSTIR SSS), **C12** (micrograin
+- **GI-SMS** (caustics/SDS), **C9** (bounded VNDF), **C12** (micrograin
   flake), **DN3** (converging denoiser), **LS2** (separable-CDF product importance sampling - **replaces Hyperion's
   env-CDF/NEE** in the shared estimator; the old env-CDF path is deleted), **PERF5/PERF4**
   (removed 2026-11-15 - tombstones in `Harmonia/PLAN.md`).
