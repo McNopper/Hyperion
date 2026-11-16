@@ -7,6 +7,7 @@
 #include <slang-math/slang-math.hpp>
 #include <utility>
 
+#include "aether/format/SceneAnimator.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "hyperion/ShaderPaths.hpp"
@@ -145,6 +146,10 @@ bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::Sc
         return false;
     }
     const float envLuminance = sceneConfig.envUnitNits.value_or(1.0f);
+    // ANI8 camera-from-node: remember the scripted node; placement itself runs
+    // in record()'s per-tick block (never-placed sentinel fires on frame 0).
+    m_cameraNodeId = sceneConfig.cameraNodeId;
+    m_cameraTick = ~std::uint32_t{0};
     buildCamera(sceneConfig);
 
     if (const VkResult result = m_scene.build(deviceContext(), commandPool()); result != VK_SUCCESS) {
@@ -250,6 +255,26 @@ void hyperion::Application::buildCamera(const harmonia::scene::SceneLoader::Scen
     });
 }
 
+void hyperion::Application::placeBoundCamera(std::uint32_t tick) {
+    if (!m_cameraNodeId || m_scene.attachedScene() == nullptr) {
+        return;
+    }
+    const auto pose = aether::SceneAnimator::evaluateCameraAtTick(*m_scene.attachedScene(), tick);
+    if (!pose) {
+        return; // hand-built scene without a placement - keep the current view
+    }
+    // aether::Vec3 is sm::float3; forward = rotation * (0, 0, -1) matches the
+    // static [camera] convention SceneLoader derives At/Up with.
+    const sm::float3 at = pose->position + (pose->rotation * sm::float3{0.0f, 0.0f, -1.0f});
+    m_camera.setPosition(pose->position);
+    m_camera.setTarget(at);
+    m_camera.setUp(pose->rotation * sm::float3{0.0f, 1.0f, 0.0f});
+    // Scene-scale-aware clip planes follow the placed camera-to-target
+    // distance (the same helper buildCamera uses).
+    const auto [nearPlane, farPlane] = harmonia::renderer::Camera::nearFarFromDistance(sm::length(at - pose->position));
+    m_camera.setNearFar(nearPlane, farPlane);
+}
+
 VkResult hyperion::Application::setupSceneDescriptors() {
     return descriptors().updateSceneSet(deviceContext(),
                                         m_scene.instanceBuffer(),
@@ -281,6 +306,15 @@ void hyperion::Application::record(VkCommandBuffer cmd, const harmonia::app::Ren
     // ANI4 renderer half: skin-carrying scenes enter the same tick block (a
     // skin-only scene has no tracks but its POSE changes with the tick): the
     // deformation runs after the stamp and before the TLAS update.
+    // ANI8 camera-from-node: re-place the scripted camera from the bound node's
+    // evaluated world at this frame's tick. Own tick guard - NOT the animation
+    // block's below: a camera bound to a STATIC node on an otherwise static
+    // scene must not trip that block's accumulation reset on every offline
+    // sample (it would never converge).
+    if (m_cameraNodeId && animationFrameIndex() != m_cameraTick) {
+        m_cameraTick = animationFrameIndex();
+        placeBoundCamera(m_cameraTick);
+    }
     if (m_scene.hasAnimation() || m_scene.hasSkins() || m_scene.hasMorphs()) {
         const std::uint32_t tick = animationFrameIndex();
         if (tick != m_lastAnimationTick) {

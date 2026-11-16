@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 #include "harmonia/app/App.hpp"
 #include "harmonia/app/IRenderer.hpp"
@@ -74,6 +75,10 @@ class Application final : public harmonia::app::App,
     [[nodiscard]] bool createGBuffers(VkExtent2D extent);
     void applySceneOverrides(const harmonia::scene::SceneLoader::SceneConfig& config);
     void buildCamera(const harmonia::scene::SceneLoader::SceneConfig& config);
+    /// ANI8: re-place m_camera from the bound node's evaluated world at
+    /// @p tick (position/target/up + scene-scale clip planes). No-op without
+    /// a bound camera node.
+    void placeBoundCamera(std::uint32_t tick);
     [[nodiscard]] VkResult setupSceneDescriptors();
     void transitionTargetsOnFirstUse(VkCommandBuffer cmd) noexcept;
 
@@ -84,6 +89,11 @@ class Application final : public harmonia::app::App,
     hyperion::PathTracer m_pathTracer{};
     hyperion::Scene m_scene{};
     harmonia::renderer::Camera m_camera{};
+    /// ANI8 camera-from-node: the scripted camera node from `[camera] node`
+    /// (std::nullopt = the classic static camera) plus the last tick it was
+    /// placed at (never-placed sentinel forces frame 0).
+    std::optional<std::string> m_cameraNodeId;
+    std::uint32_t m_cameraTick = ~std::uint32_t{0};
     harmonia::core::Image m_gNormal{};     ///< G-buffer world-space normal (R16G16B16A16_SFLOAT)
     harmonia::core::Image m_gDepth{};      ///< G-buffer ray hit distance  (R32_SFLOAT)
     bool m_targetsFirstUse = true;         ///< HDR/G-buffer images need UNDEFINED→GENERAL
