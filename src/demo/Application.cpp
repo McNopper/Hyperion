@@ -131,8 +131,8 @@ bool hyperion::Application::createGBuffers(VkExtent2D extent) {
 }
 
 void hyperion::Application::onSceneUnload() {
-    // ANI4: the pass's descriptors bind the previous scene's buffers.
-    m_skinDeform.reset();
+    // ANI4+ANI5: the pass's descriptors bind the previous scene's buffers.
+    m_deformPass.reset();
     m_scene = {};
     m_pathTracer = {};
 }
@@ -153,23 +153,24 @@ bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::Sc
     }
     harmonia::core::Logger::info("hyperion::Scene built (BLAS+TLAS)");
 
-    // ANI4 renderer half: the shared GPU skinning pass (skin-carrying scenes
-    // only; the rest/active vertex + skin buffers must exist by now).
-    if (m_scene.hasSkins()) {
-        auto skinPass = harmonia::scene::SkinDeformPass::create(deviceContext(),
-                                                                m_scene,
-                                                                m_scene.vertexRestBuffer(),
-                                                                m_scene.vertexBuffer(),
-                                                                std::filesystem::path(HARMONIA_SHADER_DIR) /
-                                                                    "skin_deform.comp.spv");
-        if (!skinPass) {
-            harmonia::core::Logger::error("SkinDeformPass creation failed: VkResult {}",
-                                          static_cast<std::int32_t>(skinPass.error()));
+    // ANI4+ANI5 renderer half: the shared GPU deformation pass (skinned or
+    // morphed scenes only; the rest/active vertex + deformation buffers must
+    // exist by now).
+    if (m_scene.hasSkins() || m_scene.hasMorphs()) {
+        auto deformPass =
+            harmonia::scene::DeformPass::create(deviceContext(),
+                                                m_scene,
+                                                m_scene.vertexRestBuffer(),
+                                                m_scene.vertexBuffer(),
+                                                std::filesystem::path(HARMONIA_SHADER_DIR) / "deform.comp.spv");
+        if (!deformPass) {
+            harmonia::core::Logger::error("DeformPass creation failed: VkResult {}",
+                                          static_cast<std::int32_t>(deformPass.error()));
             return false;
         }
-        m_skinDeform = std::move(*skinPass);
+        m_deformPass = std::move(*deformPass);
     } else {
-        m_skinDeform.reset();
+        m_deformPass.reset();
     }
     if (const VkResult result = setupSceneDescriptors(); result != VK_SUCCESS) {
         harmonia::core::Logger::error("Descriptor update failed: VkResult {}", static_cast<int>(result));
@@ -280,7 +281,7 @@ void hyperion::Application::record(VkCommandBuffer cmd, const harmonia::app::Ren
     // ANI4 renderer half: skin-carrying scenes enter the same tick block (a
     // skin-only scene has no tracks but its POSE changes with the tick): the
     // deformation runs after the stamp and before the TLAS update.
-    if (m_scene.hasAnimation() || m_scene.hasSkins()) {
+    if (m_scene.hasAnimation() || m_scene.hasSkins() || m_scene.hasMorphs()) {
         const std::uint32_t tick = animationFrameIndex();
         if (tick != m_lastAnimationTick) {
             m_lastAnimationTick = tick;
@@ -288,17 +289,17 @@ void hyperion::Application::record(VkCommandBuffer cmd, const harmonia::app::Ren
             if (m_scene.hasAnimation()) {
                 m_scene.setAnimationTime(seconds);
             }
-            if (m_skinDeform.has_value()) {
-                if (const VkResult skinResult = m_skinDeform->execute(deviceContext(),
-                                                                      commandPool(),
-                                                                      m_scene,
-                                                                      seconds,
-                                                                      m_scene.vertexRestBuffer(),
-                                                                      m_scene.vertexBuffer(),
-                                                                      m_scene.meshSceneVertexOffsets());
-                    skinResult != VK_SUCCESS) {
-                    harmonia::core::Logger::error("Skin deform failed: VkResult {}",
-                                                  static_cast<std::int32_t>(skinResult));
+            if (m_deformPass.has_value()) {
+                if (const VkResult deformResult = m_deformPass->execute(deviceContext(),
+                                                                        commandPool(),
+                                                                        m_scene,
+                                                                        seconds,
+                                                                        m_scene.vertexRestBuffer(),
+                                                                        m_scene.vertexBuffer(),
+                                                                        m_scene.meshSceneVertexOffsets());
+                    deformResult != VK_SUCCESS) {
+                    harmonia::core::Logger::error("Vertex deform failed: VkResult {}",
+                                                  static_cast<std::int32_t>(deformResult));
                 }
             }
             if (const VkResult r = m_scene.updateTlas(deviceContext(), commandPool()); r != VK_SUCCESS) {

@@ -12,7 +12,7 @@
 #include "harmonia/core/Image.hpp"
 #include "harmonia/renderer/Camera.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
-#include "harmonia/scene/SkinDeformPass.hpp"
+#include "harmonia/scene/DeformPass.hpp"
 #include "hyperion/renderer/PathTracer.hpp"
 #include "hyperion/renderer/SamplingPlan.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
@@ -92,9 +92,10 @@ class Application final : public harmonia::app::App,
     /// OUTPUT frame during sequence renders (per accumulation sample otherwise, where
     /// the raw index changes every frame anyway). ~0u = "never" so frame 0 always runs.
     std::uint32_t m_lastAnimationTick = ~std::uint32_t{0};
-    /// ANI4 renderer half: the shared GPU skinning pass, created for
-    /// skin-carrying scenes in onSceneLoaded (reset on scene unload).
-    std::optional<harmonia::scene::SkinDeformPass> m_skinDeform;
+    /// ANI4+ANI5 renderer half: the shared GPU deformation pass (skin +
+    /// morphs), created for deforming scenes in onSceneLoaded (reset on scene
+    /// unload).
+    std::optional<harmonia::scene::DeformPass> m_deformPass;
     bool m_animatedCaptureWarned = false; ///< one-time --output-without-sequence hint
 };
 } // namespace hyperion
