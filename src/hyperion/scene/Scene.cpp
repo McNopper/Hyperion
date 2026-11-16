@@ -82,6 +82,9 @@ VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx,
     std::vector<harmonia::GpuVertex> vertices;
     std::vector<std::uint32_t> indices;
     m_meshGpu.assign(m_meshes.size(), MeshGpu{});
+    // ANI4: parallel per-mesh ranges into the scene-global vertex buffer
+    // (SkinDeformPass's meshSceneVertexOffsets argument).
+    m_meshSceneVertexOffsets.assign(m_meshes.size(), 0U);
 
     for (std::size_t mi = 0; mi < m_meshes.size(); ++mi) {
         if (const auto* mesh = dynamic_cast<const harmonia::scene_rt::TriangleMesh*>(m_meshes[mi].get())) {
@@ -110,6 +113,13 @@ VkResult hyperion::Scene::buildSceneBuffers(const harmonia::DeviceContext& ctx,
                 .bitangentSign = 1.0f,
             });
         }
+    }
+
+    // ANI4: record every mesh's range (filled by the loop above; spheres
+    // get their own 1-vertex range - skins over analytic geometry are
+    // rejected at load, so the entry is never read by a skin job).
+    for (std::size_t mi = 0; mi < m_meshSceneVertexOffsets.size(); ++mi) {
+        m_meshSceneVertexOffsets[mi] = m_meshGpu[mi].vertexOffset;
     }
 
     if (vertices.empty()) {
@@ -202,9 +212,24 @@ VkResult hyperion::Scene::uploadAllBuffers(const harmonia::DeviceContext& ctx,
                             pool,
                             std::as_bytes(std::span<const harmonia::GpuVertex>(vertices.data(), vertices.size())),
                             "scene.vertices",
-                            kStorageAddr);
+                            kStorageAddr | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
     if (!vertexBuf) {
         return vertexBuf.error();
+    }
+    // ANI4: skinned scenes keep an immutable rest-pose copy - the skinning
+    // kernel reads REST and writes the active buffer, so re-running at a new
+    // tick replaces the pose instead of composing onto the previous frame.
+    if (hasSkins()) {
+        auto restBuf =
+            uploadStorageBuffer(ctx,
+                                pool,
+                                std::as_bytes(std::span<const harmonia::GpuVertex>(vertices.data(), vertices.size())),
+                                "scene.vertexRest",
+                                kStorageAddr);
+        if (!restBuf) {
+            return restBuf.error();
+        }
+        m_vertexRestBuffer = std::move(*restBuf);
     }
 
     auto indexBuf = uploadStorageBuffer(ctx,
