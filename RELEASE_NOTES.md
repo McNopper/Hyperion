@@ -19,3 +19,11 @@ Offline path tracer (ground truth) release consuming **Harmonia v0.8.0 + Aether 
 ## Release mechanics
 - Local commits only: **tag `v0.8.0`, push commits + tag together** (pins reference the new
   Harmonia/Aether tags; local builds use `FETCHCONTENT_SOURCE_DIR_*` overrides).
+
+## Also in this release (added after the notes assembly)
+
+- **ANI8 half** (commit c70dbf7): per-tick camera-from-node placement in
+  `record()` (setPosition/setTarget/setUp/setNearFar, own tick guard) and the
+  offline movie-image path `--sequence-frames 1 --frame N` = one fully
+  accumulated image at tick N. Receipts: 43/43, `--frame 0/58` pair mean_diff
+  122.9 (1.7% from Theia's 124.9), 0 VUID on every run.
