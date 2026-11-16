@@ -126,7 +126,7 @@ its ground-truth properties (deterministic replay, no bias) intact:
 - **ANI2 Theia half** (per-frame TLAS refit consumption — the shared machinery is shipped in
   Harmonia and Hyperion already consumes it, 2026-11-09; Theia's own PLAN row owns its half),
   **ANI6** (animated parity gate, Harmonia; compare_sequences + ANI7 - landed 2026-11-15).
-- **ANI4/ANI5 Theia/Hyperion halves** (skinning LBS + morph targets - the shared `DeformPass`, renamed from SkinDeformPass when the morph half folded into the same rest->morph->skin dispatch, consumed from the animation tick: stage/dispatch/copy/BLAS-refit before updateTlas, plus the renderer substrate (`meshSceneVertexOffsets` ranges + the `scene.vertexRest` rest-pose copy); landed 2026-11-16 - receipts in `Harmonia/PLAN.md` ANI4 + ANI5: ctest 179/179, Hyperion 43/43, e2e sequence renders 0 VUID with visible motion).
+- **ANI4/ANI5 Theia/Hyperion halves** (skinning LBS/DQS + morph targets - the shared `DeformPass`, renamed from SkinDeformPass when the morph half folded into the same rest->morph->skin dispatch, consumed from the animation tick: stage/dispatch/copy/BLAS-refit before updateTlas, plus the renderer substrate (`meshSceneVertexOffsets` ranges + the `scene.vertexRest` rest-pose copy); landed 2026-11-16 - receipts in `Harmonia/PLAN.md` ANI4 + ANI5: ctest 179/179, Hyperion 43/43, e2e sequence renders 0 VUID with visible motion).
 - **NH2/NH3** (node-graph transform compounding, Harmonia) once **NH1** (Aether) lands.
 - **I6** (frames-per-flip) is Theia-only (`Theia/PLAN.md`).
 
