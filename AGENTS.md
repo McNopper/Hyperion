@@ -12,8 +12,8 @@ pipeline. It uses ray tracing (BLAS/TLAS), index buffers, NEE + MIS with environ
 importance sampling (CDF). Other renderers (Theia) are aligned to match Hyperion.
 
 **Material model = OpenPBR Surface** (Academy Software Foundation), whose canonical/reference
-implementation is **MaterialX** (`mx_*` genGLSL nodes). Hyperion's BSDF (the shared Harmonia
-`bsdf_shared.slang`) is the **conformance ground truth** for OpenPBR in this pipeline; when
+implementation is **MaterialX** (`mx_*` genGLSL nodes). Hyperion's BSDF (the shared
+`Harmonia/shaders/bsdf_shared.slang`) is the **conformance ground truth** for OpenPBR in this pipeline; when
 improving spec-correctness, fix it here first, regenerate references, then align Theia. It
 implements the full OpenPBR 1.1.2 layer stack — LTC sheen, GGX multiple-scattering compensation,
 thin-film iridescence, dispersion, and a **chromatic volumetric subsurface / transmission random
@@ -92,7 +92,7 @@ a PT-sampled specular camera prefix, with frozen RGB throughput and remaining
 receiver-inclusive depth. Null/scattering/non-delta prefixes and later diffuse
 receivers stay PT-owned. Independent planar SDS mirror/Snell/Beer and depth-boundary
 fixtures cover this extension; these are not curved-scene or reuse acceptance.
-The common compute sampler lives in Harmonia `shaders/sms_compute.slang`, included
+The common compute sampler lives in `Harmonia/shaders/sms_compute.slang`, included
 after `sms_sample.slang` defines its six renderer aliases. This preserves the
 concrete compute call graph; do not reintroduce a separately evolving sampler.
 Geometry and descriptor layouts remain renderer-specific.
@@ -100,7 +100,7 @@ SMS triangle normals use the same normalized-vertex / blended-length geometric
 fallback as actual RT, with zero derivatives on that fallback branch. Visibility
 uses the opaque TLAS query directly, including analytic spheres; a failed shading
 reconstruction is never evidence that an opaque blocker is absent.
-The actual-event classifier is shared in Harmonia `sms_path.slang`; Hyperion keeps
+The actual-event classifier is shared in `Harmonia/shaders/sms_path.slang`; Hyperion keeps
 only payload/scene adapters. Preserve the first-receiver, relative-depth and
 direct pure-absorber-exit rules when adding renderer consumers.
 
@@ -191,7 +191,7 @@ Hyperion's classes live in `namespace hyperion`, opened in both headers and tran
 units. **Hyperion never depends on Theia** — the sibling renderers are independent;
 shared code goes down into Harmonia (a `theia/` include is a hard violation).
 
-**Dead-code gate:** `python tools/check_dead.py` - orphan headers, never-compiled sources (absent from `compile_commands.json` AND unreferenced by any CMake file), and FetchContent declare/consume mismatches. Also registered as ctest `test_dead` (label `analysis`; local only - registration is gated on the per-user check-dead skill install, so CI runners skip it). Justified findings go into `tools/check_dead.exceptions` with a reason; real dead code is deleted in a fix commit.
+**Dead-code gate:** `python tools/check_dead.py` - orphan headers, never-compiled sources (absent from `build/compile_commands.json` AND unreferenced by any CMake file), and FetchContent declare/consume mismatches. Also registered as ctest `test_dead` (label `analysis`; local only - registration is gated on the per-user check-dead skill install, so CI runners skip it). Justified findings go into `tools/check_dead.exceptions` with a reason; real dead code is deleted in a fix commit.
 
 Sanitizer lane (Clang/GCC configures only):
 **Coverage lane (Clang/GCC configures only):** configure a separate build with
@@ -222,7 +222,7 @@ SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides tomlp
 
 **Indirect RT dispatch (`VK_KHR_ray_tracing_maintenance1`, required):**
 - `ray_tracing_maintenance1` is a **hard-required** device feature — Harmonia's device
-  selection (`Context.cpp`) fails fast when it is absent. Hyperion dispatches rays exclusively
+  selection (`Harmonia/src/harmonia/vulkan_init/Context.cpp`) fails fast when it is absent. Hyperion dispatches rays exclusively
   through `vkCmdTraceRaysIndirect2KHR`. The `VkTraceRaysIndirectCommand2KHR` buffer (SBT
   addresses + render dimensions) is written **once** at `PathTracer::create()` and updated in
   `onResize()`. The per-frame `render()` path records only GPU commands — no host writes.

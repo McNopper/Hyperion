@@ -85,12 +85,12 @@ All parameters follow the [OpenPBR spec](https://academysoftwarefoundation.githu
 | Thin-film | `thin_film_weight`, `thin_film_thickness`, `thin_film_ior` |
 | Transmission | `transmission_weight`, `transmission_color`, `transmission_depth` |
 | Subsurface | `subsurface_weight`, `subsurface_color`, `subsurface_radius`, `subsurface_radius_scale`, `subsurface_scatter_anisotropy` |
-| Geometry | `geometry_opacity`, `map_opacity` | true presence weight (`mix(ambient-medium, surface, α)`, spec §Opacity/Transparency) — resolved stochastically at every hit, textured or scalar; shadow rays carry the matching `∏(1-α)` transmittance. `VK_EXT_opacity_micromap` accelerates a textured mask's RT traversal (`shaderball_checker`) without changing the result — see `shaderball_checker_omm.micromap.toml` |
+| Geometry | `geometry_opacity`, `map_opacity` | true presence weight (`mix(ambient-medium, surface, α)`, spec §Opacity/Transparency) — resolved stochastically at every hit, textured or scalar; shadow rays carry the matching `∏(1-α)` transmittance. `VK_EXT_opacity_micromap` accelerates a textured mask's RT traversal (`shaderball_checker`) without changing the result — see `Aether/assets/shaderball_checker_omm.micromap.toml` |
 
 Conductor reflectance, layer stacking, thin-film iridescence, fuzz/sheen, the volumetric
 subsurface/transmission random walk, and Beer–Lambert pure absorbers are implemented once
-in the shared Harmonia `bsdf_shared.slang` — see
-[Harmonia README — Material model](../Harmonia/README.md#material-model--openpbr-surface-v111)
+in the shared `Harmonia/shaders/bsdf_shared.slang` — see
+[Harmonia README — Material model](https://github.com/McNopper/Harmonia/blob/main/README.md#material-model---openpbr-surface-v112)
 for the canonical description. Hyperion runs that shared BSDF **unbiased** at full offline
 depth (dispersion, multi-bounce glass, unbounded walks) and is the conformance ground truth
 for the family: spec-correctness lands here first, references are regenerated, then Theia is
@@ -173,7 +173,7 @@ its renderer through the `harmonia::app::IRenderer` seam (Theia does the same). 
 are compiled at build time by Harmonia's shared `compile_slang_shaders` CMake rule
 (`shaders/*.slang` → `build/shaders/*.spv`) and loaded through Harmonia's SPIR-V loader.
 The **unidirectional path-integrator estimator** (emissive/env NEE + MIS + Russian roulette)
-lives in Harmonia's shared `path_integrator.slang` and is reused **1:1** by both renderers
+lives in the shared `Harmonia/shaders/path_integrator.slang` and is reused **1:1** by both renderers
 through an `ITracer` seam — Hyperion drives it with its ray-tracing-pipeline tracer, Theia
 with inline `RayQuery`. The **GPU scene layout is renderer-specific**: Hyperion owns its own `Scene` and
 `GpuInstance` (`src/hyperion/scene/`) built around index buffers and the ray-tracing
@@ -211,7 +211,7 @@ build/hyperion.exe openpbr_metals
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--scene <name>` / `-s` | `cornell_classic.scene.toml` | Scene name or path; bare names resolve against the assets directory (also accepted as first positional argument) |
+| `--scene <name>` / `-s` | `cornell_classic` | Scene name or path; bare names resolve against the assets directory (also accepted as first positional argument) |
 | `--output <file>` / `-o` | — | Headless mode: accumulate and save EXR (untonemapped) + PNG (tonemapped), then exit; a `.png` output saves PNG only |
 | `--spp <n>` | scene value | Override samples per pixel |
 | `--depth <n>` | scene value | Override maximum bounce depth |
@@ -250,7 +250,7 @@ cd build && ctest --output-on-failure
 
 ## References
 
-Hyperion's BSDF, volumetric, color-science, and denoising references live in [Harmonia's README](../Harmonia/README.md#references) (the shared implementation). Below: path-tracer-specific references only.
+Hyperion's BSDF, volumetric, color-science, and denoising references live in [Harmonia's README](https://github.com/McNopper/Harmonia/blob/main/README.md#references) (the shared implementation). Below: path-tracer-specific references only.
 
 | Resource | Relevance |
 |----------|-----------|
