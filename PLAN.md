@@ -1,7 +1,7 @@
 # PLAN — Hyperion
 
 **Release:** v0.7.21 - **VK5 RT-capture spike + degenerate-key bypass guard** (the RT pipeline is
-uncached on driver 621.14: import fails `VK_ERROR_INITIALIZATION_FAILED` with an all-zero driver
+uncached on driver 621.14 (re-checked 2026-11-17 on 621.24: still no usable RT key — `hyperion.rtPipeline` bypassed; non-RT cache lanes hit): import fails `VK_ERROR_INITIALIZATION_FAILED` with an all-zero driver
 key; the from-scratch fallback re-created it from its shaders — proven bit-exact) + **gallery
 30/30 byte-identical with the cache on**. Consumes Harmonia v0.7.23 (pin bump: Aether v0.8.1 +
 Harmonia v0.7.23) + alignment audit (PLAN header v0.7.20, AGENTS MOD5 note shipped). **Work continues
