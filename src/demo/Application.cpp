@@ -14,9 +14,11 @@
 
 namespace {
 
-constexpr sm::float3 kCornellCamPos(278.0f, 273.0f, -800.0f);
-constexpr sm::float3 kCornellCamTarget(278.0f, 273.0f, 279.5f);
-constexpr float kCornellFocusDist = 1079.5f;
+// Cross-renderer camera contract (owner ruling 2026-11-20, Theia/PLAN "CAMERA
+// PRESENCE CONTRACT"): every scene must carry a camera placement, enforced once in
+// Harmonia's SceneLoader. The private Cornell fallbacks that used to live here
+// (kCornellCamPos / kCornellCamTarget / kCornellFocusDist) are DELETED - a
+// camera-less scene fails the load instead of rendering a silent default view.
 
 [[nodiscard]] std::filesystem::path resolveShaderDir(std::filesystem::path shaderDir) {
     // Explicit user path takes priority only if it actually exists.
@@ -232,14 +234,18 @@ void hyperion::Application::applySceneOverrides(const harmonia::scene::SceneLoad
 }
 
 void hyperion::Application::buildCamera(const harmonia::scene::SceneLoader::SceneConfig& config) {
-    // Build camera — fall back to Cornell box defaults when scene file omits settings.
+    // Camera-presence contract (owner ruling 2026-11-20): SceneLoader refuses any
+    // scene without placement, so pos/at are guaranteed here - the Cornell value_or
+    // fallbacks are gone (camera-less scenes fail the load instead of rendering a
+    // private default view).
     harmonia::renderer::Camera::PhysicalCamera physical{};
     if (config.cameraEv100) {
         physical = harmonia::renderer::Camera::PhysicalCamera::fromEv100(*config.cameraEv100);
     }
-    const sm::float3 camPos = config.cameraPos.value_or(kCornellCamPos);
-    const sm::float3 camAt = config.cameraAt.value_or(kCornellCamTarget);
-    const auto [nearPlane, farPlane] = harmonia::renderer::Camera::nearFarFromDistance(sm::length(camAt - camPos));
+    const sm::float3 camPos = *config.cameraPos;
+    const sm::float3 camAt = *config.cameraAt;
+    const float targetDistance = sm::length(camAt - camPos);
+    const auto [nearPlane, farPlane] = harmonia::renderer::Camera::nearFarFromDistance(targetDistance);
     m_camera = harmonia::renderer::Camera(harmonia::renderer::Camera::Params{
         .position = camPos,
         .target = camAt,
@@ -252,7 +258,10 @@ void hyperion::Application::buildCamera(const harmonia::scene::SceneLoader::Scen
         .nearPlane = nearPlane,
         .farPlane = farPlane,
         .lensRadius = 0.0f,
-        .focusDist = kCornellFocusDist,
+        // Scene-derived (camera-to-target), replacing the private kCornellFocusDist
+        // = 1079.5f. Inert at the pinned pinhole above - same as before for every
+        // render - but no longer a constant a scene-without-camera would depend on.
+        .focusDist = targetDistance,
         .physical = physical,
     });
 }
