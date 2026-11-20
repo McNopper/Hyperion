@@ -22,8 +22,8 @@ int main(int argc, char* const argv[]) {
     harmonia::core::Logger::setTag("HYPERION");
     harmonia::app::App::Config config;
     config.title = "Hyperion — Path Tracer";
-    config.width = 1024;
-    config.height = 768;
+    config.width = harmonia::app::AppConfig::kDemoWidth;
+    config.height = harmonia::app::AppConfig::kDemoHeight;
     config.assetsDir = HYPERION_ASSETS_DIR;
     config.sceneFile = "cornell_classic.scene.toml";
     hyperion::Application::DemoConfig demoConfig;

@@ -16,7 +16,6 @@ namespace {
 
 constexpr sm::float3 kCornellCamPos(278.0f, 273.0f, -800.0f);
 constexpr sm::float3 kCornellCamTarget(278.0f, 273.0f, 279.5f);
-constexpr float kCornellVfovDeg = 39.1f;
 constexpr float kCornellFocusDist = 1079.5f;
 
 [[nodiscard]] std::filesystem::path resolveShaderDir(std::filesystem::path shaderDir) {
@@ -245,7 +244,10 @@ void hyperion::Application::buildCamera(const harmonia::scene::SceneLoader::Scen
         .position = camPos,
         .target = camAt,
         .up = config.cameraUp.value_or(sm::float3(0.0f, 1.0f, 0.0f)),
-        .vfovDeg = config.cameraVfov.value_or(kCornellVfovDeg),
+        // VFOV fallback hoisted to harmonia::renderer::kDefaultVfovDeg (cross-renderer
+        // audit, 2026-11-19): ONE definition shared with Theia, so the two renderers
+        // cannot drift. Was kCornellVfovDeg = 39.1f here vs value_or(39.1f) in Theia.
+        .vfovDeg = config.cameraVfov.value_or(harmonia::renderer::kDefaultVfovDeg),
         .aspectRatio = static_cast<float>(swapchain().extent().width) / static_cast<float>(swapchain().extent().height),
         .nearPlane = nearPlane,
         .farPlane = farPlane,
