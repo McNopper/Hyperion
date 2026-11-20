@@ -43,6 +43,7 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 
 ## At a glance
 
+- **Release:** v0.10.0 (2026-11-20) - camera-presence contract: the private Cornell position/target/focusDist fallbacks DELETED (bit-identity max|d|=0 on cornell_classic + negative-path proof on camera-less scenes), README/AGENTS alignment (scene example, flags, camera gotcha), gallery regenerated 30/30 byte-identical, check_arch 1.5.1; project 0.10.0, pins aether/harmonia v0.10.0.
 - **Release:** v0.9.0 (2026-11-16) - **deformation half + gate resolution consumed.** ANI4/ANI5 renderer halves (shared `DeformPass` from the animation tick: stage -> rest->morph->skin dispatch -> BLAS refit; rest-pose vertex copy; `meshSceneVertexOffsets`) + DQS blend consumption (zero renderer code) + parity-threshold recalibration (fresh gate 14/14 PASS, 0 VUID) + triage sync (C11 consumed-claim removed). Receipts: unit suite **43/43**, e2e sequence 0 VUID with motion proof. Pins: Harmonia **v0.9.0**, Aether **v0.9.0**.
 - **Prior:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21; v0.7.19 - GI-SMS
   sampling and the reference mode; v0.7.18 - sampling/RNG/history corrections + refreshed gallery;
