@@ -129,18 +129,29 @@ reference = "presets/preview.render.toml"      # shared preset; inline keys over
 working_color_space = "lin_rec2020_scene"      # or "lin_rec709_scene"
 
 [camera]
-reference = "presets/cornell.camera.toml"      # translate / rotate / vfov / ev100
+reference = "presets/cornell.camera.toml"      # optional preset (vfov / ev100)
+translate = [0.0, 2.73, -8.0]                  # REQUIRED placement: translate +
+rotate_x = 0.0                                 # rotation, inline or resolved from
+rotate_y = 180.0                               # a preset carrying them
 
 [tonemap]
 tonemapper = "agx"                             # aces | agx | reinhard | hable
 
-[[geometry]]
-type = "instance"                              # instance | box | sphere
-mesh = "cornell.obj"
-materials = { Floor = "WhiteWall", LeftWall = "RedWall", RightWall = "GreenWall" }
+[[mesh]]
+name = "cornell"
+path = "cornell.obj"
+
+[[instance]]
+mesh = "cornell"
+materials = { Floor = "WhiteWall", Ceiling = "WhiteWall", AreaLight = "AreaLight", BackWall = "WhiteWall", LeftWall = "RedWall", RightWall = "GreenWall" }
+rotate_y = 180.0                               # compensates the 180 Y bake in cornell.obj
 ```
 
-OBJ files contribute **only geometry** — material import from OBJ/MTL is disabled by
+A `[camera]` placement (`translate` + `rotate`/`rotation`, inline or through a
+preset that carries them) is **required**: the shared scene loader rejects
+camera-less scenes instead of falling back to a private default view.
+
+OBJ files contribute **only geometry** - material import from OBJ/MTL is disabled by
 design; all material assignments are declared in the scene file. See the
 [Aether README](https://github.com/McNopper/Aether) for the full format reference.
 
@@ -217,7 +228,7 @@ build/hyperion.exe openpbr_metals
 | `--depth <n>` | scene value | Override maximum bounce depth |
 | `--width <n>` | 1024 | Override render width in pixels |
 | `--height <n>` | 768 | Override render height in pixels |
-| `--validation` / `--no-validation` | disabled | Enable / disable Vulkan validation layers |
+| `--validation` / `--no-validation` | enabled | Vulkan validation layers - ON by default (family contract); `--no-validation` is the explicit escape hatch |
 
 ---
 

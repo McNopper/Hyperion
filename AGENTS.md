@@ -118,6 +118,11 @@ direct pure-absorber-exit rules when adding renderer consumers.
 - **Emissive winding:** emissive-triangle normals derive from OBJ winding
   (`cross(edge1,edge2)`); back-facing emitters are skipped in NEE. OBJs must be
   outward-facing (CCW-from-outside) or they render black.
+- **Scene files (and synthetic test fixtures) must carry a `[camera]` placement** -
+  `translate` + `rotate`/`rotation`, inline or via a preset that carries them.
+  `SceneLoader` rejects camera-less scenes with a precise diagnostic (camera-presence
+  contract, owner 2026-11-20): Hyperion's private Cornell fallback view is DELETED;
+  camera presets that only set vfov/ev100 do NOT satisfy the requirement.
 
 ## Test scenes
 
