@@ -1,12 +1,11 @@
 # PLAN — Hyperion
 
-**Release:** v0.7.21 - **VK5 RT-capture spike + degenerate-key bypass guard** (the RT pipeline is
-uncached on driver 621.14 (re-checked 2026-11-17 on 621.24: still no usable RT key — `hyperion.rtPipeline` bypassed; non-RT cache lanes hit): import fails `VK_ERROR_INITIALIZATION_FAILED` with an all-zero driver
-key; the from-scratch fallback re-created it from its shaders — proven bit-exact) + **gallery
-30/30 byte-identical with the cache on**. Consumes Harmonia v0.7.23 (pin bump: Aether v0.8.1 +
-Harmonia v0.7.23) + alignment audit (PLAN header v0.7.20, AGENTS MOD5 note shipped). **Work continues
-on `main`** in all family repos; the dev/gi-sms-restir branch is retired (history is `git log` and
-the Baseline below).
+**Minor release:** v0.11.0 - documentation and roadmap aligned with the shipped ground-truth
+renderer; the stale `hyperion::Descriptors` declaration and SMS test-material static-analysis
+finding are fixed. `verify-full` passes 79/79, family parity is 14/14, and the full-gallery
+Vulkan sweep is 60/60 clean. Project version and Aether/Harmonia pins are 0.11.0. **No approved
+implementation roadmap item remains; work continues on `main`.** Historical release and
+qualification records stay below.
 
 **GI-SMS status:** Hyperion ships the SMS sampling path and the SMS-off reference
 mode that produced the independent references for Theia's C1/C2/C3 qualification
@@ -43,6 +42,7 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
 
 ## At a glance
 
+- **Minor release:** v0.11.0 (2026-11-23) - documentation/roadmap alignment and verified static-analysis repairs (`73a405a`); project version and Aether/Harmonia pins 0.11.0. `verify-full` 79/79, family parity 14/14, full-gallery Vulkan validation 60/60 clean. No open implementation roadmap item.
 - **Release:** v0.10.0 (2026-11-20) - camera-presence contract: the private Cornell position/target/focusDist fallbacks DELETED (bit-identity max|d|=0 on cornell_classic + negative-path proof on camera-less scenes), README/AGENTS alignment (scene example, flags, camera gotcha), gallery regenerated 30/30 byte-identical, check_arch 1.5.1; project 0.10.0, pins aether/harmonia v0.10.0.
   - **Release verification (2026-11-23):** `verify-full` exit 0 (79/79 tests) after removal of the stale `hyperion::Descriptors` declaration (`73a405a`). Family parity harness **14/14 PASS** and full-gallery Vulkan validation **60/60 clean**; README gallery regenerated 30/30 byte-identical.
 - **Release:** v0.9.0 (2026-11-16) - **deformation half + gate resolution consumed.** ANI4/ANI5 renderer halves (shared `DeformPass` from the animation tick: stage -> rest->morph->skin dispatch -> BLAS refit; rest-pose vertex copy; `meshSceneVertexOffsets`) + DQS blend consumption (zero renderer code) + parity-threshold recalibration (fresh gate 14/14 PASS, 0 VUID) + triage sync (C11 consumed-claim removed). Receipts: unit suite **43/43**, e2e sequence 0 VUID with motion proof. Pins: Harmonia **v0.9.0**, Aether **v0.9.0**.
