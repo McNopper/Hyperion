@@ -18,9 +18,6 @@
 #include "harmonia/utils/ColorSpace.hpp"
 #include "harmonia/utils/OutputColorSpace.hpp"
 
-namespace hyperion {
-class Descriptors;
-}
 namespace harmonia::renderer {
 class Pipeline;
 }
