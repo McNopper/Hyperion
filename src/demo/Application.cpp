@@ -10,6 +10,7 @@
 #include "aether/format/SceneAnimator.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
+#include "harmonia/renderer/CameraAssembly.hpp"
 #include "hyperion/ShaderPaths.hpp"
 
 namespace {
@@ -151,7 +152,9 @@ bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::Sc
     // in record()'s per-tick block (never-placed sentinel fires on frame 0).
     m_cameraNodeId = sceneConfig.cameraNodeId;
     m_cameraTick = ~std::uint64_t{0};
-    buildCamera(sceneConfig);
+    if (!buildCamera(sceneConfig)) {
+        return false;
+    }
 
     if (const VkResult result = m_scene.build(deviceContext(), commandPool()); result != VK_SUCCESS) {
         harmonia::core::Logger::error("hyperion::Scene build failed: VkResult {}", static_cast<int>(result));
@@ -233,37 +236,15 @@ void hyperion::Application::applySceneOverrides(const harmonia::scene::SceneLoad
     }
 }
 
-void hyperion::Application::buildCamera(const harmonia::scene::SceneLoader::SceneConfig& config) {
-    // Camera-presence contract (owner ruling 2026-11-20): SceneLoader refuses any
-    // scene without placement, so pos/at are guaranteed here - the Cornell value_or
-    // fallbacks are gone (camera-less scenes fail the load instead of rendering a
-    // private default view).
-    harmonia::renderer::Camera::PhysicalCamera physical{};
-    if (config.cameraEv100) {
-        physical = harmonia::renderer::Camera::PhysicalCamera::fromEv100(*config.cameraEv100);
+bool hyperion::Application::buildCamera(const harmonia::scene::SceneLoader::SceneConfig& config) {
+    const auto params = harmonia::renderer::CameraAssembly::fromSceneConfig(
+        config, static_cast<float>(swapchain().extent().width) / static_cast<float>(swapchain().extent().height));
+    if (!params) {
+        harmonia::core::Logger::error("Scene camera assembly failed: missing camera placement");
+        return false;
     }
-    const sm::float3 camPos = *config.cameraPos;
-    const sm::float3 camAt = *config.cameraAt;
-    const float targetDistance = sm::length(camAt - camPos);
-    const auto [nearPlane, farPlane] = harmonia::renderer::Camera::nearFarFromDistance(targetDistance);
-    m_camera = harmonia::renderer::Camera(harmonia::renderer::Camera::Params{
-        .position = camPos,
-        .target = camAt,
-        .up = config.cameraUp.value_or(sm::float3(0.0f, 1.0f, 0.0f)),
-        // VFOV fallback hoisted to harmonia::renderer::kDefaultVfovDeg (cross-renderer
-        // audit, 2026-11-19): ONE definition shared with Theia, so the two renderers
-        // cannot drift. Was kCornellVfovDeg = 39.1f here vs value_or(39.1f) in Theia.
-        .vfovDeg = config.cameraVfov.value_or(harmonia::renderer::kDefaultVfovDeg),
-        .aspectRatio = static_cast<float>(swapchain().extent().width) / static_cast<float>(swapchain().extent().height),
-        .nearPlane = nearPlane,
-        .farPlane = farPlane,
-        .lensRadius = 0.0f,
-        // Scene-derived (camera-to-target), replacing the private kCornellFocusDist
-        // = 1079.5f. Inert at the pinned pinhole above - same as before for every
-        // render - but no longer a constant a scene-without-camera would depend on.
-        .focusDist = targetDistance,
-        .physical = physical,
-    });
+    m_camera = harmonia::renderer::Camera(*params);
+    return true;
 }
 
 void hyperion::Application::placeBoundCamera(double seconds) {
@@ -274,16 +255,7 @@ void hyperion::Application::placeBoundCamera(double seconds) {
     if (!pose) {
         return; // hand-built scene without a placement - keep the current view
     }
-    // aether::Vec3 is sm::float3; forward = rotation * (0, 0, -1) matches the
-    // static [camera] convention SceneLoader derives At/Up with.
-    const sm::float3 at = pose->position + (pose->rotation * sm::float3{0.0f, 0.0f, -1.0f});
-    m_camera.setPosition(pose->position);
-    m_camera.setTarget(at);
-    m_camera.setUp(pose->rotation * sm::float3{0.0f, 1.0f, 0.0f});
-    // Scene-scale-aware clip planes follow the placed camera-to-target
-    // distance (the same helper buildCamera uses).
-    const auto [nearPlane, farPlane] = harmonia::renderer::Camera::nearFarFromDistance(sm::length(at - pose->position));
-    m_camera.setNearFar(nearPlane, farPlane);
+    m_camera = harmonia::renderer::Camera(harmonia::renderer::CameraAssembly::fromPose(m_camera.params(), *pose));
 }
 
 VkResult hyperion::Application::setupSceneDescriptors() {

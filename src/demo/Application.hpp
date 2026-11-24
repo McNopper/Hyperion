@@ -74,7 +74,7 @@ class Application final : public harmonia::app::App,
   private:
     [[nodiscard]] bool createGBuffers(VkExtent2D extent);
     void applySceneOverrides(const harmonia::scene::SceneLoader::SceneConfig& config);
-    void buildCamera(const harmonia::scene::SceneLoader::SceneConfig& config);
+    bool buildCamera(const harmonia::scene::SceneLoader::SceneConfig& config);
     /// ANI8: re-place m_camera from the bound node's evaluated world at
     /// @p tick (position/target/up + scene-scale clip planes). No-op without
     /// a bound camera node.
