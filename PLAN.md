@@ -53,10 +53,12 @@ gate measures against. Most estimator work therefore happens in Harmonia (see
   clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
   bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
   suite needs a GPU).
-- **Next:** no Hyperion item is on the family's next-up list right now - the
-  active items (PERF4/PERF5 removed 2026-11-15; C/DN/LS tracks, VK capability slices) live
+- **Next:** **CAM-1 camera-assembly deduplication** (family charter in
+  `Harmonia/PLAN.md` §3) is the next shared-engine implementation item and will be
+  consumed here. Otherwise no Hyperion item is on the family's next-up list right now -
+  the active items (PERF4/PERF5 removed 2026-11-15; C/DN/LS tracks, VK capability slices) live
   in **Harmonia/PLAN.md** and the **Theia/PLAN.md** roadmap and are consumed
-  here. Hyperion: PERF3 **done** (Harmonia slice + per-frame refit integration, 2026-11-09); ANI7 **done 2026-11-15** (sequence render); no Hyperion backlog item.
+  here. Hyperion: PERF3 **done** (Harmonia slice + per-frame refit integration, 2026-11-09); ANI7 **done 2026-11-15** (sequence render); no other Hyperion backlog item.
 ## How to continue
 
 AR1 (shipped in v0.7.14): Hyperion's Scene implements the harmonia/scene_rt hooks
