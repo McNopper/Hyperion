@@ -1,11 +1,10 @@
 # PLAN — Hyperion
 
-**Minor release:** v0.11.0 - documentation and roadmap aligned with the shipped ground-truth
-renderer; the stale `hyperion::Descriptors` declaration and SMS test-material static-analysis
-finding are fixed. `verify-full` passes 79/79, family parity is 14/14, and the full-gallery
-Vulkan sweep is 60/60 clean. Project version and Aether/Harmonia pins are 0.11.0. **No approved
-implementation roadmap item remains; work continues on `main`.** Historical release and
-qualification records stay below.
+**Minor release:** v0.12.0 - CAM-1 scene-camera assembly deduplication consumed through
+Harmonia's shared `CameraAssembly`; Hyperion's path-tracer camera behavior is unchanged.
+Shared tests 7/7, Hyperion 79/79, parity 14/14, gallery validation 60/60. Fresh README
+gallery regenerated 30/30 byte-identical. Project version and Aether/Harmonia pins are
+0.12.0. No approved implementation roadmap item remains; work continues on `main`.
 
 **GI-SMS status:** Hyperion ships the SMS sampling path and the SMS-off reference
 mode that produced the independent references for Theia's C1/C2/C3 qualification
