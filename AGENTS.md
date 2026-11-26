@@ -1,242 +1,108 @@
 # AGENTS.md — Hyperion
 
-Quick-start context for AI agents so basic facts don't have to be rediscovered.
-
-**Outstanding work, governance (definition of done + guardrails) and release history: see
-[`PLAN.md`](PLAN.md).**
+Short orientation for coding tools that read a repository description automatically. The
+complete documentation is in [README.md](README.md); each section below points into it.
+Outstanding work and the release history are in [PLAN.md](PLAN.md).
 
 ## What this repo is
 
-**Hyperion** is a Vulkan **path tracer** and the **ground-truth reference renderer** for the
-pipeline. It uses ray tracing (BLAS/TLAS), index buffers, NEE + MIS with environment
-importance sampling (CDF). Other renderers (Theia) are aligned to match Hyperion.
+Hyperion is the offline path tracer and the reference renderer of a five-repository family
+(slang-math → Aether → Harmonia → Hyperion and Theia). Its images are the ground truth that Theia
+is aligned to. Summary: [README.md, Architecture](README.md#architecture).
 
-**Material model = OpenPBR Surface** (Academy Software Foundation), whose canonical/reference
-implementation is **MaterialX** (`mx_*` genGLSL nodes). Hyperion's BSDF (the shared
-`Harmonia/shaders/bsdf_shared.slang`) is the **conformance ground truth** for OpenPBR in this pipeline; when
-improving spec-correctness, fix it here first, regenerate references, then align Theia. It
-implements the full OpenPBR 1.1.2 layer stack — LTC sheen, GGX multiple-scattering compensation,
-thin-film iridescence, dispersion, and a **chromatic volumetric subsurface / transmission random
-walk** (per-channel extinction, hero-wavelength spectral MIS). The dielectric interface is
-**side-correct** (`SurfaceHit.backface` → `exiting` → inverted relative IOR: Fresnel/Snell/TIR
-on exit; `geometry_thin_walled` exempt — a thin film has no bulk, so its crossings never TIR). Its subsurface sheet follows OpenPBR 1.1.2 (#258/#321): subsurface_color applied once, radius/scale ignored, ½(1∓g) anisotropy split.
-Transmission absorption follows **MaterialX tint semantics** (BTDF tinted by `transmission_color`
-at depth 0, white at depth > 0 with the color realized volumetrically by the walk,
-Ïƒ_t = −ln(color)/depth); pure absorbers (single-scatter albedo = 0) use **exact deterministic
-Beer–Lambert transmittance** at the boundary (ratio-tracking degenerate case — zero walk
-variance). Theia mirrors the same shared walk in its RT-GI compute path; Hyperion remains the
-ground truth where the full offline light transport (dispersion, multi-bounce glass, unbounded
-walks) is exact — still cross-check parameters/behaviour against MaterialX.
-
-Pipeline (dependency direction):
-
-```mermaid
-flowchart LR
-    SM["slang-math<br/>math"] --> A["Aether<br/>file format"]
-    SM --> H
-    A --> H["Harmonia<br/>shared Vulkan lib"]
-    H --> Hy["<b>Hyperion</b><br/>path tracer · ground truth (this repo)"]
-    H --> T["Theia<br/>real-time renderer"]
-```
-
-Consumes Aether + Harmonia via CMake FetchContent. The demo is a thin `harmonia::app::App`
-subclass injecting `harmonia::app::IRenderer`. Hyperion's classes live in `namespace hyperion`
-(the shared layers are `harmonia::<layer>` — see Harmonia's AGENTS).
+- Code that both renderers use unchanged lives in Harmonia: the OpenPBR BSDF
+  (`Harmonia/shaders/bsdf_shared.slang`), the surface estimator
+  (`Harmonia/shaders/path_integrator.slang`), the medium-walk mathematics
+  (`Harmonia/shaders/medium_walk.slang`) and the application host `harmonia::app::App`.
+- Hyperion contributes the ray-tracing shaders in `shaders/`, its GPU scene layout in
+  `src/hyperion/scene/`, the per-frame recording in `src/hyperion/renderer/` and the host
+  subclass in `src/demo/`. Its classes live in `namespace hyperion`.
+- Hyperion never depends on Theia. Code that both renderers need moves down into Harmonia.
+- The OpenPBR conformance tests of the shared BSDF are `tests/unit/test_bsdf.cpp`.
 
 ## Running
 
 ```powershell
-build/hyperion.exe --scene cornell_classic --output out.exr            # headless EXR+PNG
-build/hyperion.exe --scene dragon_teapot --spp 256 --output ref.exr    # clean IBL reference
+build/hyperion.exe --scene cornell_classic --output out.exr           # headless: EXR + PNG
+build/hyperion.exe --scene dragon_teapot --spp 256 --output ref.exr   # clean reference
 build/hyperion.exe shaderball_base                                     # interactive window
 ```
 
-CLI flags: all common Harmonia flags (`--scene/-s`, `--output/-o`, `--width`, `--height`,
-`--validation`/`--no-validation`) **plus** Hyperion-only:
-
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--spp <n>` | scene preset value | Override samples per pixel |
-| `--depth <n>` | scene preset value | Override max bounce depth |
+| `--spp <n>` | the scene's `samples_per_pixel`, else 4 | Samples per pixel. A capture accumulates N single-sample frames. |
+| `--depth <n>` | the scene's `max_depth`, else 8 | Maximum number of surface interactions per path. |
+| `--sms-mode <off\|local>` | `local` | `off` renders with ordinary path tracing only, without specular manifold sampling (the reference mode for manifold-sampling comparisons). |
 
-**One accumulation owner:** raygen writes only the current dispatch's mean;
-Harmonia's shared AccumulationPass owns temporal history. For a capture,
-`--spp N` schedules N single-sample logical frames, not N² samples. Interactive
-batching still uses N samples per dispatch. `--rng-seed` selects the Sobol
-scramble; frame/sample indices advance progressively and same-seed captures
-are reproducible. Do not add a second HDR history blend inside raygen.
-Multi-sample captures require the accumulation stage; explicitly disabling it
-is rejected rather than exporting the last one-sample frame. A single-sample
-capture may omit temporal history. Requested accumulation creation failures are
-fatal in the shared host, not a warning-and-continue fallback.
+Every other flag is parsed by Harmonia; the list is in
+[README.md, Command-line flags](README.md#command-line-flags). There is no `--offscreen` flag:
+`--output` selects headless mode. Shaders are loaded from the shader directory compiled into the
+executable (`HYPERION_SHADER_DIR`), never from the working directory.
 
-**Local GI-SMS work:** PathTracer::render records bounded initial work, not an
-implicitly completed image. Direct API callers must submit/wait, query
-frameReady(), and submit/wait recordContinuation() until ready before reading,
-accumulating or exporting HDR. The Application's IFrameCompletion adapter does
-this automatically. Ready includes GPU full-slot validation and SMS HDR resolve;
-errors abort the logical frame. Shared/core algorithms follow the SMS papers;
-the current verified renderer milestones are exact-delta mirror and flat closed-
-glass / colored pure-absorption energy, not the whole GI-SMS / Theia feature.
-Scattering, dispersion and longer chains stay PT-owned. See PLAN.md for remaining scope.
-`PathTracer::Config::smsPartitionResolution` selects Hong's 3×3 periodic walk
-trust regions (default 16, supported 1–32); 1 is the exact unpartitioned limit.
-Conditional repeat sampling includes the known region-probability correction.
-Per-frame priors use 128 pilot walks per 16×16 block and a sparse per-light
-direction-tile union, frozen before all initial/repeat trials. The .2 uniform
-component preserves full coverage; `smsPriorEnabled=false` selects the exact
-uniform-prior limit for controls. Theia's PSMS-ReSTIR reuse is shipped (Theia
-v0.8.2); Hyperion provides the SMS-off reference mode used by its qualification.
-Receiver collection includes the first eligible opaque non-specular surface after
-a PT-sampled specular camera prefix, with frozen RGB throughput and remaining
-receiver-inclusive depth. Null/scattering/non-delta prefixes and later diffuse
-receivers stay PT-owned. Independent planar SDS mirror/Snell/Beer and depth-boundary
-fixtures cover this extension; these are not curved-scene or reuse acceptance.
-The common compute sampler lives in `Harmonia/shaders/sms_compute.slang`, included
-after `sms_sample.slang` defines its six renderer aliases. This preserves the
-concrete compute call graph; do not reintroduce a separately evolving sampler.
-Geometry and descriptor layouts remain renderer-specific.
-SMS triangle normals use the same normalized-vertex / blended-length geometric
-fallback as actual RT, with zero derivatives on that fallback branch. Visibility
-uses the opaque TLAS query directly, including analytic spheres; a failed shading
-reconstruction is never evidence that an opaque blocker is absent.
-The actual-event classifier is shared in `Harmonia/shaders/sms_path.slang`; Hyperion keeps
-only payload/scene adapters. Preserve the first-receiver, relative-depth and
-direct pure-absorber-exit rules when adding renderer consumers.
+## Gotchas
 
-⚠ï¸ No `--offscreen` flag — headless is triggered by `--output`.
-
-## Gotchas (these waste a cycle every time they're forgotten)
-
-- **Assets come from `build/_deps/aether-src/assets/`** (FetchContent clone), NOT the working
-  Aether tree. Editing the Aether working tree's `assets/` does nothing unless you also
-  update the `_deps` copy or build with `-DFETCHCONTENT_SOURCE_DIR_AETHER=...`. Symptom:
-  two "different" renders give byte-identical metrics. See Aether/AGENTS.md.
-- **spp for parity:** the meadow IBL scenes reference 64–128 spp presets (noisy under IBL).
-  Pass `--spp 256` when producing a parity reference, or the diff measures Monte-Carlo
-  noise, not a real discrepancy.
-- **Emissive winding:** emissive-triangle normals derive from OBJ winding
-  (`cross(edge1,edge2)`); back-facing emitters are skipped in NEE. OBJs must be
-  outward-facing (CCW-from-outside) or they render black.
-- **Scene files (and synthetic test fixtures) must carry a `[camera]` placement** -
-  `translate` + `rotate`/`rotation`, inline or via a preset that carries them.
-  `SceneLoader` rejects camera-less scenes with a precise diagnostic (camera-presence
-  contract, owner 2026-11-20): Hyperion's private Cornell fallback view is DELETED;
-  camera presets that only set vfov/ev100 do NOT satisfy the requirement.
+- Assets are read from the Aether checkout that CMake resolved: `build/_deps/aether-src/` by
+  default, otherwise the directory given to `FETCHCONTENT_SOURCE_DIR_AETHER`. An edit in another
+  Aether working tree does not change a render.
+- A scene needs a camera placement (translation and rotation, inline or through a preset). The
+  scene loader rejects a scene without one and has no default view.
+- OBJ faces must be wound outward. Emissive-triangle normals derive from the winding, so an
+  inward-wound emitter renders black.
+- Reference renders use 256 samples per pixel and are compared as EXR, never as PNG. A
+  low-sample reference measures its own noise. Details:
+  [README.md, Producing a reference render](README.md#producing-a-reference-render).
+- A capture of an animated scene needs `--sequence-frames`. Without it the accumulation restarts
+  at every sample and the image is a single-sample snapshot of the last animation time.
 
 ## Test scenes
 
-- Quick parity/iteration (cheap): `cornell_classic`, `cornell_spheres`, `cornell_suzanne`,
-  `dragon_teapot`.
-- **Never** use `ABeautifulGame` for quick test renders — it is expensive.
-  (It is required only in final screenshot/render *deliverable* batches, not iteration.)
+Cheap for iteration: the Cornell scenes (`cornell_classic` is the default scene). Material
+fixtures: `openpbr_*` and `shaderball_*`. Do not use `ABeautifulGame` for iteration; it is
+reserved for gallery renders. Table: [README.md, Test scenes](README.md#test-scenes).
 
 ## Build & test
 
 ```powershell
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release `
-      -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl `
-      -DCMAKE_TOOLCHAIN_FILE="<vcpkg-root>/scripts/buildsystems/vcpkg.cmake"
-cmake --build build
-cd build; ctest --output-on-failure
+cmake --preset win              # or the explicit configure in README.md, Building
+cmake --build --preset win
+ctest --preset win              # or: cd build; ctest --output-on-failure
 ```
 
-Equivalent preset flow (Ninja + Release + clang-cl + `$env:VCPKG_ROOT` toolchain):
-`cmake --preset win` / `cmake --build --preset win` / `ctest --preset win`.
-
-**Linux:** supported and CI-proven (g++/Ninja, glibc 2.43-era) — the Vulkan SDK tarball +
-SDL3-bridge recipe lives in Harmonia's AGENTS.md. CI: `.github/workflows/build.yml` builds
-`windows-latest` + `ubuntu-26.04` (pure build — the test suites need a GPU).
-Automatic CI runs only for main pushes and main-target PRs; manual dispatch remains
-available. GI-SMS PR/manual builds use the matching Harmonia development/WIP
-branch; unrelated branches use Harmonia main. Dependency release pins are unchanged.
-
-> **⚠️ Do not run things in parallel — it slows the machine to a crawl.**
-> - **Tests are serialised in CMake:** every test carries `RUN_SERIAL`, so `ctest -j`
->   cannot parallelise them. That only covers *within* one `ctest` invocation, so still
->   run ONE repo's suite at a time (never Harmonia + Theia + Hyperion together).
-> - **GPU jobs strictly one after the other:** renders, gallery generation and parity
->   gates all saturate the GPU. Run one, wait for it to finish, then start the next.
->   Two concurrent jobs make both several times slower and interleave their logs.
-> - **Offscreen capture self-deprioritises:** `App::renderOffscreen()` drops the
->   process to below-normal CPU priority (`BELOW_NORMAL_PRIORITY_CLASS` on Windows,
->   nice +10 on POSIX) for the whole capture, so the desktop stays usable while a
->   render runs. A per-frame `std::this_thread::yield()` alone is NOT sufficient - it
->   is `SwitchToThread()`/`sched_yield()`, only a hint that does nothing when no
->   equal-or-higher-priority thread is already runnable. On POSIX the drop is one-way
->   for an unprivileged process (raising priority back needs `CAP_SYS_NICE`), so it is
->   used only in the one-shot capture path. This helps *during* a capture; it is still
->   not licence to run two captures at once.
-
-**Lint (CI):** `.github/workflows/build.yml` runs a **blocking** `lint (Q2-Q6)` job
-on ubuntu-latest: clang-format (pinned 22.1.3 via pip - the local dev version; a
-different version reformats differently and fails), cppcheck (explicit source-file
-scan of `src/` + `include/`, gate = no `error:` severity), ruff over `tools/`
-(contract: root `ruff.toml`, identical in all five family repos; findings stay at
-zero - fix code, do not grow ignores), bandit (accepted tool-script patterns in the
-`--skip` list), actionlint + yamllint on the workflows. The build jobs check out
-Aether with `lfs: false` (pointers only — build-only CI never reads asset binaries;
-Git LFS bandwidth quota guard). Local pre-flight: run the
-same commands from the repo root before pushing a lint-affecting change.
-
-**Static analysis:** `python tools/check_tidy.py` — parallel clang-tidy over
-`build/compile_commands.json`, classified per `.clang-tidy`'s WarningsAsErrors contract
-(clang-diagnostic/clang-analyzer/bugprone fail the run; modernize/performance/portability
-are report-only). Also registered as ctest `test_tidy` (label `analysis`; the fast test loop is `ctest -LE analysis`; skips when
-clang-tidy, Python3 or the database is missing).
-**Architecture gate:** `ARCHITECTURE.md` is the machine-checked architecture contract —
-the document is the contract, the include graph is measured against it. ctest `test_arch`
-runs the vendored `tools/check_arch.py` engine (label `analysis`; local; not wired into CI). Contract:
-`hyperion/scene` is the leaf (plus the root `hyperion` vocabulary,
-`ShaderPaths.hpp`), `hyperion/renderer` consumes it, `demo` consumes both; includes may
-only go **down** that order (cross-repo includes of harmonia/slang-math/aether are
-downward by design), only **declared edges** exist (default deny), and there must be **no
-include cycles** (file-level SCC detection).
-Hyperion's classes live in `namespace hyperion`, opened in both headers and translation
-units. **Hyperion never depends on Theia** — the sibling renderers are independent;
-shared code goes down into Harmonia (a `theia/` include is a hard violation).
-
-**Dead-code gate:** `python tools/check_dead.py` - orphan headers, never-compiled sources (absent from `build/compile_commands.json` AND unreferenced by any CMake file), and FetchContent declare/consume mismatches. Also registered as ctest `test_dead` (label `analysis`; local only - registration is gated on the per-user check-dead skill install, so CI runners skip it). Justified findings go into `tools/check_dead.exceptions` with a reason; real dead code is deleted in a fix commit.
-
-Sanitizer lane (Clang/GCC configures only):
-**Coverage lane (Clang/GCC configures only):** configure a separate build with
-`-DHYPERION_COVERAGE=ON` (e.g. `-B build/coverage`), then run `python tools/coverage.py` - it
-builds the instrumented tree, runs the tests with `LLVM_PROFILE_FILE` set, merges the
-profiles and prints the llvm-cov report for `src/` (gcc builds report via gcov; exit 77
-when the LLVM tools are missing). NOT wired into CI: the test suites need a GPU and CI is build-only for the renderer band, so a CI coverage report would measure nothing - the lane stays a local activity.
-
-`-DHYPERION_SANITIZER=address|undefined|thread`. Host-side FP is deterministic
-(`/fp:strict` / `-ffp-contract=off -fno-fast-math`).
-
-SDL3, slangc and volk come from the Vulkan SDK (not vcpkg). vcpkg provides tomlplusplus and OpenImageIO.
+- `ctest -LE analysis` runs the test suites only. `ctest -L analysis` runs the source checks:
+  clang-tidy, the architecture contract and the dead-code check.
+- All tests are serialized, and GPU jobs never overlap: one render or one test suite at a time.
+- Before a push: a warning-clean build, the test suites, a representative render without
+  validation messages, and for a lint-affecting change the lint commands of the continuous
+  integration.
 
 ## Conventions
 
-- Commit, but do **not** push unless asked.
-- Build the current candidate locally, warning-clean, and run the applicable local
-  verification/lint before any authorized development/WIP push. Local Windows
-  success does not establish a Linux build or hosted CI success.
-- **GPU-driven, latest standard Vulkan, cross-vendor only** (core + `KHR`/`EXT`). No
-  vendor-specific extensions (`VK_NV_*`/`VK_AMD_*`/`VK_INTEL_*`) — must run on any vendor.
-- Working color space is scene-referred (e.g. `lin_rec2020_scene`).
+- The estimator is unbiased: no clamp, special case or scene-specific behavior in the render
+  path.
+- The shared accumulation pass is the only owner of the frame history. The ray-generation
+  shader writes the current dispatch only.
+- Defects are fixed in the code that owns them. A tolerance is never loosened to pass a test.
+- GPU-driven, latest standard Vulkan, cross-vendor only: core and `KHR`/`EXT` extensions, no
+  vendor extension, no fallback path. The working color space is scene-referred and linear.
+- Commits stay in the repository they belong to. Nothing is pushed unless requested.
 
-## GPU-driven design (Hyperion)
+## Rules when changing the renderer
 
-**Principle:** GPU-driven by design — all dispatch parameters are GPU-resident and pre-set;
-`render()` is a pure GPU command record with no CPU→GPU data transfer on the hot path.
-
-**Indirect RT dispatch (`VK_KHR_ray_tracing_maintenance1`, required):**
-- `ray_tracing_maintenance1` is a **hard-required** device feature — Harmonia's device
-  selection (`Harmonia/src/harmonia/vulkan_init/Context.cpp`) fails fast when it is absent. Hyperion dispatches rays exclusively
-  through `vkCmdTraceRaysIndirect2KHR`. The `VkTraceRaysIndirectCommand2KHR` buffer (SBT
-  addresses + render dimensions) is written **once** at `PathTracer::create()` and updated in
-  `onResize()`. The per-frame `render()` path records only GPU commands — no host writes.
-
-**Acceleration structure builds — device-side only (Khronos deprecation compliant):**
-- All BLAS builds: `vkCmdBuildAccelerationStructuresKHR` (Harmonia `Geometry::buildBlas`).
-- All TLAS builds: `vkCmdBuildAccelerationStructuresKHR` (`SceneBase::buildTlas`).
-- `vkBuildAccelerationStructuresKHR` (host-side) is **never used** — deprecated per the
-  [Khronos RT AS deprecation blog](https://www.khronos.org/blog/vulkan-ray-tracing-deprecating-host-side-acceleration-structure-builds).
-- `VK_KHR_device_address_commands` / `vkCreateAccelerationStructure2KHR` — **SHIPPED (MOD5)**:
-  the only AS creation path (device-address-only; the legacy `vkCreateAccelerationStructureKHR`
-  is deleted, no fallback — Harmonia/PLAN.md §5.8).
+- `PathTracer::render()` records bounded work. Before an image is read, accumulated or exported,
+  the caller submits it, waits, and repeats `frameReady()` and `recordContinuation()` until the
+  frame is ready. The host does this through its `IFrameCompletion` interface; a failed check
+  fails the frame instead of accumulating a partial result.
+- The ray dispatch is indirect (`vkCmdTraceRaysIndirect2KHR`); `VK_KHR_ray_tracing_maintenance1`
+  is a hard device requirement. The indirect command buffer is written at creation and on resize
+  only. Acceleration structures are built with device-side commands only.
+- The ray-tracing pipeline is created by Harmonia (`Harmonia/src/harmonia/renderer/Pipeline.cpp`)
+  with four hit groups in a fixed order: triangle radiance, triangle shadow, sphere radiance,
+  sphere shadow. Only the shadow hit groups carry an any-hit shader.
+- The manifold-sampling sampler is shared: `shaders/sms_sample.slang` includes
+  `Harmonia/shaders/sms_compute.slang`, and the path classifier is
+  `Harmonia/shaders/sms_path.slang`. Hyperion holds only the payload and scene adapters; a second
+  sampler must not be added. The first receiver after a specular prefix, the relative depth and
+  the pure-absorber exit are classification rules that new consumers must preserve.
+- `ARCHITECTURE.md` is machine-checked. Its `arch` block and the diagram section between the
+  `check_arch` markers stay unchanged; only the prose around them is edited. Details:
+  [ARCHITECTURE.md](ARCHITECTURE.md).

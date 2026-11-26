@@ -1,261 +1,123 @@
 # PLAN — Hyperion
 
-**Major release:** v1.0.0 - stable public baseline. Hyperion consumes Harmonia's shared
-camera assembly with unchanged ground-truth behavior. Reviewed and rubber-ducked code/docs;
-removed deterministic analyzer debt, declared external include boundaries, and adopted
-strict documentation-reference checks. Full gates: Hyperion 79/79; architecture and
-dead-code gates clean. Project version and Aether/Harmonia pins are 1.0.0. No approved
-implementation roadmap item remains.
+Hyperion is the offline path tracer and the unbiased reference renderer of a five-repository
+family (slang-math → Aether → Harmonia → Hyperion and Theia). Theia is aligned to Hyperion: the
+parity comparison measures a Theia image against a Hyperion reference image. This file lists the
+known limitations, what follows next, the numbers a change must not regress, the release process
+and the release history. How the renderer works and how it is used is in [README.md](README.md).
 
-**GI-SMS status:** Hyperion ships the SMS sampling path and the SMS-off reference
-mode that produced the independent references for Theia's C1/C2/C3 qualification
-(family record: the Theia PLAN Baseline and Harmonia PLAN section 3). The
-PSMS-ReSTIR spatiotemporal reuse is Theia-side; the path reservoir's
-no-temporal-merge rule (Governance) is unaffected.
+## Status
 
-**CI/local-first policy:** automatic checks run on main pushes and main-target
-PRs only; manual dispatch remains available. Build locally and run the
-applicable checks/lint before pushing. Dependency pins move only in coordinated
-release waves.
+Hyperion is at v1.0.0 and pins Aether v1.0.0 and Harmonia v1.0.0. No implementation item
+specific to Hyperion is open.
 
-## Context
+## Known limitations
 
-Hyperion is the **offline path tracer and unbiased ground truth** of a five-repo rendering
-pipeline:
+| Limitation | Detail |
+|------------|--------|
+| Specular manifold sampling covers two cases | It is verified for a planar mirror and for closed smooth glass whose interior is a pure absorber. Ordinary path tracing handles everything else: scattering media, dispersion, rough specular surfaces, chains with more than one specular vertex, and receivers that follow a diffuse bounce. Curved casters are not excluded by the code but are not validated by the fixtures. Reservoir reuse does not exist in Hyperion. |
+| Thin lens without an aperture | The ray-generation shader contains a thin-lens model, but the scene camera sets the lens radius to 0. No scene key selects an aperture, so every render is a pinhole image. |
+| Ellipsoid emitters | An emissive analytic sphere with a non-uniform instance scale is skipped by next-event estimation with a warning. |
+| Cross-mode captures agree only up to noise | Two captures of the same animation time made by different routes (an output frame of `--sequence-frames`, and a single capture with `--frame`) use different sample indices, so their pixels differ at noise level. Repeating the same route reproduces the pixels exactly. |
 
-```mermaid
-flowchart LR
-    SM["slang-math<br/>math"] --> A["Aether<br/>file format"]
-    SM --> H
-    A --> H["Harmonia<br/>shared Vulkan lib + BSDF / estimator"]
-    H --> Hy["<b>Hyperion</b><br/>path tracer · ground truth (this repo)"]
-    H --> T["Theia<br/>real-time · games-grade"]
-```
+## What follows next
 
-The family goal: improve both renderers with the latest algorithms from the industry
-(SIGGRAPH 2025–26 and surrounding literature), adopting each technique in the **shared
-Harmonia estimator + BSDF** wherever both renderers benefit; per-renderer only where they
-genuinely diverge. **Theia converges to Hyperion** — Hyperion is the reference the parity
-gate measures against. Most estimator work therefore happens in Harmonia (see
-`Harmonia/PLAN.md`); this file tracks what Hyperion implements or consumes. Sibling plans:
-`Harmonia/PLAN.md`, `Theia/PLAN.md`, `Aether/PLAN.md`, `slang-math/PLAN.md`.
+Nothing specific to Hyperion is planned. The active work of the family happens in the shared
+library and in the real-time renderer; Hyperion takes it over through the dependency pins in
+`CMakeLists.txt` and has to keep the properties of a reference renderer. The family's direction
+is to adopt new light-transport techniques in the shared estimator and BSDF wherever both
+renderers benefit, and in one renderer only where the renderers differ.
 
-## At a glance
+| Area | Where the work happens | What Hyperion has to keep |
+|------|------------------------|---------------------------|
+| BSDF, surface estimator, sampling | Harmonia | The result stays unbiased: no clamp, no special case, no loosened tolerance. The OpenPBR conformance tests in `tests/unit/test_bsdf.cpp` are updated together with a change to the shared BSDF. |
+| Manifold sampling and reservoir reuse | Harmonia (shared solver and classifier), Theia (reuse) | `--sms-mode off` stays the plain path-traced reference. Hyperion holds only payload and scene adapters. |
+| Parity comparison and thresholds | Harmonia | A reference image is rendered with 256 samples per pixel at 320×240. The budget changes only together with a newly measured set of thresholds. |
+| Scene format, animation and deformation data | Aether | The scene loader contract (a camera placement is mandatory) and the shared scene hooks that `hyperion::Scene` implements. |
+| Application host, capture and presentation | Harmonia | One owner of the frame history; a capture is the raw estimator result. |
 
-- **Minor release:** v0.11.0 (2026-11-23) - documentation/roadmap alignment and verified static-analysis repairs (`73a405a`); project version and Aether/Harmonia pins 0.11.0. `verify-full` 79/79, family parity 14/14, full-gallery Vulkan validation 60/60 clean. No open implementation roadmap item.
-- **Release:** v0.10.0 (2026-11-20) - camera-presence contract: the private Cornell position/target/focusDist fallbacks DELETED (bit-identity max|d|=0 on cornell_classic + negative-path proof on camera-less scenes), README/AGENTS alignment (scene example, flags, camera gotcha), gallery regenerated 30/30 byte-identical, check_arch 1.5.1; project 0.10.0, pins aether/harmonia v0.10.0.
-  - **Release verification (2026-11-23):** `verify-full` exit 0 (79/79 tests) after removal of the stale `hyperion::Descriptors` declaration (`73a405a`). Family parity harness **14/14 PASS** and full-gallery Vulkan validation **60/60 clean**; README gallery regenerated 30/30 byte-identical.
-- **Release:** v0.9.0 (2026-11-16) - **deformation half + gate resolution consumed.** ANI4/ANI5 renderer halves (shared `DeformPass` from the animation tick: stage -> rest->morph->skin dispatch -> BLAS refit; rest-pose vertex copy; `meshSceneVertexOffsets`) + DQS blend consumption (zero renderer code) + parity-threshold recalibration (fresh gate 14/14 PASS, 0 VUID) + triage sync (C11 consumed-claim removed). Receipts: unit suite **43/43**, e2e sequence 0 VUID with motion proof. Pins: Harmonia **v0.9.0**, Aether **v0.9.0**.
-- **Prior:** v0.7.20 - Vulkan capability wave consumed via Harmonia v0.7.21; v0.7.19 - GI-SMS
-  sampling and the reference mode; v0.7.18 - sampling/RNG/history corrections + refreshed gallery;
-  v0.7.17 - gallery refresh + check-dead gate; v0.7.16 - latest dependency pins.
-- **Quality gates (family-uniform):** blocking lint (Q2-Q6) on every push -
-  clang-format pinned 22.1.3, ruff contract in `ruff.toml` (identical x5), cppcheck,
-  bandit, actionlint 1.7.12, yamllint. Coverage stays a local activity (the test
-  suite needs a GPU).
-- **Next:** no approved implementation item remains. CAM-1 camera-assembly deduplication is
-  complete and verified. Otherwise no Hyperion item is on the family's next-up list right now -
-  the active items (PERF4/PERF5 removed 2026-11-15; C/DN/LS tracks, VK capability slices) live
-  in **Harmonia/PLAN.md** and the **Theia/PLAN.md** roadmap and are consumed
-  here. Hyperion: PERF3 **done** (Harmonia slice + per-frame refit integration, 2026-11-09); ANI7 **done 2026-11-15** (sequence render); no other Hyperion backlog item.
-## How to continue
+Out of scope: multi-node and multi-GPU rendering. Hyperion runs on one local GPU, no such
+infrastructure exists or is planned, and the idea is revisited only if a multi-GPU setup is
+adopted.
 
-AR1 (shipped in v0.7.14): Hyperion's Scene implements the harmonia/scene_rt hooks
-(`createTriangleMesh` / `finishBuild`) and builds its own TLAS; harmonia/scene is rt-free.
+## Numbers a change must not regress
 
+| Measurement | Value | What it measures |
+|-------------|-------|------------------|
+| Test suites | 79 of 79 pass (v1.0.0) | Unit, module and integration suites of this repository |
+| Parity comparison | 14 of 14 scenes pass: `mean_diff` ≤ 120, Rel-MSE ≤ 250, SSIM ≥ 0.6, luminance-histogram correlation ≥ 0.8 (320×240; Hyperion 256 samples per pixel, Theia 256 frames) | Agreement between Theia and the Hyperion reference under Harmonia's thresholds; these thresholds belong to this budget |
+| Gallery | 30 of 30 PNGs byte-identical when regenerated at 1280×720 with 64 samples per pixel | Reproducibility of a capture and stability of the rendering path |
+| Vulkan validation over the full gallery | 60 of 60 runs without a validation message or application warning | Valid Vulkan usage on every scene |
+| Capture reproducibility | Same seed and settings: identical EXR pixels. Seeds 123 and 456: 13,556 of 19,200 Cornell pixels differ | The seed selects the sample stream; a capture is replayable |
+| Progressive samples | 8 accumulated single samples differ from the first sample in 13,289 of 19,200 pixels | A capture does not repeat its first sample |
+| Manifold-sampling references | Rendered with 4096 samples per pixel and split seeds; uncertainty at most 0.5% | Reference images for comparisons that involve manifold sampling |
+| Sequence capture | Output frame 0 is bit-identical to a single capture of the same pose with the same seed; all frames of a sequence are bit-identical across runs | Pinning the animation time per output frame does not change the sampling |
 
-### Roadmap
+## Sequence rendering
 
-**GI-SMS reference prerequisite — sampling/accumulation contract (2026-11-02,
-baseline `49c1f21`, local Harmonia override):** source inspection found that
-`offscreenFrameCount()` returns N while PathTracer is configured with N samples
-per dispatch, and raygen averages history before the host's AccumulationPass
-averages it again. The CLI seed is parsed but not passed into PathTracer.
-Before SMS image/energy comparisons, verify/fix these as a bounded prerequisite:
+`--sequence-frames <N>` together with `--output` renders N animation frames to disk, one
+accumulated image per animation frame, with the animation time pinned per output frame. Static
+scenes are captured the same way; the frames are independent captures. The flags and the file
+naming are described in [README.md, Sequence capture of an animated scene](README.md#sequence-capture-of-an-animated-scene).
 
-| Item | Acceptance / oracle | Verification |
-|---|---|---|
-| One accumulation owner | Controlled actual RT emitter radiances 0.25 then 0.75 produce raw frame 0.75 and host-accumulated mean 0.5, adjusted only for known camera exposure | `cmake --build build`; `build/tests/hyperion_module_tests.exe --gtest_filter=FrameSamplingFixture.*` — must fail on the original shader, then pass after correction |
-| Capture sample budget | `--spp N` schedules N single-sample logical frames (clamp 0 to 1); interactive per-dispatch batching remains explicit | pure sampling-plan unit tests plus inspection of the Application consumer and headless frame-count logs |
-| Seed propagation | Same CLI seed/settings reproduce exact pixels; a different seed changes stochastic Cornell pixels | serial headless captures with `--spp 4 --rng-seed 123/456`, compare linear EXR pixels |
+Motion blur comes from Harmonia's `--shutter` and `--time-samples`: each sample of an output frame
+is rendered at its own time inside the open shutter, and the output frame is the mean of its
+samples. That makes a shuttered Hyperion frame the reference for the motion blur of Theia. On the
+Aether scene `motion_blur`, a shuttered frame agrees with the mean of its instants rendered one
+by one to 0.2 % of the luminance in the mover's trail.
 
-No BSDF/transport formulas or comparison tolerances change. Correcting sampling
-and double accumulation intentionally changes noise/RNG output; it is not a
-PERF5 identity-only refactor. Previous receipts labelled “32 spp” used the CLI
-setting; they are not proof that the old implementation traced only 32 samples.
-Regenerate reference evidence with the corrected true sample count before SMS
-quality claims. Full repo tests and validation-clean capture required; no push.
-**Executed proof:** both controlled actual-RT frame tests failed on the original
-shader (history contamination), then passed after removing raygen history; three
-sampling-plan CPU tests pass. Before seed propagation, 123 versus 456 changed
-0/19,200 Cornell pixels; after correction, 13,556/19,200 changed, while repeating
-seed 123 remained float-exact (0 changed pixels). The same captures' logs verify
-4 logical frames × 1 sample/dispatch. No sampling-image identity is claimed
-across this intentional bug fix; validation messages remain zero.
-**Review follow-up:** the initial module-test context had validation disabled,
-so its zero-message result was not Vulkan validation evidence. Module and render
-integration contexts now enable validation; the HDR fixture includes transfer-dst
-usage required by AccumulationPass. Both controlled RT tests rerun PASS with
-validation ON and zero validation messages. Real-App tests reject N>1 capture
-with explicitly disabled accumulation, while the alternative-valid N=1 raw
-capture succeeds. The shared host now treats requested accumulation creation
-failure as fatal (fault test fails old warn-and-continue code, then passes fixed).
-**Final verification:** full Hyperion suite 54/54 PASS with verbose validation
-output checked (zero messages); shared Harmonia 125/125 and Theia 33/33 also pass.
-Canonical architecture and local tidy/dead lanes pass. Progressive N4 output
-differs from its first N1 sample in 13,289/19,200 pixels; an isolated raygen
-repeating-index mutant fails that check, then exact restored SPIR-V passes.
-Repeated seed stays exact, different seed changes 13,556/19,200 pixels. Follow-up
-source review cleared the identified owner/exit-status blockers; runtime receipts
-remain author-run, not an independent runtime re-grade. These are reference
-repairs, not yet rendered SMS caustics or ReSTIR integration.
+## Release process
 
-| ID | Task | Deps | Status |
-|----|------|------|--------|
-| PERF3 | **GPU acceleration-structure pipeline** for Hyperion (the CPU-side BV is stale under hwRT): AS **refit-vs-rebuild + compaction**. **Done (2026-11-09):** Harmonia slice shipped (refit + device-side compaction, receipts on RTX 5070) **and integrated here**: `Scene::finishBuild` builds animated scenes update-capable (`allowUpdate`), `Scene::updateTlas` applies the shared `harmonia::scene_rt` refit-vs-rebuild policy per logical frame, and `Application::record` drives it with the deterministic tick clock (`frameIndex / animationFps`, Aether ANI2) + accumulation reset on animated frames (the offscreen path ignores the epoch by contract — animated sequence rendering is ANI7). Receipts: `tests/module/test_scene_anim.cpp` (loader-driven `[[animation]]` scene: `setAnimationTime` stamps through the sceneInstance→descInstance mapping, refit keeps handle + address, static scenes rebuild, dirty-gating). `VK_EXT_opacity_micromap` shipped standalone in v0.7.7 (single-mesh cutout use case) — unaffected. Open follow-on: importance-driven AS updates (RTXPT whitepaper §5, tracked in Harmonia §5.1). | PERF3 (Harmonia) | **done** |
-| ~~PERF6~~ | removed 2026-11-15: RAFI multi-node/multi-GPU ray forwarding (Wald, Zellmann et al. — 2026, [arXiv:2605.30294](https://arxiv.org/abs/2605.30294)) — **out of purpose**: Hyperion's offline path tracing runs on the single-GPU local harness; no multi-node/multi-GPU rendering infrastructure exists or is planned (large-scene streaming is served elsewhere). Paper reference dropped with it. Revisit only if a multi-GPU/node harness is adopted. | - | **removed (out of purpose)** |
-| ANI7 | **Render animated sequence to disk** - **DONE 2026-11-15**: shared `--sequence-frames <N>` (Harmonia `AppConfig`/`CliParser` + `App::renderOffscreen`) renders N animation frames to disk - per output frame k the animation tick is pinned to the OUTPUT frame through `App::animationFrameIndex()` (t = k / animationFps, box shutter at the frame start; constant across the output frame's accumulation samples), both renderer ticks stamp + TLAS-refit + `resetAccumulation()` exactly ONCE per output frame (the `m_lastAnimationTick` guard - the raw index keeps the classic paths byte-behaved), and EXR+PNG are written as `<stem>_0000<ext>` ... Each output frame is an independent accumulation (static scenes included). Classic single capture unchanged (0 = default); animated `--output` without the flag logs a one-time contract warn (it is a single-sample last-tick image). Receipts: Hyperion sequence (animated cornell variant, cube track y 1->2 over 0.1 s; `--sequence-frames 3 --spp 16` = 16 accumulation frames at the pinned tick): ANI7 log + 6 files, **0 VUID**; **sequence frame0 BIT-IDENTICAL (mean 0.0 / max 0.0) to the classic static capture at the same pose and RNG** - pinned-tick zero semantic drift; cross-frame motion concentrated in the cube's center-column sweep (f0-vs-f2 hotspot 0.31 vs 0.02-0.06 background); run-to-run determinism: **all 3 frames BIT-IDENTICAL across runs**; Theia sequence (`--sequence-frames 2 --offscreen-frames 8`): 4 files, 0 VUID, center-column motion; warn-path verified (one-time log fires). Suites: Harmonia **166/166** (4 new AppArgs parser tests), Hyperion **43/43**, Theia **61/61**; clang-format clean. **Timing extension + one animation clock (2026-11-16):** `--capture-every-ms <f>` (requires `--sequence-frames`) samples animation TIME at a fixed interval - `start + k * interval` seconds, start from `--start-seconds <f>` else `--frame`/fps - so sub-frame (16.67 ms) and multi-frame (1000 ms) ranges are both expressible; the range stays start + count x interval (count = `--sequence-frames`), rejected without it. ONE clock (`App::animationClock` -> {seconds, key}) derives the time for EVERY consumer - scene stamp, deform, TLAS and the scripted camera - replacing the parallel per-consumer guards that let a tick-keyed camera lag an interval capture (caught by cross-mode renders: interval t=1.0 vs `--frame 30`); `Harmonia/tools/frames_to_video.py` encodes a sequence into a playable H.264 mp4 (numeric frame ordering; `--interval-ms` pairs with the capture so playback duration = captured range: verified 10 x 100 ms -> **1.000 s at 10 fps**, h264/320x240). Receipts: AppArgs +4 (15/15), Harmonia **184/184**, Theia 61/61, Hyperion 43/43, arch/dead/tidy green in all four repos; tick-grid renders **bit-identical** pre/post unification (mean 0.000), interval 33.33 ms == tick grid at t=1/30 (mean 0.000 / SSIM 1.000), static-node-camera classic capture converges (0.000 vs sequence), 0 VUID everywhere. Known nuance: cross-mode renders at the same time can still differ at noise level because the per-sample JITTER indexes off the global accumulation counter (sampling, not animation - D2 == D2b determinism holds). | ANI1, ANI2 | **done** |
-| ANI8 | **Animated camera + frame seek, Hyperion half** - **DONE 2026-11-16**: same binding as Theia (`SceneConfig::cameraNodeId` -> `m_cameraNodeId`/`m_cameraTick`, own tick guard in `record()`); placement drives `setPosition` / `setTarget` / `setUp` / `setNearFar` (the harmonia `Camera` gained `setUp` + `setNearFar` for the animated-placement path; clip planes recompute from the placed camera-to-target distance); `--frame N` offsets the shared animation clock. The OFFLINE movie-frame path is `--sequence-frames 1 --frame N` = one fully-accumulated image at tick N (image generation for a later movie - Hyperion never plays back in real time). Receipts: unit suite **43/43**; the `--frame 0` vs `--frame 58` pair on `camera_orbit` (256 spp / 64 spp) mean_diff **122.9** - 1.7% from Theia's 124.9, so both renderers see the same angle change; **0 VUID / 0 validation / 0 warnings** on every run. | ANI1 (evaluate), ANI7 (sequence) | **done** |
-| SM6-Hyperion | **slang-math migration slice - DONE 2026-11-15.** Directed sweep over `src/` + `tests/`: the cited test-mirror `1/std::sqrt` (test_bsdf zeltner frame normalize) → `sm::rsqrt`, now line-locked with `Harmonia/shaders/bsdf_shared.slang`'s `Xax *= rsqrt(lenSq)`; **41** saturate-form `std::clamp(x, 0.0F, 1.0F)` mirrors → `sm::saturate` (bit-identical — `sm::saturate` IS `std::clamp(v, 0, 1)`; one nested/multi-line site hand-repaired after the bulk pass); 2 duplicate local `double kPi` constants → canonical `Math::kPi` (in-file precedent at the Fujii C1/C2 constants; test margins 2-10% unaffected). Non-saturate clamps (`-1..1`, `0.01..1`, `0.99999`) stay `std::clamp` per the scalar rule; no dead `Math::isNanOrInf`, duplicate float `kPi`, hand-rolled `Mat3` or TRS sites exist here. **No pin bump applies** — the three FetchContent declares are aether/harmonia/googletest; slang-math arrives transitively via Harmonia (the row's old direct-pin clause was stale, same as Theia's). 43/43 unit tests, clang-format clean. Track origin: slang-math/PLAN.md SM6. | - | **done** |
+A change is done when the test suites pass, a representative headless render runs without a
+validation message, and the build is warning-clean.
 
-### Consumed items (defined elsewhere)
+A release additionally needs:
 
-These change the shared estimator/BSDF in Harmonia; Hyperion consumes them 1:1 and must keep
-its ground-truth properties (deterministic replay, no bias) intact:
+- `verify-full`: build, test suites, `format-check`, clang-tidy and cppcheck.
+- The parity comparison over Harmonia's scene manifest
+  (`Harmonia/tools/render_and_validate.py` with `Harmonia/tools/validation_manifest.toml`).
+- A Vulkan validation run over the full 30-scene gallery (`Harmonia/tools/check_vulkan_validation.py`).
+- Regenerated screenshots for the README gallery at 1280×720 with 64 samples per pixel; they
+  must be byte-identical to the tracked ones when nothing in the rendering path changed.
 
-- **GI-SMS** (caustics/SDS), **C9** (bounded VNDF), **C12** (micrograin
-  flake), **DN3** (converging denoiser), **LS2** (separable-CDF product importance sampling - **replaces Hyperion's
-  env-CDF/NEE** in the shared estimator; the old env-CDF path is deleted), **PERF5/PERF4**
-  (removed 2026-11-15 - tombstones in `Harmonia/PLAN.md`).
-- **ANI2 Theia half** (per-frame TLAS refit consumption — the shared machinery is shipped in
-  Harmonia and Hyperion already consumes it, 2026-11-09; Theia's own PLAN row owns its half),
-  **ANI6** (animated parity gate, Harmonia; compare_sequences + ANI7 - landed 2026-11-15).
-- **ANI4/ANI5 Theia/Hyperion halves** (skinning LBS/DQS + morph targets - the shared `DeformPass`, renamed from SkinDeformPass when the morph half folded into the same rest->morph->skin dispatch, consumed from the animation tick: stage/dispatch/copy/BLAS-refit before updateTlas, plus the renderer substrate (`meshSceneVertexOffsets` ranges + the `scene.vertexRest` rest-pose copy); landed 2026-11-16 - receipts in `Harmonia/PLAN.md` ANI4 + ANI5: ctest 179/179, Hyperion 43/43, e2e sequence renders 0 VUID with visible motion).
-- **NH2/NH3** (node-graph transform compounding, Harmonia) once **NH1** (Aether) lands.
-- **I6** (frames-per-flip) is Theia-only (`Theia/PLAN.md`).
+The release order follows the dependency direction: slang-math, Aether, Harmonia, Hyperion. The
+Aether and Harmonia pins in `CMakeLists.txt` move in the release commit, and only in a
+coordinated release of the family. Work is committed in the repository it belongs to; a push
+happens only on request. Tags are pushed together with the commits, so
+`git ls-remote --tags origin` equals `git tag -l`.
 
-## Governance
+## Release history
 
-**Definition of done (per change):** `ctest` green **+** a representative headless render
-validation-clean **+** warning-clean build (clang-cl `/W4 /WX /permissive- /Zc:__cplusplus`,
-Clang/GNU `-Wall -Wextra -Werror -Wpedantic`; a compiler warning is a build failure — fix the
-cause, never silence it; a Vulkan validation message is a bug, never noise). **Per release:**
-the above plus `verify-full` (verify + format-check + clang-tidy + cppcheck) **plus** the
-parity harness (`Harmonia/tools/render_and_validate.py` over `Harmonia/tools/validation_manifest.toml`)
-**plus** `Harmonia/tools/check_vulkan_validation.py` over the full 30-scene gallery **plus**
-regenerated screenshots.
+The notes of the most recent releases are in [RELEASE_NOTES.md](RELEASE_NOTES.md). Releases
+before v0.6.19 are recorded only in the git history.
 
-**Screenshot standard:** gallery PNGs 1280×720 at **64 spp** (fireflies acceptable — 256 spp
-is too slow for the full set); **parity references** are distinct: a clean Hyperion
-**256 spp** EXR at the 320×240 parity resolution (never compare against a low-spp reference —
-the low-spp trap, Aether/AGENTS.md).
-
-**Guardrails:**
-
-- **Hyperion is unbiased — no clamps/hacks in the estimator.** The render-path firefly clamp
-  is removed; do not reintroduce one. Carve-out: a neighbourhood soft-clamp exists in the
-  **display path only** (`Harmonia/shaders/tonemap.slang`) and never touches the
-  scene-referred EXR that parity is measured on.
-- **Deterministic replay:** `--deterministic-replay` EXR output must stay bit-identical
-  across estimator/scheduling changes — the RNG-sequence guarantee itself (preserve the
-  exact RNG sequence; recorded originally for the wavefront redesign, which was removed
-  2026-11-15).
-- **The denoiser is a presentation stage, never part of the estimator:** forced off for
-  `--output` (the capture is the raw scene-referred estimator result). Do not re-enable it on
-  the capture path, and do not describe it as converging.
-- Shared-BSDF contracts defined in Harmonia apply here verbatim (see `Harmonia/PLAN.md`
-  guardrails): dielectric sidedness (raw outward `geoNormal`), the Chiang 2019 terminator
-  factor at every NEE/continuation site, object-space position-fetch vertices (transform by
-  `ObjectToWorld3x4`), MaterialX transmission-tint semantics, exact Beer–Lambert for pure
-  absorbers, device-only AS builds.
-- **Vulkan policy: latest + KHR/EXT, modern over legacy, no fallbacks.** Target the latest
-  stable Vulkan (1.4); core + KHR/EXT over vendor extensions; no fallback paths — an optional
-  capability is permitted only when its absent-branch is image-identical and free (the
-  probe→enable pattern, `Harmonia/PLAN.md` §Vulkan capability adoption).
-- Fix bugs at once — root-caused and patched immediately. Solve directly, never defer.
-- Tags are always pushed to GitHub (verify `git ls-remote --tags origin` == `git tag -l`).
-  Release order: slang-math → Aether → Harmonia → **Hyperion**; bump the Harmonia
-  FetchContent pin in the release commit.
-- Commit per-repo; push only on explicit OK.
-- Living document — done work is removed from this file; the record is the Baseline and
-  `git log`.
-
-## Baseline
-
-- **v0.7.21** (consumes Harmonia v0.7.23, Aether v0.8.1): **VK5 RT-capture spike + alignment audit.**
-  The RT pipeline's binary capture works (9 blobs, 1.5 MB) but consume fails on driver 621.14
-  (`VK_ERROR_INITIALIZATION_FAILED`) with a degenerate all-zero driver key — the cache bypasses RT
-  (degenerate-key guard in Harmonia's `PipelineBinaryCache`) and the from-scratch fallback re-created
-  the pipeline from its shaders, proven bit-exact (cache-off vs cache-on-warm: max_diff 0.000,
-  PSNR inf). Gallery re-rendered cache-on: **30/30 byte-identical** vs the committed gallery
-  (the shared passes cache; the RT pipeline stays uncached by the guard). Audit: PLAN header synced
-  to the tagged v0.7.20, AGENTS MOD5 note marked shipped.
-- **v0.7.20** (consumes Harmonia v0.7.21, Aether v0.8.1): **Vulkan capability wave consumed.**
-  No transport or renderer-code change - the release banks the Harmonia v0.7.21 capability
-  wave through the pin: VK21 memory-budget startup log + offscreen-capture guard, VK18
-  present-timing telemetry (query-only), VK4 subgroup-set adoption, and the capability-track
-  closure (VK19 stay-verdict, VK20/VK22 verified, VK5 blocked-by-driver). Full local suites
-  (75/75 against the capability wave); all lint lanes.
-- **v0.7.19** (consumes Harmonia v0.7.20, Aether v0.8.1): **GI-SMS sampling and the reference mode.** Bounded initial SMS work with the shared compute sampler and the actual-event classifier adapters, plus the SMS-off reference mode that produced the C1/C2/C3 qualification references (4096-spp split-seed uncertainty <=0.5%). Full local suites; all lint lanes.
-- **v0.7.18** (consumes Harmonia v0.7.19, Aether v0.8.1): **sampling, seed and accumulation correctness.** `--spp N` schedules N single-sample logical captures, the CLI seed reaches raygen, sample streams advance by frame, and shared accumulation is the sole history owner. Multi-sample captures reject disabled accumulation. All 30 README scenes regenerated at 1280x720 / 64 spp with validation. Full local 55/55; all lint lanes. No SMS integration.
-- **v0.7.13** (consumes Harmonia v0.7.13): **translation units
-  open `namespace hyperion` + the arch gate.** `PathTracer.cpp`, `ShaderBindingTable.cpp`,
-  `scene/Scene.cpp` and `ShaderPaths.hpp` defined their methods fully qualified at global
-  scope — inconsistent with the family style; they now open `namespace hyperion` (call
-  sites qualified). tools/check_layers.py (ctest `test_layers`, label `analysis`): the
-  `scene` ← `renderer` ← `demo` DAG, file-level cycle detection, and any `theia/` include
-  fails (**Hyperion never depends on Theia**). 49/49 ctest on Windows; Linux build-only
-  green; 3-scene smoke at release settings pixel-identical (MAD = 0) to the gallery.
-- **v0.7.12** (consumes Harmonia v0.7.12): **the layering change.** Hyperion's classes
-  (`PathTracer`, `ShaderBindingTable`, `Scene`, `Application`) move out of `harmonia::`/global
-  scope into **`namespace hyperion`**, symmetric with `theia::`; all `harmonia::` references
-  name their layer (`harmonia::core::Buffer`, `harmonia::rt::TlasBuilder`, …). Stale
-  `harmonia::Pipeline` forward declarations corrected to `harmonia::renderer::`. Docs
-  README gallery regenerated from this code — **byte-identical** to the previous
-  set (clean tree). 48/48 ctest on Windows and Linux; zero validation errors and warnings.
-- **v0.7.11** (consumes Harmonia v0.7.10 + transitive slang-math v0.3.0): **dual-OS
-  CI; refactoring (HY-01 + H-04 follow-through); descriptor-range fix; regenerated
-  gallery.** Build-only CI on windows-latest + ubuntu-26.04 (the GPU suites stay local).
-  **HY-01:** dead MOD1 descriptor-write scaffolding deleted from
-  `PathTracer::writeFrameDescriptors` (~85 lines of never-consumed `VkWriteDescriptorSet`
-  payload; `tlasHandle` stays). **H-04 follow-through:** `Math::luminance` Middle Man inlined
-  at its four test call sites. **Fix** (`range-08045` follow-through): `updateSceneSet`/
-  `updateFrameSet` pass `Buffer` refs so descriptor ranges are the buffers' true creation
-  sizes. README gallery regenerated at release settings — **pixel-identical to the v0.7.10
-  gallery (MAD = 0 on all 30 scenes)**. 48/48 ctest green on both OSes; offscreen
-  `--validation` clean.
-- **v0.7.10**: **C9 sampler/PDF consistency tests (the net that caught a 35% shared-BSDF
-  bias).**
-- **v0.7.9**: **--depth honoured, RT recursion depth corrected; consumes Harmonia v0.7.9.**
- 
-- **v0.7.8**: consumes Harmonia v0.7.8 (VK11 `shaderDemoteToHelperInvocation`;
-  OpenPBR 1.1.2 conformance: `specular_weight` > 1 with the spec's ξ_s·F_s ≤ 1 clamp, and the
-  transmission negative-μ_a gray-shift) and Aether v0.7.4 (spec defaults: coat_ior 1.6,
-  thin_film_ior 1.4, thin_film_thickness 500 nm). New conformance test
-  `Bsdf.SpecularWeightAboveOneBoostsDielectricF0WithinSpecClamp` (the >1 boost is real; an
-  extreme weight stays furnace-bounded) + the test-side `openpbrModulatedEta` mirror synced.
-  Tooling (presets / check_tidy.py + test_tidy / HYPERION_SANITIZER / deterministic FP).
-  43 ctest green.
-- **v0.7.7**: **C14/VK2 — real OpenPBR `geometry_opacity` cutout.** A shadow-only
-  any-hit hit-group pair (`anyhit.slang`, `triangleShadowAnyHit`/`sphereShadowAnyHit`)
-  accumulates the ∏(1-α) transmittance product and ends the search early on a fully-present
-  hit; the radiance hit groups carry no any-hit (camera/indirect opacity stays the estimator's
-  stochastic gate). SBT/pipeline widened from 2 to 4 hit-group records
-  (`Pipeline::kHitGroupCount`); sphere instances moved to record offset 2. 42 ctest green;
-  `shaderball_checker` verified PASS (with-extension vs without-extension image-identical).
-- **v0.7.6**: consumed Harmonia's Vulkan capability adoption (VK6/VK8/VK10) live; no
-  Hyperion-specific changes.
-- **v0.7.5**: **B4** (emissive analytic-sphere NEE — uniform-cone sampling with the
-  light-selection pdf folded in; non-uniform-scaled ellipsoids skipped; + test scene & unit
-  tests), **B5** (`--no-postfx` made real; unknown CLI args hard-error), **FB1** (the
-  `traceRaysIndirect2`→`traceRays` fallback removed — `ray_tracing_maintenance1` is now a hard
-  requirement). 142 ctest across the family; validation 58/58 clean.
-- **v0.7.4**: two-tier denoiser output contract consumed (A-SVGF forced off for `--output`).
-- **v0.7.3**: refactoring (R6 RAII handles, R12 namespaces); 29-scene gallery
-  regenerated. No rendering behavior change.
-- **v0.7.2**: Extract Function refactoring (`PathTracer::render` 155L and others); no behavior change.
-- **v0.7.1**: bug fixes B1 (emission gate on winding side via `SV_IsFrontFace`), B2
-  (`round()`→`floor()` reprojection).
-- **Earlier (v0.6.19 → v0.7.0):** OpenPBR conformance **C0–C7** — the full
-  `Harmonia/shaders/bsdf_shared.slang` ↔ MaterialX audit is closed; Hyperion's BSDF *is* the conformance
-  ground truth. Point-by-point detail in `git log`.
+| Version | Date | Content |
+|---------|------|---------|
+| Unreleased | — | Motion blur in sequence captures through Harmonia's `--shutter` and `--time-samples`: the accumulation is kept across the time samples of an output frame |
+| v1.0.0 | 2026-11-26 | Stable baseline, released with Harmonia v1.0.0 and Aether v1.0.0. Aether declared as an external include boundary in the architecture contract; static-analysis findings in the manifold-sampling and BSDF tests removed; documentation-reference check in strict mode |
+| v0.12.0 | 2026-11-24 | Camera assembled by Harmonia's shared `CameraAssembly`; the rendered image is unchanged |
+| v0.11.0 | 2026-11-23 | Documentation aligned with the code; static-analysis repairs |
+| v0.10.0 | 2026-11-20 | Camera placement required: the private default view for Cornell scenes is deleted, and the shared scene loader rejects a scene without a camera |
+| v0.9.0 | 2026-11-16 | Deformation (linear-blend and dual-quaternion skinning, morph targets) through Harmonia's shared `DeformPass`; camera bound to an animated node; frame seek and time-based sequence capture; one animation clock |
+| v0.7.21 | 2026-11-07 | Pipeline binary cache applied to the ray-tracing pipeline: a pipeline without a usable driver key is built from its shaders; gallery re-rendered with the cache enabled, byte-identical |
+| v0.7.20 | 2026-11-06 | Harmonia's Vulkan capability wave taken over through the dependency pin; no change to the renderer |
+| v0.7.19 | 2026-11-05 | Specular manifold sampling with the shared compute sampler and the path classifier, and the reference mode without it (`--sms-mode off`) |
+| v0.7.18 | 2026-11-03 | Sampling, seed and accumulation correctness: `--spp N` accumulates N single-sample captures, the seed reaches the shaders, the shared accumulation is the only history owner |
+| v0.7.17 | 2026-10-30 | Dead-code check; one CMake target per module; gallery refreshed |
+| v0.7.16 | 2026-10-27 | Dependency pins |
+| v0.7.15 | 2026-10-17 | Lint configuration of the family (blocking lint job in CI); coverage script fixed |
+| v0.7.14 | 2026-10-16 | `Scene` implements Harmonia's ray-tracing scene hooks and owns its TLAS; coverage lane; architecture contract replaces the earlier layering check |
+| v0.7.13 | 2026-10-15 | Translation units open `namespace hyperion`; layering check |
+| v0.7.12 | 2026-10-11 | Hyperion's classes move into `namespace hyperion`; gallery regenerated, byte-identical |
+| v0.7.11 | 2026-10-09 | Continuous integration on Windows and Linux; descriptor ranges use the buffers' real sizes; gallery regenerated, pixel-identical |
+| v0.7.10 | 2026-09-28 | Consistency tests between sampler and density for the bounded visible-normal sampling of the shared BSDF |
+| v0.7.9 | 2026-09-26 | `--depth` honored; pipeline recursion depth corrected to the constant 2 |
+| v0.7.8 | 2026-09-23 | OpenPBR 1.1.2 conformance of the shared BSDF (`specular_weight` above 1, transmission gray-shift) and new specification defaults, taken over through the dependency pins; conformance test added |
+| v0.7.7 | 2026-08-02 | OpenPBR opacity cut-out with a shadow any-hit pair; four hit groups in the pipeline; opacity micromaps |
+| v0.7.6 | 2026-08-02 | Harmonia's Vulkan capability adoption taken over; no change to Hyperion |
+| v0.7.5 | 2026-08-01 | Next-event estimation for emissive analytic spheres; `--no-postfx`; unknown command-line arguments are errors; `VK_KHR_ray_tracing_maintenance1` becomes a hard requirement |
+| v0.7.4 | 2026-07-30 | Denoiser switched off for `--output` captures |
+| v0.7.3 | 2026-07-29 | Refactoring; 29-scene gallery regenerated; no change to the rendering |
+| v0.7.2 | 2026-07-29 | Refactoring; no change to the behavior |
+| v0.7.1 | 2026-07-26 | Fixes: emission added on the correct side of an emitter; reprojection |
+| v0.7.0 | 2026-07-25 | v0.6.19 to v0.7.0: OpenPBR conformance of the shared BSDF checked against MaterialX |

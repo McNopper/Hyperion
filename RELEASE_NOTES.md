@@ -1,78 +1,69 @@
-# Hyperion v1.0.0 (2026-11-26) - major stable release
+# Hyperion v1.0.0 (2026-11-26) — stable release
 
-Stable public baseline for the ground-truth path tracer. Coordinates with
-**Harmonia v1.0.0 + Aether v1.0.0**.
+First stable release. It is released together with Harmonia v1.0.0 and Aether v1.0.0, the
+versions it pins.
 
-## Stability review
-- Declared Aether as an explicit external include boundary.
-- Removed deterministic analyzer debt in SMS/BSD test code.
-- Adopted strict documentation-reference checks.
-- Architecture and dead-code gates remain clean.
+## Changes
+
+- Aether is declared as an external include boundary in the architecture contract.
+- Static-analysis findings in the manifold-sampling and BSDF tests are removed.
+- The documentation-reference check runs in strict mode: every path that a document mentions
+  must exist.
 
 ## Verification
-- Full suite: **79/79**
-- `verify-full`, `check_arch`, `check_dead`, and `check_docs_refs --strict`: clean.
 
-## Release mechanics
-- Local release-preparation commits only. Push and v1.0.0 tags require explicit authorization.
+- Test suites: 79 of 79 pass.
+- `verify-full`, the architecture check, the dead-code check and the strict
+  documentation-reference check report no finding.
 
 ---
 
-# Hyperion v0.12.0 (2026-11-24) - minor release
+# Hyperion v0.12.0 (2026-11-24)
 
-Offline path-tracer release consuming **Harmonia v0.12.0 + Aether v0.12.0**.
+Consumes Harmonia v0.12.0 and Aether v0.12.0.
 
-## Shipped
-- CAM-1: scene-camera assembly and animated placement now come from Harmonia's shared
-  `CameraAssembly`. The ground-truth path-tracer camera behavior is unchanged.
+## Changes
 
-## Receipts
-- Shared camera assembly: **7/7** tests; Hyperion: **79/79**.
-- Direct capture identity: `mean_diff=0`, `rel_mse=0`, `SSIM=1.0`, `PSNR=inf`.
-- Parity: **14/14 PASS**. Full-gallery Vulkan validation: **60/60 clean**.
+- The camera is assembled by Harmonia's shared `CameraAssembly`. The rendered image is unchanged.
+
+## Verification
+
+- Test suites: 79 of 79 pass. Harmonia's camera-assembly tests: 7 of 7 pass.
+- A direct capture is identical before and after the change: `mean_diff` 0, `rel_mse` 0, SSIM 1.0,
+  PSNR infinite.
+- Parity comparison: 14 of 14 scenes pass. Vulkan validation over the full gallery: 60 of 60 runs
+  without a message.
 
 ## Gallery
-- Fresh README gallery regenerated at 1280x720 / 64 spp.
-- **30/30 byte-identical** to the tracked README gallery.
 
-## Release mechanics
-- Local release-preparation commits. Owner screenshot review complete; push and `v0.12.0`
-  tags proceed together.
+- README gallery regenerated at 1280×720 with 64 samples per pixel: 30 of 30 images byte-identical
+  to the tracked gallery.
 
 ---
 
-# Hyperion v0.9.0 (2026-11-16) - minor release
+# Hyperion v0.9.0 (2026-11-16)
 
-Offline path tracer (ground truth) release consuming **Harmonia v0.9.0 + Aether v0.9.0**.
+Consumes Harmonia v0.9.0 and Aether v0.9.0.
 
-## Shipped
-- **Deformation (ANI4/ANI5 renderer half)**: the shared `DeformPass` runs from the animation
-  tick (stage -> rest->morph->skin dispatch -> mesh-local copy -> BLAS refit), with the
-  `scene.vertexRest` rest copy and `meshSceneVertexOffsets` substrate. **DQS** rides the shared
-  job/staging with zero renderer code. The ground-truth renderer keeps bit-exact estimator
-  properties (no estimator change; deformation only rewrites skinned/morphed vertices).
-- **Parity gate**: recalibrated thresholds (mean<=120 / rel<=250 / SSIM>=0.6 / hist>=0.8) -
-  fresh manifest run **14/14 PASS** (this renderer is the reference side; 0 VUID).
-- Triage sync: C11 consumed-claim removed, C12 confirmed shipped.
+## Changes
 
-## Receipts
-- Unit suite **43/43**; end-to-end sequence renders (skin/morph/DQS fixtures): exit 0,
-  **0 VUID / 0 validation messages**, motion proof (frame0 vs frame2 mean_diff 10.1-10.3).
+- Deformation: skinned and morphed meshes are rendered through Harmonia's shared `DeformPass`
+  (linear-blend and dual-quaternion skinning, morph targets). The estimator is unchanged.
+- Parity thresholds recalibrated in Harmonia's scene manifest: `mean_diff` ≤ 120, Rel-MSE ≤ 250,
+  SSIM ≥ 0.6, luminance-histogram correlation ≥ 0.8. A fresh run passes 14 of 14 scenes.
+- Camera bound to an animated node (`[camera] node`): the camera is placed once per animation
+  time. `--frame N` starts the animation at frame N; `--sequence-frames 1 --frame N` renders one
+  accumulated image at animation frame N.
+- One animation clock and time-based sequence capture: `--capture-every-ms` and `--start-seconds`
+  together with `--sequence-frames`.
 
-## Release mechanics
-- Local commits only: **tag `v0.9.0`, push commits + tag together** (pins reference the new
-  Harmonia/Aether tags; local builds use `FETCHCONTENT_SOURCE_DIR_*` overrides).
+## Verification
 
-## Also in this release (added after the notes assembly)
-
-- **ANI8 half** (commit c70dbf7): per-tick camera-from-node placement in
-  `record()` (setPosition/setTarget/setUp/setNearFar, own tick guard) and the
-  offline movie-image path `--sequence-frames 1 --frame N` = one fully
-  accumulated image at tick N. Receipts: 43/43, `--frame 0/58` pair mean_diff
-  122.9 (1.7% from Theia's 124.9), 0 VUID on every run.
-- **One animation clock + time-based capture (2026-11-16):** `--capture-every-ms`
-  / `--start-seconds` (with `--sequence-frames`) sample animation time at
-  fixed intervals for movie-frame ranges; scene/deform/TLAS/camera share
-  `App::animationClock`. Receipts: 43/43, interval == tick-grid equivalence
-  0.000, 0 VUID.
-
+- Unit suite: 43 of 43 pass.
+- Sequence renders of the skin, morph and dual-quaternion fixtures: exit code 0 and no
+  validation message; motion is visible (frame 0 against frame 2: `mean_diff` 10.1 to 10.3).
+- `camera_orbit` rendered at `--frame 0` and `--frame 58` (Hyperion 256 samples per pixel, Theia
+  64): the difference between the two frames is `mean_diff` 122.9 for Hyperion, within 1.7% of
+  Theia's 124.9.
+- An interval capture (`--capture-every-ms 33.33`) and a frame-grid capture at t = 1/30 s give the
+  same image up to noise: mean difference 0.000, SSIM 1.000.
