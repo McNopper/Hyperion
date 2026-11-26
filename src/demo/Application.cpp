@@ -325,7 +325,12 @@ void hyperion::Application::record(VkCommandBuffer cmd, const harmonia::app::Ren
             if (const VkResult r = m_scene.updateTlas(deviceContext(), commandPool()); r != VK_SUCCESS) {
                 harmonia::core::Logger::error("TLAS update failed: VkResult {}", static_cast<std::int32_t>(r));
             }
-            resetAccumulation();
+            // A sequence capture restarts accumulation once per output frame
+            // and owns that restart: with a shutter the tick changes from
+            // sample to sample inside one frame, and all of them accumulate.
+            if (!sequenceCaptureActive()) {
+                resetAccumulation();
+            }
             if (!config().outputFile.empty() && config().sequenceFrames == 0U && !m_animatedCaptureWarned) {
                 m_animatedCaptureWarned = true;
                 harmonia::core::Logger::warn(
