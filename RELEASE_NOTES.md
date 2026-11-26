@@ -1,3 +1,23 @@
+# Hyperion v1.0.0 (2026-11-26) - major stable release
+
+Stable public baseline for the ground-truth path tracer. Coordinates with
+**Harmonia v1.0.0 + Aether v1.0.0**.
+
+## Stability review
+- Declared Aether as an explicit external include boundary.
+- Removed deterministic analyzer debt in SMS/BSD test code.
+- Adopted strict documentation-reference checks.
+- Architecture and dead-code gates remain clean.
+
+## Verification
+- Full suite: **79/79**
+- `verify-full`, `check_arch`, `check_dead`, and `check_docs_refs --strict`: clean.
+
+## Release mechanics
+- Local release-preparation commits only. Push and v1.0.0 tags require explicit authorization.
+
+---
+
 # Hyperion v0.12.0 (2026-11-24) - minor release
 
 Offline path-tracer release consuming **Harmonia v0.12.0 + Aether v0.12.0**.

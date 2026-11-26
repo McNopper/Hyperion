@@ -1,10 +1,11 @@
 # PLAN — Hyperion
 
-**Minor release:** v0.12.0 - CAM-1 scene-camera assembly deduplication consumed through
-Harmonia's shared `CameraAssembly`; Hyperion's path-tracer camera behavior is unchanged.
-Shared tests 7/7, Hyperion 79/79, parity 14/14, gallery validation 60/60. Fresh README
-gallery regenerated 30/30 byte-identical. Project version and Aether/Harmonia pins are
-0.12.0. No approved implementation roadmap item remains; work continues on `main`.
+**Major release:** v1.0.0 - stable public baseline. Hyperion consumes Harmonia's shared
+camera assembly with unchanged ground-truth behavior. Reviewed and rubber-ducked code/docs;
+removed deterministic analyzer debt, declared external include boundaries, and adopted
+strict documentation-reference checks. Full gates: Hyperion 79/79; architecture and
+dead-code gates clean. Project version and Aether/Harmonia pins are 1.0.0. No approved
+implementation roadmap item remains.
 
 **GI-SMS status:** Hyperion ships the SMS sampling path and the SMS-off reference
 mode that produced the independent references for Theia's C1/C2/C3 qualification
