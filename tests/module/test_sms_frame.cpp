@@ -439,8 +439,8 @@ class SmsFrameFixture : public RtFixture {
                             integral +=
                                 weights[ix] * weights[iz] * .0625 * cosAir * geometric * (1 - fresnel) * (1 - fresnel);
                         }
-                    slabPredictions.push_back(
-                        {std::size_t{y} * kExtent.width + x, integral * .5 / std::numbers::pi * 10 / 1.2});
+                    slabPredictions.emplace_back(std::size_t{y} * kExtent.width + x,
+                                                 integral * .5 / std::numbers::pi * 10 / 1.2);
                 }
             EXPECT_LE(maximumResidual, 1e-12) << "Independent scalar Snell oracle must converge";
         }

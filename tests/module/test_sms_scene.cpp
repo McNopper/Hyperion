@@ -411,8 +411,8 @@ TEST_F(SmsSceneFixture, ProductionSlabRootsMatchSnellFromOffRootSeeds) {
                                              : std::sin(angle) / (std::cos(angle) * radius * derivative);
         for (auto seed : {sm::float3(0, 0, 0), sm::float3(.5F, .2F, 0), sm::float3(-.8F, -.4F, 0)}) {
             inputs.push_back({{0, 0, 2, 0}, {static_cast<float>(radius), 0, -3.8F, 0}, sm::float4(seed, 0)});
-            firstRoots.push_back({static_cast<float>(first), 0, 0});
-            secondRoots.push_back({static_cast<float>(second), 0, -.8F});
+            firstRoots.emplace_back(static_cast<float>(first), 0, 0);
+            secondRoots.emplace_back(static_cast<float>(second), 0, -.8F);
             expectedGeometry.push_back(geometry);
         }
     }

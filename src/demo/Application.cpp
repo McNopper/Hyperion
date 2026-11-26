@@ -1,5 +1,6 @@
 #include "demo/Application.hpp"
 
+#include <aether/format/SceneAnimator.hpp>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -7,7 +8,6 @@
 #include <slang-math/slang-math.hpp>
 #include <utility>
 
-#include "aether/format/SceneAnimator.hpp"
 #include "harmonia/core/Barrier.hpp"
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/renderer/CameraAssembly.hpp"

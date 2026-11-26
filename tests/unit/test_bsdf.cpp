@@ -1900,7 +1900,7 @@ namespace {
 // Eq. 5, with Eq. 6's conservative alpha = min(ax, ay, 1). k is built from the
 // UNSTRETCHED i_z even though the cap half-width below multiplies the stretched z.
 [[nodiscard]] double c9k(const sm::float3& v, float alphaX, float alphaY) noexcept {
-    const float a = std::min(std::min(alphaX, alphaY), 1.0F);
+    const float a = std::min({alphaX, alphaY, 1.0F});
     const float sLen = 1.0F + std::sqrt((v.x * v.x) + (v.y * v.y));
     const double a2 = static_cast<double>(a) * a;
     const double s2 = static_cast<double>(sLen) * sLen;
