@@ -32,6 +32,8 @@ struct PushConstants {
     uint  workingColorSpace;     ///< 0 = linear Rec.2020, 1 = linear Rec.709 (used by tonemap pass)
     uint  smsPartitionResolution;
     SmsWorkRecord* smsWork;
+    float hazeDensity;           ///< [haze] extinction per metre at height zero; 0 = no haze
+    float hazeHeight;            ///< [haze] metres at which the extinction has fallen to 1/e
 };
 
 [raypayload]
@@ -65,6 +67,10 @@ struct RayPayload {
     uint   smsCaster     : read(caller, closesthit) : write(caller, closesthit);
     uint   smsCasterMat  : read(caller, closesthit) : write(caller, closesthit);
     bool   smsPrefixSpecular : read(caller, closesthit) : write(caller, closesthit);
+    // Distance from the camera to the surface its ray ends on (kInf for the sky).
+    // Set by the closest-hit and the miss shader of the first segment; the ray
+    // generation reads it for the distance haze.
+    float  primaryT      : read(caller)            : write(caller, closesthit, miss);
 };
 
 /// Shadow-ray payload. `transmittance` is the running ∏(1-α) accumulated by the

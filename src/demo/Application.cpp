@@ -213,7 +213,9 @@ bool hyperion::Application::onSceneLoaded(const harmonia::scene::SceneLoader::Sc
                                      .envImportanceHeight = (probe && hasIbl) ? probe->cdfHeight() : 0u,
                                      .tonemapper = static_cast<harmonia::Tonemapper>(tonemapper()),
                                      .workingColorSpace = workingColorSpace(),
-                                     .serEnabled = deviceContext().serSupported},
+                                     .serEnabled = deviceContext().serSupported,
+                                     .hazeDensity = sceneConfig.hazeDensity.value_or(0.0f),
+                                     .hazeHeight = sceneConfig.hazeHeight.value_or(0.0f)},
         m_shaderDir);
     if (!tracer) {
         harmonia::core::Logger::error("hyperion::PathTracer creation failed: VkResult {}",

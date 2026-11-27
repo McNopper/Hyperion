@@ -138,6 +138,8 @@ void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd,
         // Off mode: the shaders treat resolution 0 as "no SMS" (no slot init, no collection).
         .smsPartitionResolution = m_config.smsEnabled ? m_config.smsPartitionResolution : 0u,
         .smsWork = m_sms.workBuffer().deviceAddress(),
+        .hazeDensity = m_config.hazeDensity,
+        .hazeHeight = m_config.hazeHeight,
     };
     vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(harmonia::PushConstants), &pushConstants);
 }

@@ -53,6 +53,13 @@ executable (`HYPERION_SHADER_DIR`), never from the working directory.
   [README.md, Producing a reference render](README.md#producing-a-reference-render).
 - A capture of an animated scene needs `--sequence-frames`. Without it the accumulation restarts
   at every sample and the image is a single-sample snapshot of the last animation time.
+- A scene with a `[haze]` section renders with its distance haze: the ray-generation shader
+  composites each sample through the shared `Harmonia/shaders/haze.slang`, and the ray payload
+  carries the distance to the primary surface for it (`primaryT` in `shaders/common.slang`).
+  Shadow and secondary rays do not pass through the medium. Theia applies the same module, so
+  the haze is compared like every estimator change.
+- With `--glare` the PNG of a capture carries Harmonia's lens glare and the EXR does not. A
+  reference render is an EXR and is never affected by it.
 
 ## Test scenes
 

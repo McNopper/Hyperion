@@ -2,6 +2,8 @@ import common;
 import math;
 import medium_walk;
 import sms_work;
+import env;
+import haze;
 
 [shader("raygeneration")]
 void pathTracingRaygen()
@@ -57,6 +59,9 @@ void pathTracingRaygen()
         payload.smsClass = 1u; // clean primary; null/unsupported interactions clear it
         payload.smsCaster = payload.smsCasterMat = 0u;
         payload.smsPrefixSpecular = true;
+        // Distance to the surface the camera ray ends on (kInf for the sky):
+        // written by the closest-hit and the miss shader of the first segment.
+        payload.primaryT = kInf;
         // Initialize EVERY slot's metadata, including misses and SMS-off runs: the
         // resolve/validate pass checks samples/dimensions per slot even when the
         // phase stays Absent. Collection below stays gated on partition resolution.
@@ -115,6 +120,17 @@ void pathTracingRaygen()
         float3 sampleRadiance = max(payload.radiance * camera.exposure, 0.0.xxx);
         if (!all(isfinite(sampleRadiance)) || any(isnan(sampleRadiance))) {
             sampleRadiance = 0.0.xxx;
+        }
+        // Distance haze: the medium between the camera and the surface the ray
+        // ends on. The sky (infinite distance) is the radiance the haze fades
+        // into and is left as it is. The sample is exposed radiance, so the
+        // in-scattered sky carries the same exposure.
+        const Haze haze = {pushConst.hazeDensity, pushConst.hazeHeight};
+        if (hazeActive(haze) && payload.primaryT < kInf) {
+            const float tau = hazeOpticalDepth(haze, rayOrigin, rayOrigin + rayDir * payload.primaryT);
+            const float3 sky = camera.exposure * pushConst.envLuminanceScale *
+                               sampleEnvMapAtLevel(rayDir, kHazeSkyLod);
+            sampleRadiance = hazeComposite(sampleRadiance, tau, sky);
         }
 
         totalRadiance += sampleRadiance;

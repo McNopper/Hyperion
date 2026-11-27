@@ -48,6 +48,10 @@ class PathTracer {
         harmonia::utils::ColorSpace::WorkingColorSpace workingColorSpace =
             harmonia::utils::ColorSpace::WorkingColorSpace::LinRec2020;
         bool serEnabled = false; ///< Enable VK_EXT_ray_tracing_invocation_reorder when supported.
+        /// Distance haze of the scene ([haze]): the extinction per metre at height zero
+        /// and the height in metres at which it has fallen to 1/e. 0 = no haze.
+        float hazeDensity = 0.0f;
+        float hazeHeight = 0.0f;
     };
 
     [[nodiscard]] static std::expected<hyperion::PathTracer, VkResult>

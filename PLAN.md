@@ -19,6 +19,7 @@ specific to Hyperion is open.
 | Thin lens without an aperture | The ray-generation shader contains a thin-lens model, but the scene camera sets the lens radius to 0. No scene key selects an aperture, so every render is a pinhole image. |
 | Ellipsoid emitters | An emissive analytic sphere with a non-uniform instance scale is skipped by next-event estimation with a warning. |
 | Cross-mode captures agree only up to noise | Two captures of the same animation time made by different routes (an output frame of `--sequence-frames`, and a single capture with `--frame`) use different sample indices, so their pixels differ at noise level. Repeating the same route reproduces the pixels exactly. |
+| Distance haze is a sky-blend model | The in-scattered light of a `[haze]` scene is the environment map blurred to six degrees, the sun disc included. A sun disc with a physical radiance would make everything white in its direction where haze is present. The maps in use have their sun disc clipped, so the model is right for them (Harmonia's `PLAN.md` has the number). |
 
 ## What follows next
 
@@ -93,7 +94,7 @@ before v0.6.19 are recorded only in the git history.
 
 | Version | Date | Content |
 |---------|------|---------|
-| Unreleased | — | Motion blur in sequence captures through Harmonia's `--shutter` and `--time-samples`: the accumulation is kept across the time samples of an output frame |
+| Unreleased | — | Motion blur in sequence captures through Harmonia's `--shutter` and `--time-samples`: the accumulation is kept across the time samples of an output frame. Distance haze of a scene with a `[haze]` section: the ray-generation shader composites each sample through the shared `haze.slang` and the ray payload carries the distance to the primary surface. At 1024 samples per pixel on `haze`, the transmittance read back from five cubes matches the formula within 0.006. The lens glare of Harmonia (`--glare`) is in the PNG of a capture and leaves the EXR untouched, which is exact in Hyperion because a capture repeats exactly |
 | v1.0.0 | 2026-11-26 | Stable baseline, released with Harmonia v1.0.0 and Aether v1.0.0. Aether declared as an external include boundary in the architecture contract; static-analysis findings in the manifold-sampling and BSDF tests removed; documentation-reference check in strict mode |
 | v0.12.0 | 2026-11-24 | Camera assembled by Harmonia's shared `CameraAssembly`; the rendered image is unchanged |
 | v0.11.0 | 2026-11-23 | Documentation aligned with the code; static-analysis repairs |

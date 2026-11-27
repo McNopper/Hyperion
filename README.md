@@ -178,8 +178,14 @@ For every pixel, the ray-generation shader (`shaders/raygen.slang`) traces
    [Camera model](#camera-model)).
 2. It follows the path in a loop. Each iteration traces one ray; the closest-hit or miss shader
    updates the path state carried in the ray payload (`shaders/common.slang`): accumulated
-   radiance, throughput, the next ray, the random-number state and the medium state.
-3. It multiplies the radiance by the camera exposure, limits the sample at zero from below,
+   radiance, throughput, the next ray, the random-number state, the distance to the primary
+   surface and the medium state.
+3. It composites the radiance of the sample with the distance haze of a scene that has a `[haze]`
+   section: the shared module `Harmonia/shaders/haze.slang` fades the radiance of the camera ray
+   with the transmittance from the camera to the primary surface and adds the sky in the direction
+   of the ray, read from a strongly blurred level of the environment map. A sample whose primary
+   ray reaches the sky is left as it is. Shadow and secondary rays do not pass through the medium.
+4. It multiplies the radiance by the camera exposure, limits the sample at zero from below,
    replaces a non-finite value by zero and adds the sample to the pixel sum.
 
 The loop ends when the path terminates, when the maximum number of surface interactions
@@ -528,9 +534,14 @@ The common flags parsed by Harmonia that matter for Hyperion:
 | `--rng-seed <n>` | 305419896 | Base seed of the random-number sequence. |
 | `--validation` / `--no-validation` | enabled | Vulkan validation layers. Validation stays on unless it is switched off explicitly. |
 | `--sequence-frames <N>` | 0 | With `--output`: renders N animation frames to disk instead of one accumulated image. Needed for a clean capture of an animated scene. |
+| `--glare <f>`, `--glare-threshold <f>` | 0, 1.0 | Lens glare, a presentation stage of Harmonia. It is in the PNG of a capture and never in the EXR, so a reference render is not affected by it. |
 
 The complete list, including the animation and presentation flags, is in the
 [Harmonia README](https://github.com/McNopper/Harmonia/blob/main/README.md#command-line-flags).
+
+A scene with a `[haze]` section is rendered with its distance haze (see
+[Ray generation and the path loop](#ray-generation-and-the-path-loop)); nothing is switched on
+for it.
 
 ### Interactive window
 

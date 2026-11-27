@@ -28,6 +28,7 @@ void backgroundMiss(inout RayPayload payload)
         const uint2 pix = DispatchRaysIndex().xy;
         gNormal[pix] = float4(0.0, 0.0, 0.0, 0.0);
         gDepth[pix]  = kInf;
+        payload.primaryT = kInf;
     }
 
     float3 Le = evalEnvironment(WorldRayDirection(), pushConst.envLuminanceScale);

@@ -198,6 +198,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         const uint2 pix = DispatchRaysIndex().xy;
         gNormal[pix] = float4(hit.normal, 0.0);
         gDepth[pix]  = RayTCurrent();
+        payload.primaryT = RayTCurrent();
     }
 
     GpuInstance instance = instances[hit.instanceIndex];
