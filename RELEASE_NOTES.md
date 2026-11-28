@@ -3,7 +3,10 @@
 Pre-alpha development snapshot and GitHub backup. Consumes the shared OpenPBR/color-management
 corrections in Harmonia v1.0.0-pre-alpha and applies the shared medium-exit radiance transport in
 the ray-tracing adapter. Verification: **84/84** tests pass. The README gallery is regenerated for
-this snapshot. Detailed OpenPBR Shader Playground validation continues after the prerelease.
+this snapshot: 30/30 renders complete and all 30 tracked/staged/diff triplets are reviewed.
+Selected native title official-pixel SSIM is **0.708761**; the optional agent-initiated native
+top-down Hyperion experiment scores **0.436860**. Detailed OpenPBR Shader Playground validation
+continues after the prerelease.
 
 ---
 
