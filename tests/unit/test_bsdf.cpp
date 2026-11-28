@@ -99,26 +99,25 @@ struct LobeWeights {
 
     const float opacity = sm::saturate(mat.opacityFlagsPad.x);
     const std::uint32_t flags = static_cast<std::uint32_t>(mat.opacityFlagsPad.y);
-    const bool glassMode = (flags == 2u);
 
     const float baseWeight = sm::saturate(mat.baseColorWeight.w);
     const float metalness = flags == 1u ? 1.0F : sm::saturate(mat.baseMetalnessDiffRough.x);
-    const float transmission = glassMode ? 1.0F : sm::saturate(mat.transmissionColorWeight.w);
+    const float transmission = sm::saturate(mat.transmissionColorWeight.w);
+    const bool glassMode = transmission >= 1.0F && metalness <= 0.0F && mat.specularRoughAnisoIor.x < 0.05F;
     weights.coatWeight = sm::saturate(mat.coatColorWeight.w);
     weights.fuzzWeight = sm::saturate(mat.fuzzColorWeight.w);
-    weights.subsurfaceWeight = sm::saturate(mat.subsurfaceColorWeight.w) * (1.0F - transmission);
-    const float opaqueBase = baseWeight * (1.0F - transmission);
-    weights.diffuseWeight = opaqueBase * (1.0F - metalness) * (1.0F - weights.subsurfaceWeight);
-    // G3 (spec): specular_weight modulates the dielectric F0/eta (see the modulated eta below), NOT
-    // the dielectric lobe weight; for the metal base it is applied directly as the metal BSDF weight.
-    // At specular_weight=0 the modulated eta→1 (no interface, zero reflection at all angles); the
-    // generalized-Schlick Fresnel keeps a grazing term at F0=0, so gate the dielectric lobe to vanish
-    // as specular_weight→0 (a no-op at the default specular_weight=1).
+    // OpenPBR 1.1.2: T mixes only the opaque/translucent substrates. The common dielectric
+    // reflection sits above that whole mixture. base_weight belongs to diffuse/metal, not SSS
+    // or the dielectric interface (MaterialX diffuse_bsdf.weight and metal_reflectivity).
+    const float dielectricBase = 1.0F - metalness;
+    const float opaqueBase = dielectricBase * (1.0F - transmission);
+    const float subsurface = sm::saturate(mat.subsurfaceColorWeight.w);
+    weights.subsurfaceWeight = opaqueBase * subsurface;
+    weights.diffuseWeight = baseWeight * opaqueBase * (1.0F - subsurface);
     const float specularParam = sm::saturate(mat.specularColorWeight.w);
-    const float dielectricPresence = sm::smoothstep(0.0F, 0.03F, specularParam);
-    weights.specularWeight = opaqueBase * (1.0F - metalness) * dielectricPresence;
+    weights.specularWeight = glassMode ? 0.0F : dielectricBase;
     weights.metalWeight = baseWeight * metalness * specularParam;
-    weights.transmissionWeight = baseWeight * transmission;
+    weights.transmissionWeight = dielectricBase * transmission;
 
     weights.diffuseTransWeight = 0.0F;
     const bool thinWalled = mat.opacityFlagsPad.w > 0.5F;
@@ -714,7 +713,6 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
     sm::float3 result(0.0F);
     if (wiL.z > 0.0F && woL.z > 0.0F) {
         const sm::float3 dielectricF0 = iorToF0(eta);
-        sm::float3 glossyF0 = sm::lerp(dielectricF0 * specColor, baseColor, sm::saturate(mat.baseMetalnessDiffRough.x));
         const sm::float3 glossyF82 = specColor;
         const float specF0 = harmonia::utils::ColorSpace::luminance(dielectricF0 * specColor);
         auto underSpec = [&](float c) {
@@ -735,9 +733,13 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
             result += baseLayerScale * diffuseUnderSpec * weights.subsurfaceWeight *
                       evalDiffuse(subsurfaceColor, diffuseRough, woL, wiL);
         }
-        if (weights.specularWeight > 0.0F || weights.metalWeight > 0.0F) {
-            result += baseLayerScale * (weights.specularWeight + weights.metalWeight) *
-                      evalReflectionMicrofacet(glossyF0, glossyF82, woL, wiL, alphaX, alphaY);
+        if (weights.specularWeight > 0.0F) {
+            result += baseLayerScale * weights.specularWeight *
+                      evalReflectionMicrofacet(dielectricF0 * specColor, glossyF82, woL, wiL, alphaX, alphaY);
+        }
+        if (weights.metalWeight > 0.0F) {
+            result += baseLayerScale * weights.metalWeight *
+                      evalReflectionMicrofacet(baseColor, glossyF82, woL, wiL, alphaX, alphaY);
         }
         if (weights.fuzzWeight > 0.0F) {
             result += weights.fuzzWeight * evalSheen(fuzzColor, sm::saturate(mat.fuzzRoughPad.x), woL, wiL);
@@ -950,6 +952,53 @@ TEST(Bsdf, OpenPbrLobeWeightsKeepOpacitySeparateFromTransmission) {
     EXPECT_FLOAT_EQ(opaqueWeights.specularWeight, cutoutWeights.specularWeight);
 }
 
+TEST(Bsdf, OpenPbrPartialTransmissionMatchesReferenceLobeMixture) {
+    struct Case {
+        float transmission;
+        float metalness;
+        float baseWeight;
+        float flags;
+        std::array<float, 4> expected; // diffuse, SSS, specular, transmission
+    };
+    const std::array cases{
+        Case{0.25F, 0.0F, 1.0F, 0.0F, {0.375F, 0.375F, 1.0F, 0.25F}},
+        Case{0.50F, 0.0F, 1.0F, 2.0F, {0.250F, 0.250F, 1.0F, 0.50F}},
+        Case{0.75F, 0.0F, 1.0F, 2.0F, {0.125F, 0.125F, 1.0F, 0.75F}},
+        Case{1.00F, 0.0F, 1.0F, 0.0F, {0.000F, 0.000F, 1.0F, 1.00F}}, // rough full glass keeps GGX R
+        Case{0.50F, 0.25F, 1.0F, 0.0F, {0.1875F, 0.1875F, 0.75F, 0.375F}},
+        Case{0.50F, 0.0F, 0.0F, 0.0F, {0.000F, 0.250F, 1.0F, 0.50F}},
+    };
+    for (const auto& c : cases) {
+        auto mat = makeMaterial();
+        mat.transmissionColorWeight = sm::float4(1.0F, 1.0F, 1.0F, c.transmission);
+        mat.baseMetalnessDiffRough.x = c.metalness;
+        mat.baseColorWeight.w = c.baseWeight;
+        mat.subsurfaceColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 0.5F);
+        mat.opacityFlagsPad.y = c.flags;
+        const auto w = computeLobeWeights(mat);
+        SCOPED_TRACE(c.transmission);
+        EXPECT_NEAR(w.diffuseWeight, c.expected[0], 1.0e-6F);
+        EXPECT_NEAR(w.subsurfaceWeight, c.expected[1], 1.0e-6F);
+        EXPECT_NEAR(w.specularWeight, c.expected[2], 1.0e-6F);
+        EXPECT_NEAR(w.transmissionWeight, c.expected[3], 1.0e-6F);
+    }
+}
+
+TEST(Bsdf, OpenPbrBaseWeightDoesNotLeakIntoFractionalDielectricReflection) {
+    auto mixed = makeMaterial();
+    mixed.baseColorWeight = sm::float4(0.0F); // black base and no metal weight
+    mixed.baseMetalnessDiffRough.x = 0.5F;
+    auto dielectric = mixed;
+    dielectric.baseMetalnessDiffRough.x = 0.0F;
+    const sm::float3 n(0.0F, 0.0F, 1.0F), t(1.0F, 0.0F, 0.0F), b(0.0F, 1.0F, 0.0F);
+    const auto mixedValue = evalBSDF(mixed, n, n, n, t, b, n, t, b);
+    const auto dielectricValue = evalBSDF(dielectric, n, n, n, t, b, n, t, b);
+    ASSERT_GT(dielectricValue.y, 1.0e-8F);
+    EXPECT_NEAR(mixedValue.x, 0.5F * dielectricValue.x, 1.0e-6F);
+    EXPECT_NEAR(mixedValue.y, 0.5F * dielectricValue.y, 1.0e-6F);
+    EXPECT_NEAR(mixedValue.z, 0.5F * dielectricValue.z, 1.0e-6F);
+}
+
 TEST(Bsdf, OpenPbrThinWalledSubsurfaceSplitConservesWeight) {
     harmonia::GpuMaterial mat = makeMaterial();
     mat.subsurfaceColorWeight = sm::float4(0.0F, 0.0F, 0.0F, 0.8F);
@@ -998,8 +1047,8 @@ TEST(Bsdf, OpenPbrThinWalledSubsurfaceColorAppliesExactlyOnce) {
     const sm::float3 wi = sm::normalize(sm::float3(-0.35F, 0.10F, 0.930F));
 
     harmonia::GpuMaterial mat = makeMaterial();
-    mat.baseColorWeight.w = 0.0F; // no diffuse/specular base — isolate the thin-walled sheet so
-                                  // the eval is purely subsurface_color-driven
+    mat.baseColorWeight.w = 0.0F;               // no diffuse base; base_weight does not gate SSS
+    mat.specularColorWeight = sm::float4(0.0F); // isolate the sheet from dielectric reflection
     mat.subsurfaceColorWeight = sm::float4(0.25F, 0.25F, 0.25F, 0.8F);
     mat.opacityFlagsPad.w = 1.0F;
 

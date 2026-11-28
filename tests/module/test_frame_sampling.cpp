@@ -70,6 +70,11 @@ class FrameSamplingFixture : public RtFixture {
         const auto mesh = m_scene.addMesh(deviceCtx(), commandPool(), std::move(data), {}, "test.emitter");
         ASSERT_NE(mesh, std::numeric_limits<std::uint32_t>::max());
         ASSERT_NE(m_scene.addInstance(mesh, {}, material), std::numeric_limits<std::uint32_t>::max());
+        auto sun = std::make_unique<harmonia::scene::DirectionalLight>();
+        sun->direction = {0, 0, -1};
+        sun->illuminance = 0.0F;
+        m_sun = sun.get();
+        ASSERT_NE(m_scene.addLight(std::move(sun)), std::numeric_limits<std::uint32_t>::max());
         ASSERT_EQ(m_scene.build(deviceCtx(), commandPool()), VK_SUCCESS);
         ASSERT_EQ(m_descriptors->updateSceneSet(deviceCtx(),
                                                 m_scene.instanceBuffer(),
@@ -144,10 +149,10 @@ class FrameSamplingFixture : public RtFixture {
         ASSERT_NE(m_readback.mapped, nullptr);
     }
 
-    void frame(float emission, std::uint32_t index, bool accumulate) {
+    void frame(float emission, std::uint32_t index, bool accumulate, float illuminance = 0.0F, float opacity = 1.0F) {
         auto cmd = commandPool().beginOneShot();
         ASSERT_TRUE(cmd.has_value());
-        if (index == 0) {
+        if (!m_imagesInitialized) {
             for (auto* image : {&m_hdr, &m_normal, &m_depth})
                 image->transition(*cmd,
                                   VK_IMAGE_LAYOUT_UNDEFINED,
@@ -156,9 +161,13 @@ class FrameSamplingFixture : public RtFixture {
                                   0,
                                   VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR,
                                   VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT);
+            m_imagesInitialized = true;
         }
-        auto material = harmonia::scene::Material::emissive(sm::float3(1), emission).gpu();
+        auto material = harmonia::scene::Material::emissive(sm::float3(1), emission).opacity(opacity).gpu();
         vkCmdUpdateBuffer(*cmd, m_scene.materialBuffer().handle(), 0, sizeof(material), &material);
+        m_sun->illuminance = illuminance;
+        const auto sun = m_sun->toGpu();
+        vkCmdUpdateBuffer(*cmd, m_scene.lightBuffer().handle(), 0, sizeof(sun), &sun);
         const VkMemoryBarrier2 updated{.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
                                        .pNext = nullptr,
                                        .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -229,9 +238,11 @@ class FrameSamplingFixture : public RtFixture {
     hyperion::Scene m_scene;
     hyperion::PathTracer m_tracer;
     harmonia::renderer::Camera m_camera;
+    harmonia::scene::DirectionalLight* m_sun = nullptr;
     harmonia::core::Image m_hdr, m_normal, m_depth;
     harmonia::pipeline::AccumulationPass m_accumulation;
     Readback m_readback;
+    bool m_imagesInitialized = false;
     std::array<float, 3> m_last{};
 };
 
@@ -247,4 +258,19 @@ TEST_F(FrameSamplingFixture, SharedAccumulationIsTheOnlyHistoryOwner) {
     expectColor(0.25F);
     ASSERT_NO_FATAL_FAILURE(frame(0.75F, 1, true));
     expectColor(0.5F);
+}
+
+TEST_F(FrameSamplingFixture, EmissionAddsToTheOpenPbrSurfaceBsdf) {
+    ASSERT_NO_FATAL_FAILURE(frame(0.0F, 0, false, 1.0F));
+    const auto reflected = m_last;
+    ASSERT_NO_FATAL_FAILURE(frame(0.25F, 0, false, 1.0F));
+    for (std::size_t channel = 0; channel < m_last.size(); ++channel) {
+        SCOPED_TRACE(channel);
+        EXPECT_NEAR(m_last[channel] - reflected[channel], 0.25F * m_camera.physicalCamera().exposure(), 2.0e-5F);
+    }
+}
+
+TEST_F(FrameSamplingFixture, OpacityGateOwnsEmissionAsWellAsTheBsdf) {
+    ASSERT_NO_FATAL_FAILURE(frame(0.25F, 0, false, 0.0F, 0.0F));
+    expectColor(0.0F);
 }

@@ -44,7 +44,7 @@ adopted.
 
 | Measurement | Value | What it measures |
 |-------------|-------|------------------|
-| Test suites | 80 of 80 pass (current working tree) | Unit, module and integration suites of this repository |
+| Test suites | 84 of 84 pass (current working tree) | Unit, module and integration suites of this repository |
 | Parity comparison | 14 of 14 scenes pass: `mean_diff` ≤ 120, Rel-MSE ≤ 250, SSIM ≥ 0.6, luminance-histogram correlation ≥ 0.8 (320×240; Hyperion 256 samples per pixel, Theia 256 frames) | Agreement between Theia and the Hyperion reference under Harmonia's thresholds; these thresholds belong to this budget |
 | Gallery | 30 of 30 PNGs byte-identical when regenerated at 1280×720 with 64 samples per pixel | Reproducibility of a capture and stability of the rendering path |
 | Vulkan validation over the full gallery | 60 of 60 runs without a validation message or application warning | Valid Vulkan usage on every scene |
@@ -93,7 +93,7 @@ before v0.6.19 are recorded only in the git history.
 
 | Version | Date | Content |
 |---------|------|---------|
-| Unreleased | — | Motion blur in sequence captures through Harmonia's `--shutter` and `--time-samples`: the accumulation is kept across the time samples of an output frame. Distance haze of a scene with a `[haze]` section: the ray-generation shader composites each sample through the shared `haze.slang` and the ray payload carries the distance to the primary surface. At 1024 samples per pixel on `haze`, the transmittance read back from five cubes matches the formula within 0.006. The lens glare of Harmonia (`--glare`) is in the PNG of a capture and leaves the EXR untouched, which is exact in Hyperion because a capture repeats exactly. An anisotropic material without a tangent map stretches its highlight along the texture coordinates (Harmonia's shared `surface.slang`); the gallery screenshots of `openpbr_specular` and `openpbr_metals` are rendered with the new frame |
+| Unreleased | — | The OpenPBR conformance mirror covers fractional transmission and verifies with the real ray tracer that emission adds to the coexisting BSDF and that an opacity pass-through emits nothing. Motion blur in sequence captures through Harmonia's `--shutter` and `--time-samples`: the accumulation is kept across the time samples of an output frame. Distance haze of a scene with a `[haze]` section: the ray-generation shader composites each sample through the shared `haze.slang` and the ray payload carries the distance to the primary surface. At 1024 samples per pixel on `haze`, the transmittance read back from five cubes matches the formula within 0.006. The lens glare of Harmonia (`--glare`) is in the PNG of a capture and leaves the EXR untouched, which is exact in Hyperion because a capture repeats exactly. An anisotropic material without a tangent map stretches its highlight along the texture coordinates (Harmonia's shared `surface.slang`); the gallery screenshots of `openpbr_specular` and `openpbr_metals` are rendered with the new frame |
 | v1.0.0 | 2026-11-26 | Stable baseline, released with Harmonia v1.0.0 and Aether v1.0.0. Aether declared as an external include boundary in the architecture contract; static-analysis findings in the manifold-sampling and BSDF tests removed; documentation-reference check in strict mode |
 | v0.12.0 | 2026-11-24 | Camera assembled by Harmonia's shared `CameraAssembly`; the rendered image is unchanged |
 | v0.11.0 | 2026-11-23 | Documentation aligned with the code; static-analysis repairs |
