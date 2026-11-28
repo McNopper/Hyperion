@@ -22,6 +22,7 @@ struct PushConstants {
     uint  rngSeed;
     float envLuminanceScale;
     uint  lightCount;          ///< number of active GpuLights in lights buffer
+    uint  analyticLightCount;  ///< analytic prefix, before synthesized emissive lights
     uint  outputColorSpace;    ///< OutputColorSpace enum (used by tonemap pass)
     uint  samplesPerPixel;     ///< samples accumulated per pixel this dispatch
     uint  hasEnvMap;           ///< 1 = IBL env map bound in set1/binding6, 0 = black background

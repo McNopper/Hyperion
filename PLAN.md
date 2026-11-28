@@ -16,7 +16,6 @@ specific to Hyperion is open.
 | Limitation | Detail |
 |------------|--------|
 | Specular manifold sampling covers two cases | It is verified for a planar mirror and for closed smooth glass whose interior is a pure absorber. Ordinary path tracing handles everything else: scattering media, dispersion, rough specular surfaces, chains with more than one specular vertex, and receivers that follow a diffuse bounce. Curved casters are not excluded by the code but are not validated by the fixtures. Reservoir reuse does not exist in Hyperion. |
-| Thin lens without an aperture | The ray-generation shader contains a thin-lens model, but the scene camera sets the lens radius to 0. No scene key selects an aperture, so every render is a pinhole image. |
 | Ellipsoid emitters | An emissive analytic sphere with a non-uniform instance scale is skipped by next-event estimation with a warning. |
 | Cross-mode captures agree only up to noise | Two captures of the same animation time made by different routes (an output frame of `--sequence-frames`, and a single capture with `--frame`) use different sample indices, so their pixels differ at noise level. Repeating the same route reproduces the pixels exactly. |
 | Distance haze is a sky-blend model | The in-scattered light of a `[haze]` scene is the environment map blurred to six degrees, the sun disc included. A sun disc with a physical radiance would make everything white in its direction where haze is present. The maps in use have their sun disc clipped, so the model is right for them (Harmonia's `PLAN.md` has the number). |
@@ -45,7 +44,7 @@ adopted.
 
 | Measurement | Value | What it measures |
 |-------------|-------|------------------|
-| Test suites | 79 of 79 pass (v1.0.0) | Unit, module and integration suites of this repository |
+| Test suites | 80 of 80 pass (current working tree) | Unit, module and integration suites of this repository |
 | Parity comparison | 14 of 14 scenes pass: `mean_diff` ≤ 120, Rel-MSE ≤ 250, SSIM ≥ 0.6, luminance-histogram correlation ≥ 0.8 (320×240; Hyperion 256 samples per pixel, Theia 256 frames) | Agreement between Theia and the Hyperion reference under Harmonia's thresholds; these thresholds belong to this budget |
 | Gallery | 30 of 30 PNGs byte-identical when regenerated at 1280×720 with 64 samples per pixel | Reproducibility of a capture and stability of the rendering path |
 | Vulkan validation over the full gallery | 60 of 60 runs without a validation message or application warning | Valid Vulkan usage on every scene |

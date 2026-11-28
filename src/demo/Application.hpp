@@ -78,7 +78,7 @@ class Application final : public harmonia::app::App,
     /// ANI8: re-place m_camera from the bound node's evaluated world at
     /// @p tick (position/target/up + scene-scale clip planes). No-op without
     /// a bound camera node.
-    void placeBoundCamera(double seconds);
+    void placeBoundCamera();
     [[nodiscard]] VkResult setupSceneDescriptors();
     void transitionTargetsOnFirstUse(VkCommandBuffer cmd) noexcept;
 

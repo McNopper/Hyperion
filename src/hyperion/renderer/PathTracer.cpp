@@ -6,9 +6,12 @@
 #include "harmonia/core/Logger.hpp"
 #include "harmonia/renderer/Descriptors.hpp"
 #include "harmonia/renderer/Pipeline.hpp"
+#include "harmonia/vulkan_init/PhysicalDevice.hpp"
 #include "hyperion/renderer/ShaderBindingTable.hpp"
 #include "hyperion/scene/Scene.hpp"
 namespace hyperion {
+
+static_assert(sizeof(harmonia::PushConstants) <= harmonia::vulkan_init::kRequiredPushConstantsSize);
 
 // VK_EXT_ray_tracing_invocation_reorder runtime command. Not yet in the SDK volk/headers
 // on all toolchains, so load it dynamically and fall back to a no-op if unavailable.
@@ -127,6 +130,7 @@ void hyperion::PathTracer::pushFrameConstants(VkCommandBuffer cmd,
         .rngSeed = m_config.rngSeed,
         .envLuminanceScale = m_config.envLuminance,
         .lightCount = scene.lightCount(),
+        .analyticLightCount = scene.analyticLightCount(),
         .outputColorSpace = static_cast<std::uint32_t>(m_config.outputColorSpace),
         .samplesPerPixel = m_config.samplesPerPixel,
         .hasEnvMap = m_config.hasEnvMap,

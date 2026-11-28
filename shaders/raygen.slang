@@ -128,8 +128,13 @@ void pathTracingRaygen()
         const Haze haze = {pushConst.hazeDensity, pushConst.hazeHeight};
         if (hazeActive(haze) && payload.primaryT < kInf) {
             const float tau = hazeOpticalDepth(haze, rayOrigin, rayOrigin + rayDir * payload.primaryT);
+            // The blur of the in-scattered sky is an angle: the mip level follows the
+            // width of the environment map, as it does in Theia (hazeSkyLod).
+            uint envWidth = 0u;
+            uint envHeight = 0u;
+            envMap.GetDimensions(envWidth, envHeight);
             const float3 sky = camera.exposure * pushConst.envLuminanceScale *
-                               sampleEnvMapAtLevel(rayDir, kHazeSkyLod);
+                               sampleEnvMapAtLevel(rayDir, hazeSkyLod(float(envWidth)));
             sampleRadiance = hazeComposite(sampleRadiance, tau, sky);
         }
 

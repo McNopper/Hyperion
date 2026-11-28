@@ -151,7 +151,8 @@ Hyperion's classes live in `namespace hyperion`; shared classes live in `namespa
   shaders, dispatched indirectly through `vkCmdTraceRaysIndirect2KHR`.
 - Unidirectional path tracing with configurable bounce depth and sample count, converging
   without bias.
-- Next-event estimation for emissive triangles, emissive analytic spheres and the environment
+- Next-event estimation for emissive triangles, emissive analytic spheres, the environment, and
+  the scene's analytic point, spot, directional and rectangular lights
   map, with multiple importance sampling between environment sampling and BSDF sampling.
 - OpenPBR Surface v1.1.2 through the shared Harmonia BSDF: thin-film iridescence, dispersion,
   coat, fuzz, and subsurface and transmission rendered as a volumetric random walk.

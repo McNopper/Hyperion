@@ -249,11 +249,11 @@ bool hyperion::Application::buildCamera(const harmonia::scene::SceneLoader::Scen
     return true;
 }
 
-void hyperion::Application::placeBoundCamera(double seconds) {
+void hyperion::Application::placeBoundCamera() {
     if (!m_cameraNodeId || m_scene.attachedScene() == nullptr) {
         return;
     }
-    const auto pose = aether::SceneAnimator::evaluateCamera(*m_scene.attachedScene(), static_cast<float>(seconds));
+    const auto pose = aether::SceneAnimator::cameraPoseFromEvaluated(*m_scene.evaluatedScene());
     if (!pose) {
         return; // hand-built scene without a placement - keep the current view
     }
@@ -300,9 +300,10 @@ void hyperion::Application::record(VkCommandBuffer cmd, const harmonia::app::Ren
     // trip the animation block's accumulation reset (offline would never
     // converge) - that case re-places the camera idempotently instead.
     const harmonia::app::App::AnimationClock clock = animationClock(m_scene.animationFps());
-    if (m_cameraNodeId && clock.key != m_cameraTick) {
+    const bool cameraTick = m_cameraNodeId && clock.key != m_cameraTick;
+    if (cameraTick && !m_scene.hasAnimation()) {
         m_cameraTick = clock.key;
-        placeBoundCamera(clock.seconds);
+        placeBoundCamera(); // a static placement never evaluates the scene
     }
     if (m_scene.hasAnimation() || m_scene.hasSkins() || m_scene.hasMorphs()) {
         if (clock.key != m_lastAnimationTick) {
@@ -310,6 +311,10 @@ void hyperion::Application::record(VkCommandBuffer cmd, const harmonia::app::Ren
             const float seconds = static_cast<float>(clock.seconds);
             if (m_scene.hasAnimation()) {
                 m_scene.setAnimationTime(seconds);
+                if (cameraTick) {
+                    m_cameraTick = clock.key;
+                    placeBoundCamera(); // reads the same evaluated scene; no second evaluation
+                }
             }
             if (m_deformPass.has_value()) {
                 if (const VkResult deformResult = m_deformPass->execute(deviceContext(),

@@ -761,13 +761,13 @@ transmissionPdf(float eta, float alphaX, float alphaY, const sm::float3& wo, con
         const float transAlphaX = alphaX;
         const float transAlphaY = alphaY;
         result +=
-            weights.transmissionWeight *
+            baseLayerScale * weights.transmissionWeight *
             evalTransmissionMicrofacet(transColor, mat.transmissionParams.x, eta, transAlphaX, transAlphaY, woL, wiL);
     }
 
     if (weights.diffuseTransWeight > 0.0F && woL.z > 0.0F && wiL.z < 0.0F) {
         const sm::float3 wiR(wiL.x, wiL.y, -wiL.z);
-        result += weights.diffuseTransWeight * evalDiffuse(subsurfaceColor, diffuseRough, woL, wiR);
+        result += baseLayerScale * weights.diffuseTransWeight * evalDiffuse(subsurfaceColor, diffuseRough, woL, wiR);
     }
 
     (void)opacity;
@@ -1017,6 +1017,36 @@ TEST(Bsdf, OpenPbrThinWalledSubsurfaceColorAppliesExactlyOnce) {
     EXPECT_NEAR(e2.x, 2.0F * e1.x, 1.0e-4F * e1.x);
     EXPECT_NEAR(e2.y, 2.0F * e1.y, 1.0e-4F * e1.y);
     EXPECT_NEAR(e2.z, 2.0F * e1.z, 1.0e-4F * e1.z);
+}
+
+TEST(Bsdf, OpenPbrCoatColorAttenuatesTheTransmissionSubstrate) {
+    const sm::float3 wo = sm::normalize(sm::float3(0.20F, 0.10F, 0.97F));
+    const sm::float3 wi = sm::normalize(sm::float3(-0.10F, 0.05F, -0.995F));
+    const sm::float3 N(0.0F, 0.0F, 1.0F);
+    const sm::float3 T(1.0F, 0.0F, 0.0F);
+    const sm::float3 B(0.0F, 1.0F, 0.0F);
+    const sm::float3 tint(0.30F, 0.60F, 0.90F);
+
+    for (const float depth : {0.0F, 0.25F}) {
+        harmonia::GpuMaterial white = makeMaterial();
+        white.transmissionColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
+        white.transmissionParams.x = depth;
+        white.coatColorWeight = sm::float4(1.0F, 1.0F, 1.0F, 1.0F);
+        white.coatRoughAnisoIorDark = sm::float4(0.10F, 0.0F, 1.70F, 0.25F);
+        harmonia::GpuMaterial colored = white;
+        colored.coatColorWeight = sm::float4(tint, 1.0F);
+
+        const sm::float3 reference = evalBSDF(white, wo, wi, N, T, B, N, T, B);
+        const sm::float3 actual = evalBSDF(colored, wo, wi, N, T, B, N, T, B);
+        ASSERT_GT(reference.x, 1.0e-8F) << "depth " << depth;
+        ASSERT_GT(reference.y, 1.0e-8F) << "depth " << depth;
+        ASSERT_GT(reference.z, 1.0e-8F) << "depth " << depth;
+        // Only coat_color changes. Darkening, IOR modulation and the sampling directions are
+        // identical, so the entire transmission substrate must scale by coat_color exactly.
+        EXPECT_NEAR(actual.x / reference.x, tint.x, 1.0e-4F) << "depth " << depth;
+        EXPECT_NEAR(actual.y / reference.y, tint.y, 1.0e-4F) << "depth " << depth;
+        EXPECT_NEAR(actual.z / reference.z, tint.z, 1.0e-4F) << "depth " << depth;
+    }
 }
 
 TEST(Bsdf, OpenPbrDispersionChannelAndFresnelContractsHold) {

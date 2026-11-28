@@ -281,6 +281,7 @@ void shadeSurface(inout RayPayload payload, HitInfo hit)
         pushConst.envImportanceWidth, pushConst.envImportanceHeight,
         (pushConst.hasEnvMap != 0u), pushConst.envLuminanceScale,
         envMap, envSampler,
+        lights, pushConst.analyticLightCount, true,
         state);
 
     if (pushConst.smsPartitionResolution != 0u) {
