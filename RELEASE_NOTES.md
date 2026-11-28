@@ -1,3 +1,12 @@
+# Hyperion v1.0.0-pre-alpha (2026-11-28) — prerelease
+
+Pre-alpha development snapshot and GitHub backup. Consumes the shared OpenPBR/color-management
+corrections in Harmonia v1.0.0-pre-alpha and applies the shared medium-exit radiance transport in
+the ray-tracing adapter. Verification: **84/84** tests pass. The README gallery is regenerated for
+this snapshot. Detailed OpenPBR Shader Playground validation continues after the prerelease.
+
+---
+
 # Hyperion v1.0.0 (2026-11-26) — stable release
 
 First stable release. It is released together with Harmonia v1.0.0 and Aether v1.0.0, the

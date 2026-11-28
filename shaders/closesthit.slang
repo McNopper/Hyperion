@@ -170,7 +170,7 @@ void shadeMediumBoundary(inout RayPayload payload, HitInfo hit)
                                 mediumIsPureAbsorber(payload.mediumAlbedo), RayTCurrent());
 
     float3 outOrigin, outDir;
-    bool exited = mediumResolveExit(payload.seed, payload.mediumEta,
+    bool exited = mediumResolveExit(payload.throughput, payload.seed, payload.mediumEta,
                                     WorldRayDirection(), outwardN, hit.position,
                                     outOrigin, outDir);
     payload.direction = outDir;
